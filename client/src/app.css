@@ -11,6 +11,31 @@ body {
 
 .app { display: flex; flex-direction: column; height: 100%; }
 
+/* --- top bar -------------------------------------------------------------- */
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #374151;
+  color: #e5e7eb;
+  font-size: 13px;
+  border-bottom: 1px solid #1f2937;
+}
+
+.top-bar .event-name { font-weight: 600; color: #f9fafb; }
+.top-bar .spacer { flex: 1; }
+.top-bar .conn { font-weight: 600; }
+
+.top-bar .brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.top-bar .brand-icon { width: 18px; height: 18px; display: block; }
+.top-bar .brand-text { font-weight: 600; letter-spacing: 0.5px; color: #f9fafb; }
+
 /* --- status bar ----------------------------------------------------------- */
 
 .status-bar {

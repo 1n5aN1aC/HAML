@@ -7,6 +7,7 @@ import { startSync, pullNow } from './sync.js'
 import { startSocket, setPresence } from './socket.js'
 import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage } from './chat.js'
 import StatusBar from './components/StatusBar.jsx'
+import TopBar from './components/TopBar.jsx'
 import ContactList from './components/ContactList.jsx'
 import ContactEntryForm from './components/ContactEntryForm.jsx'
 import StationsPanel from './components/StationsPanel.jsx'
@@ -138,12 +139,14 @@ export default function App() {
 
   return (
     <div className="app">
-      <StatusBar
+      <TopBar
+        connected={connected}
         eventName={event.name}
+      />
+      <StatusBar
         session={session}
         onSession={updateSession}
         config={config}
-        connected={connected}
       />
       <main className="panes">
         <section className="left-pane">

@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 const DEFAULT_MODE = (modes) =>
   modes.includes('Phone') ? 'Phone' : (modes[0] || '')
 
-export default function StatusBar({ eventName, session, onSession, config, connected }) {
+export default function StatusBar({ session, onSession, config }) {
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
   const mode = session.mode || DEFAULT_MODE(config.modes)
   const setMode = (e) => onSession({ ...session, mode: e.target.value })
@@ -18,7 +18,6 @@ export default function StatusBar({ eventName, session, onSession, config, conne
 
   return (
     <header className="status-bar">
-      <span className="event-name">{eventName || 'HAML'}</span>
       <input
         className="callsign"
         placeholder="Callsign"
@@ -51,12 +50,6 @@ export default function StatusBar({ eventName, session, onSession, config, conne
         </select>
       </label>
       <span className="spacer" />
-      <span
-        className={connected ? 'conn conn-ok' : 'conn conn-down'}
-        title={connected ? 'Connected to server' : 'Not connected — logging locally'}
-      >
-        ● {connected ? 'Connected' : 'Offline'}
-      </span>
     </header>
   )
 }
