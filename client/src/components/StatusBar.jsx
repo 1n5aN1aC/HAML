@@ -18,6 +18,7 @@ export default function StatusBar({ session, onSession, config }) {
 
   return (
     <header className="status-bar">
+      <span className="operator-info-label">Operator Info:</span>
       <input
         className="callsign"
         placeholder="Callsign"

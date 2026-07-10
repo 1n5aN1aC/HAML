@@ -57,8 +57,9 @@ body {
   color: #f9fafb;
 }
 
+.status-bar .operator-info-label { font-weight: 600; margin-right: 4px; }
 .status-bar .callsign { width: 110px; text-transform: uppercase; }
-.status-bar .initials { width: 70px; text-transform: uppercase; }
+.status-bar .initials { width: 70px; text-transform: uppercase; margin-right: 45px; }
 .status-bar .spacer { flex: 1; }
 
 .conn-ok { color: #34d399; }
