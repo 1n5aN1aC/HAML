@@ -45,7 +45,7 @@ export default function StationsPanel({ stations, clientUuid }) {
                   <td>{s.band}</td>
                   <td>{s.mode}</td>
                   <td className={`last-seen ${ageBand(age)}`}>
-                    {age < 5 ? 'Now' : `${age}s`}
+                    {age < 6 ? 'Now' : `${age}s`}
                   </td>
                 </tr>
               )

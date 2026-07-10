@@ -16,12 +16,12 @@ const ts = (iso) => Date.parse(iso)
 
 let engine = null
 
-// Starts the loops; onStatus(bool) reports connectivity after every server
-// exchange. Returns a stop function.
-export function startSync(onStatus) {
+// Starts the loops. The socket layer owns the connection indicator
+// This engine only cares about reachability for its own push backoff.
+// Returns a stop function.
+export function startSync() {
   stopSync()
   const e = {
-    onStatus,
     stopped: false,
     pushTimer: null,
     pullTimer: null,
@@ -86,7 +86,6 @@ async function pushPass(e) {
       break
     }
   }
-  e.onStatus(ok)
   return ok
 }
 
@@ -95,9 +94,9 @@ async function pullLoop(e) {
   clearTimeout(e.pullTimer)
   try {
     await pullPass()
-    e.onStatus(true)
   } catch {
-    e.onStatus(false)
+    // Pull failed; the socket layer reports reachability. Keep polling on
+    // the normal cadence — no extra backoff here.
   }
   if (e.stopped) return
   e.pullTimer = setTimeout(() => pullLoop(e), PULL_INTERVAL)

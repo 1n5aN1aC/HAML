@@ -32,18 +32,25 @@ export default function App() {
   }, [])
 
   // The sync engine and the WebSocket signal layer run whenever we're on a
-  // ready Event. REST exchanges drive the connection indicator; the socket
-  // drives presence, chat, pokes, and event-switch detection (ADR-0005).
+  // ready Event. The WebSocket owns the connection indicator; sync does
+  // data transfer. The socket also drives presence, chat, pokes, and
+  // event-switch detection (ADR-0005).
   useEffect(() => {
     if (state.status !== 'ready') return
     setConnected(state.connected)
-    const stopSync = startSync(setConnected)
+    // The WebSocket owns the connection indicator; sync just does data
+    // transfer. Sync push/pull failures no longer flicker the status.
+    const stopSync = startSync()
     const stopSocket = startSocket({
       onConnect: async () => {
+        setConnected(true)
         pullNow()
         setChat(await refreshChat())
       },
-      onDisconnect: () => setStations([]),
+      onDisconnect: () => {
+        setConnected(false)
+        setStations([])
+      },
       onPresence: setStations,
       onChat: async (message) => setChat(await applyChatBroadcast(message)),
       onPoke: pullNow,
