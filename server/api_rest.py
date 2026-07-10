@@ -147,6 +147,7 @@ async def admin_create_event(request):
     meta = events.create_event(data_dir, template, name.strip(),
                                station_callsign.strip().upper())
     set_active_connection(request.app, events.get_active_path(data_dir))
+    await request.app["notify_event"]()
     return web.json_response(meta, status=201)
 
 
@@ -157,6 +158,7 @@ async def admin_activate_event(request):
     if path is None:
         return json_error(404, "no such event")
     set_active_connection(request.app, path)
+    await request.app["notify_event"]()
     return web.json_response(request.app["event"])
 
 

@@ -161,3 +161,21 @@ def contact_to_json(row):
 def chat_history(conn):
     rows = conn.execute("SELECT * FROM chat ORDER BY sent_at")
     return [{key: r[key] for key in r.keys()} for r in rows]
+
+
+def insert_chat(conn, msg):
+    """Idempotent insert (client-generated UUID; resends are harmless).
+    Server stamps sent_at. Returns the stored row — the existing one when
+    the UUID was already present."""
+    conn.execute(
+        """INSERT OR IGNORE INTO chat
+           (uuid, sent_at, operator_callsign, operator_initials,
+            client_uuid, text)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (msg["uuid"], now_iso(), msg["operator_callsign"],
+         msg["operator_initials"], msg["client_uuid"], msg["text"]),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM chat WHERE uuid = ?",
+                       (msg["uuid"],)).fetchone()
+    return {key: row[key] for key in row.keys()}

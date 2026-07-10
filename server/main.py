@@ -2,10 +2,9 @@
 
 Usage: python server/main.py [config.json]
 
-Serves the REST API, and the built client from client/dist when it exists
-(during development the Vite dev server proxies to us instead). The WebSocket
-layer (presence/chat/pokes) arrives in a later milestone; until then `poke`
-is a no-op hook that api_rest already calls.
+Serves the REST API, the WebSocket signal layer (presence/chat/pokes), and
+the built client from client/dist when it exists (during development the
+Vite dev server proxies to us instead).
 """
 import sys
 from pathlib import Path
@@ -13,20 +12,17 @@ from pathlib import Path
 from aiohttp import web
 
 import api_rest
+import api_ws
 import events
 from config import load_config
 
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 
 
-async def noop_poke():
-    pass
-
-
 def build_app(cfg):
     app = web.Application()
     app["cfg"] = cfg
-    app["poke"] = noop_poke
+    api_ws.setup(app)  # defines app["poke"] / app["notify_event"]
     api_rest.set_active_connection(app, events.get_active_path(cfg["data_dir"]))
     api_rest.setup_routes(app)
     if CLIENT_DIST.is_dir():
