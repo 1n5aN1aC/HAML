@@ -74,7 +74,7 @@ body {
 .stations .you { font-weight: 400; color: #2563eb; }
 .stations .last-seen { text-align: right; color: #9ca3af; font-size: 12px; }
 .stations .last-seen.fresh { color: #16a34a; }   /* green: < 10s */
-.stations .last-seen.stale { color: #ca8a04; }   /* yellow: 10–60s */
+.stations .last-seen.stale { color: #eab308; }   /* yellow: 10–60s */
 .stations .last-seen.old   { color: #ea580c; }   /* orange: > 60s */
 
 /* --- chat panel -------------------------------------------------------------- */
