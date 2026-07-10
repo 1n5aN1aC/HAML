@@ -13,7 +13,9 @@ import LoggingTab from './components/LoggingTab.jsx'
 import RadioTab from './components/RadioTab.jsx'
 import AdminTab from './components/AdminTab.jsx'
 
-const EMPTY_SESSION = { callsign: '', initials: '', band: '', mode: '' }
+const OFF_AIR = 'Off-Air'
+
+const EMPTY_SESSION = { callsign: '', initials: '', band: OFF_AIR, mode: '' }
 
 export default function App() {
   const [state, setState] = useState({ status: 'loading' })
@@ -133,7 +135,10 @@ export default function App() {
   const { event, clientUuid } = state
   const config = event.config
   const sessionComplete = Boolean(
-    session.callsign.trim() && session.initials.trim() && session.band && session.mode,
+    session.callsign.trim() &&
+      session.initials.trim() &&
+      session.band !== OFF_AIR &&
+      session.mode,
   )
 
   return (

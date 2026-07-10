@@ -36,8 +36,7 @@ export default function StatusBar({ session, onSession, config }) {
       <label className="band-label">
         Band:&nbsp;
         <select value={session.band} onChange={set('band')}>
-          <option value="">Off-Air</option>
-          {config.bands.map((b) => (
+          {['Off-Air', ...config.bands].map((b) => (
             <option key={b} value={b}>{b}</option>
           ))}
         </select>
