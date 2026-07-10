@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../db.js'
 import { pushNow } from '../sync.js'
+import { newUuid } from '../uuid.js'
 
 function defaultValues(fields) {
   return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
@@ -33,7 +34,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     const offset = (await kvGet('clock_offset')) ?? 0
     const now = new Date(Date.now() + offset).toISOString()
     await db.contacts.put({
-      uuid: crypto.randomUUID(),
+      uuid: newUuid(),
       qso_at: now,
       created_at: now,
       last_edited: now,

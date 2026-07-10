@@ -7,6 +7,7 @@
 import { db, kvGet } from './db.js'
 import { getChat } from './api.js'
 import { sendChat as socketSend } from './socket.js'
+import { newUuid } from './uuid.js'
 
 const wire = ({ uuid, operator_callsign, operator_initials, client_uuid, text }) => ({
   uuid, operator_callsign, operator_initials, client_uuid, text,
@@ -41,7 +42,7 @@ export async function applyChatBroadcast(message) {
 export async function sendMessage({ text, session, clientUuid }) {
   const offset = (await kvGet('clock_offset')) ?? 0
   const message = {
-    uuid: crypto.randomUUID(),
+    uuid: newUuid(),
     // Provisional, for local ordering only — the server restamps on store.
     sent_at: new Date(Date.now() + offset).toISOString(),
     operator_callsign: session.callsign.trim().toUpperCase(),

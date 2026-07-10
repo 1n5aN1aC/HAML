@@ -3,6 +3,7 @@
 // `kv` holds client identity, session, cached event config, and sync cursor.
 
 import Dexie from 'dexie'
+import { newUuid } from './uuid'
 
 export const db = new Dexie('haml')
 
@@ -28,7 +29,7 @@ export async function kvSet(key, value) {
 export async function getClientUuid() {
   let uuid = await kvGet('client_uuid')
   if (!uuid) {
-    uuid = crypto.randomUUID()
+    uuid = newUuid()
     await kvSet('client_uuid', uuid)
   }
   return uuid
