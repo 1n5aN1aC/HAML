@@ -36,6 +36,25 @@ body {
 .top-bar .brand-icon { width: 18px; height: 18px; display: block; }
 .top-bar .brand-text { font-weight: 600; letter-spacing: 0.5px; color: #f9fafb; }
 
+.top-bar .tabs { display: flex; gap: 4px; }
+
+.top-bar .tab {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.top-bar .tab:hover { background: #4b5563; }
+.top-bar .tab.active { background: #4b5563; color: #fff; }
+
+.tab-page { padding: 20px; }
+.tab-page .placeholder { color: #9ca3af; font-style: italic; }
+
 /* --- status bar ----------------------------------------------------------- */
 
 .status-bar {

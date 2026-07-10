@@ -1,4 +1,6 @@
-// App shell: boot, session gating, and the two-pane layout (plan §3.5).
+// App shell: boot, session gating, and the tabbed layout (plan §3.5).
+// All background machinery (sync, socket, presence, chat) lives here so
+// it keeps running no matter which tab is shown.
 
 import { useEffect, useState } from 'react'
 import { boot } from './boot.js'
@@ -6,13 +8,10 @@ import { kvGet, kvSet } from './db.js'
 import { startSync, pullNow } from './sync.js'
 import { startSocket, setPresence } from './socket.js'
 import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage } from './chat.js'
-import StatusBar from './components/StatusBar.jsx'
 import TopBar from './components/TopBar.jsx'
-import ContactList from './components/ContactList.jsx'
-import ContactEntryForm from './components/ContactEntryForm.jsx'
-import StationsPanel from './components/StationsPanel.jsx'
-import ChatPanel from './components/ChatPanel.jsx'
-import ContactModal from './components/ContactModal.jsx'
+import LoggingTab from './components/LoggingTab.jsx'
+import RadioTab from './components/RadioTab.jsx'
+import AdminTab from './components/AdminTab.jsx'
 
 const EMPTY_SESSION = { callsign: '', initials: '', band: '', mode: '' }
 
@@ -22,7 +21,7 @@ export default function App() {
   const [connected, setConnected] = useState(false)
   const [stations, setStations] = useState([])
   const [chat, setChat] = useState([])
-  const [editing, setEditing] = useState(null)
+  const [tab, setTab] = useState('logging')
 
   useEffect(() => {
     ;(async () => {
@@ -142,41 +141,24 @@ export default function App() {
       <TopBar
         connected={connected}
         eventName={event.name}
+        activeTab={tab}
+        onTab={setTab}
       />
-      <StatusBar
-        session={session}
-        onSession={updateSession}
-        config={config}
-      />
-      <main className="panes">
-        <section className="left-pane">
-          <ContactList config={config} onSelect={setEditing} />
-          <ContactEntryForm
-            config={config}
-            session={session}
-            clientUuid={clientUuid}
-            disabled={!sessionComplete}
-          />
-        </section>
-        <aside className="right-pane">
-          <StationsPanel stations={stations} clientUuid={clientUuid} />
-          <ChatPanel
-            messages={chat}
-            onSend={handleChatSend}
-            onResend={handleChatResend}
-            disabled={!session.callsign.trim() || !session.initials.trim()}
-          />
-          <div className="future-panel" />
-        </aside>
-      </main>
-      {editing && (
-        <ContactModal
-          contact={editing}
+      {tab === 'logging' && (
+        <LoggingTab
+          session={session}
+          onSession={updateSession}
           config={config}
           clientUuid={clientUuid}
-          onClose={() => setEditing(null)}
+          sessionComplete={sessionComplete}
+          stations={stations}
+          chat={chat}
+          onChatSend={handleChatSend}
+          onChatResend={handleChatResend}
         />
       )}
+      {tab === 'radio' && <RadioTab />}
+      {tab === 'admin' && <AdminTab />}
     </div>
   )
 }
