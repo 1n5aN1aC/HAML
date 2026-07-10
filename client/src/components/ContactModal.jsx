@@ -7,13 +7,27 @@ import { pushNow } from '../sync.js'
 import { validateContact } from '../contact-validation.js'
 import FieldInput from './FieldInput.jsx'
 
-// ISO ↔ the datetime-local input, treated as UTC on both sides.
-const isoToInput = (iso) => new Date(iso).toISOString().slice(0, 16)
-const inputToIso = (value) => new Date(value + 'Z').toISOString()
+// ISO ↔ datetime-local strings. UTC variant treats the input as UTC; local
+// variant treats the input as the browser's local time.
+const isoToUtcInput = (iso) => new Date(iso).toISOString().slice(0, 16)
+const isoToLocalInput = (iso) => {
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+const utcInputToIso = (value) => new Date(value + 'Z').toISOString()
+const localInputToIso = (value) => {
+  // datetime-local has no zone; the browser parses it as local time.
+  const d = new Date(value)
+  return isNaN(d) ? '' : d.toISOString()
+}
 
 export default function ContactModal({ contact, config, clientUuid, onClose }) {
   const [form, setForm] = useState({
-    qso_at: isoToInput(contact.qso_at),
+    qso_at: contact.qso_at,
+    qso_at_local: isoToLocalInput(contact.qso_at),
+    qso_at_utc: isoToUtcInput(contact.qso_at),
     remote_callsign: contact.remote_callsign,
     operator_callsign: contact.operator_callsign,
     operator_initials: contact.operator_initials,
@@ -23,6 +37,29 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
   })
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // When the user blurs either time field, re-derive the other from the
+  // canonical ISO timestamp kept in qso_at.
+  const onUtcBlur = () => {
+    const iso = utcInputToIso(form.qso_at_utc)
+    if (!iso || iso === form.qso_at) return
+    setForm({
+      ...form,
+      qso_at: iso,
+      qso_at_utc: isoToUtcInput(iso),
+      qso_at_local: isoToLocalInput(iso),
+    })
+  }
+  const onLocalBlur = () => {
+    const iso = localInputToIso(form.qso_at_local)
+    if (!iso || iso === form.qso_at) return
+    setForm({
+      ...form,
+      qso_at: iso,
+      qso_at_utc: isoToUtcInput(iso),
+      qso_at_local: isoToLocalInput(iso),
+    })
+  }
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -58,7 +95,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
       return
     }
     await write({
-      qso_at: inputToIso(form.qso_at),
+      qso_at: form.qso_at,
       remote_callsign: form.remote_callsign.trim(),
       operator_callsign: form.operator_callsign.trim(),
       operator_initials: form.operator_initials.trim(),
@@ -90,7 +127,21 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
         <div className="entry-fields">
           <label>
             Time (UTC)
-            <input type="datetime-local" value={form.qso_at} onChange={set('qso_at')} />
+            <input
+              type="datetime-local"
+              value={form.qso_at_utc}
+              onChange={(e) => setForm({ ...form, qso_at_utc: e.target.value })}
+              onBlur={onUtcBlur}
+            />
+          </label>
+          <label>
+            Time (local)
+            <input
+              type="datetime-local"
+              value={form.qso_at_local}
+              onChange={(e) => setForm({ ...form, qso_at_local: e.target.value })}
+              onBlur={onLocalBlur}
+            />
           </label>
           <label>
             Callsign

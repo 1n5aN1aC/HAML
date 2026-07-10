@@ -10,6 +10,14 @@ function formatTime(iso) {
   return isNaN(d) ? iso : d.toISOString().slice(5, 16).replace('T', ' ')
 }
 
+function formatLocalTime(iso) {
+  const d = new Date(iso)
+  if (isNaN(d)) return iso
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${h}:${m}`
+}
+
 export default function ContactList({ config, onSelect }) {
   const contacts = useLiveQuery(
     () =>
@@ -32,6 +40,7 @@ export default function ContactList({ config, onSelect }) {
           <tr>
             <th className="sync-col" title="Sync state" />
             <th>Time (UTC)</th>
+            <th>Local</th>
             <th>Callsign</th>
             <th>Band</th>
             <th>Mode</th>
@@ -51,18 +60,19 @@ export default function ContactList({ config, onSelect }) {
                 />
               </td>
               <td>{formatTime(c.qso_at)}</td>
+              <td>{formatLocalTime(c.qso_at)}</td>
               <td className="cs">{c.remote_callsign}</td>
               <td>{c.band}</td>
               <td>{c.mode}</td>
               {fields.map((f) => (
                 <td key={f.name}>{c.fields[f.name] ?? ''}</td>
               ))}
-              <td>{c.operator_initials}</td>
+              <td>{c.operator_callsign}</td>
             </tr>
           ))}
           {contacts.length === 0 && (
             <tr>
-              <td className="empty" colSpan={6 + fields.length}>
+              <td className="empty" colSpan={7 + fields.length}>
                 No contacts logged yet
               </td>
             </tr>
