@@ -44,8 +44,8 @@ New/edited contacts are written to IndexedDB as `pending`, then:
 2. **Pull** — GET contacts with `last_edited >= cursor`, every ~30s and immediately on a
    server poke. The cursor is a **server-time** timestamp returned in each pull response.
 3. **Pull is the ack**: a contact becomes `synced` only when the server echoes it back.
-   Conflicts resolve last-write-wins on `last_edited`, on both ends; a pulled record
-   never clobbers a newer local pending edit. Deletes are soft (`deleted` flag).
+   Conflicts resolve last-write-wins on `last_edited` on the server only; the client
+   applies pulled records unconditionally. Deletes are soft (`deleted` flag).
 
 The client also keeps a rolling **clock offset** (server time − local time, sampled from
 pull responses) and defaults new QSO times from server-corrected time, operator-editable.

@@ -11,9 +11,11 @@ Contact are possible but expected to be very rare.
 - **Pull is the acknowledgment.** A Contact becomes `synced` only when the server echoes
   it back in a pull. Push responses are not trusted as confirmation — this makes the loop
   self-healing with no extra ack protocol.
-- **Conflicts resolve Last-Write-Wins on `last_edited`**, on both server and client. A
-  pulled record older than a local `pending` copy does not clobber it. Losing edits are
-  silently dropped; state converges on the next pull.
+- **Conflicts resolve Last-Write-Wins on `last_edited`, on the server only.** The client
+  applies whatever a pull returns, unconditionally — the server is the source of truth.
+  Accepted risk: a local `pending` edit can be overwritten by an older pulled copy in the
+  small window before its push lands; simultaneous edits of the same Contact are rare
+  enough that client-side conflict logic isn't worth carrying.
 - **Deletes are soft.** A `deleted` flag plus a `last_edited` bump syncs like any edit.
   Rows are never hard-deleted (also desirable for an auditable contest log).
 - **The sync cursor is a server-time timestamp**, returned by the server in every pull

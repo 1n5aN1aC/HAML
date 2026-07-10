@@ -2,9 +2,9 @@
 //
 // Push: fire-and-retry POST of each pending contact, individually. A push
 // response never marks anything synced — the pull is the acknowledgment.
-// Pull: fetch changes since the cursor; apply unless a newer local pending
-// edit exists (LWW on the client too). The cursor and clock offset come from
-// pull responses only — server time, never client time.
+// Pull: fetch changes since the cursor and apply them; whatever the server
+// sends wins locally (LWW lives on the server only). The cursor and clock
+// offset come from pull responses only — server time, never client time.
 import { db, kvGet, kvSet } from './db.js'
 import { getContacts, postContact } from './api.js'
 
@@ -108,16 +108,6 @@ async function pullPass() {
   const { contacts, server_time } = await getContacts(cursor)
   await db.transaction('rw', db.contacts, db.kv, async () => {
     for (const contact of contacts) {
-      const local = await db.contacts.get(contact.uuid)
-      // Don't clobber a newer local pending edit (ADR-0001); it stays pending
-      // and wins on the server via the push loop.
-      if (
-        local &&
-        local.sync_state === 'pending' &&
-        ts(local.last_edited) > ts(contact.last_edited)
-      ) {
-        continue
-      }
       await db.contacts.put({ ...contact, sync_state: 'synced' })
     }
     // Cursor and clock offset are only ever taken from pull responses (ADR-0001).
