@@ -17,8 +17,8 @@ from aiohttp import WSMsgType, web
 
 import db
 
-PRESENCE_TTL = 30       # seconds without a heartbeat before a station drops off
-TICK_INTERVAL = 5       # seconds between periodic roster broadcasts
+PRESENCE_TTL = 120      # seconds without a heartbeat before a station drops off
+TICK_INTERVAL = 3       # seconds between periodic roster broadcasts
 
 PRESENCE_KEYS = ("client_uuid", "callsign", "initials", "band", "mode")
 CHAT_KEYS = ("uuid", "operator_callsign", "operator_initials",

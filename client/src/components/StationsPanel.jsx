@@ -18,7 +18,9 @@ export default function StationsPanel({ stations, clientUuid }) {
                 </td>
                 <td>{s.band}</td>
                 <td>{s.mode}</td>
-                <td className="last-seen">{s.last_seen}s</td>
+                <td className={`last-seen ${s.last_seen < 10 ? 'fresh' : s.last_seen <= 60 ? 'stale' : 'old'}`}>
+                  {s.last_seen < 5 ? 'Now' : `${s.last_seen}s`}
+                </td>
               </tr>
             ))}
           </tbody>
