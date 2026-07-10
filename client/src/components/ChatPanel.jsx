@@ -33,7 +33,7 @@ export default function ChatPanel({ messages, onSend, onResend, disabled }) {
         {messages.map((m) => (
           <div key={m.uuid} className={`chat-msg${m.status === 'failed' ? ' failed' : ''}`}>
             <span className="chat-time">{formatTime(m.sent_at)}</span>{' '}
-            <span className="chat-from">{m.operator_initials}:</span> {m.text}
+            <span className="chat-from">{m.operator_callsign}:</span> {m.text}
             {m.status === 'pending' && <span className="chat-flag" title="Sending…"> …</span>}
             {m.status === 'failed' && (
               <button className="chat-resend" onClick={() => onResend(m.uuid)}>
