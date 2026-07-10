@@ -19,7 +19,12 @@ Contact are possible but expected to be very rare.
 - **The sync cursor is a server-time timestamp**, returned by the server in every pull
   response and stored by the client. Client clocks are never trusted for sync (skewed
   client clocks would otherwise create permanent sync holes). Pull queries are inclusive
-  (`last_edited >= cursor`); boundary re-fetches are harmless due to idempotent upserts.
+  (`>= cursor`); boundary re-fetches are harmless due to idempotent upserts.
+- **Implementation note:** the cursor compares against a *server-stamped* `synced_at`
+  column, set on every stored change — not against the client-supplied `last_edited`,
+  which would leak client clocks back into the cursor. `last_edited` is only the LWW
+  conflict clock. Consequently a cursor is only valid if taken from a *pull* response
+  (stamped after the query), never from a push response (stamped after the row).
 
 ## Considered options
 

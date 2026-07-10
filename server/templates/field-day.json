@@ -1,0 +1,25 @@
+{
+  "name": "ARRL Field Day",
+  "fields": [
+    {
+      "name": "class",
+      "label": "Class",
+      "type": "text",
+      "required": true,
+      "default": "",
+      "order": 1
+    },
+    {
+      "name": "section",
+      "label": "ARRL Section",
+      "type": "text",
+      "required": true,
+      "default": "",
+      "order": 2
+    }
+  ],
+  "bands": ["160m", "80m", "40m", "20m", "15m", "10m", "6m", "2m", "70cm"],
+  "modes": ["Phone", "CW", "Digital"],
+  "dupe_key": ["remote_callsign", "band", "mode"],
+  "export": null
+}

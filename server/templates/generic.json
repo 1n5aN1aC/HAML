@@ -1,0 +1,33 @@
+{
+  "name": "Generic Log",
+  "fields": [
+    {
+      "name": "rst_sent",
+      "label": "RST Sent",
+      "type": "text",
+      "required": false,
+      "default": "59",
+      "order": 1
+    },
+    {
+      "name": "rst_received",
+      "label": "RST Received",
+      "type": "text",
+      "required": false,
+      "default": "59",
+      "order": 2
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "text",
+      "required": false,
+      "default": "",
+      "order": 3
+    }
+  ],
+  "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "1.25m", "70cm"],
+  "modes": ["SSB", "CW", "AM", "FM", "FT8", "FT4", "RTTY", "Digital"],
+  "dupe_key": [],
+  "export": null
+}
