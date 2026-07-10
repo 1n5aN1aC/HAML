@@ -1,6 +1,7 @@
 // Local Dexie database: the client's own copy of the log (ADR-0001).
 // `contacts` mirrors the server row shape plus sync_state (pending | synced).
 // `kv` holds client identity, session, cached event config, and sync cursor.
+
 import Dexie from 'dexie'
 
 export const db = new Dexie('haml')
@@ -11,17 +12,19 @@ db.version(1).stores({
   chat: 'uuid, sent_at',
 })
 
+// Fetch a value from the kv table; returns undefined if not found.
 export async function kvGet(key) {
   const row = await db.kv.get(key)
   return row ? row.value : undefined
 }
 
+// Store a value in the kv table; overwrites any existing value.
 export async function kvSet(key, value) {
   await db.kv.put({ key, value })
 }
 
-// The Client UUID identifies this logging position (see CONTEXT.md). It is
-// generated once and survives event switches — it names the machine, not the event.
+// The Client UUID identifies this machine (see CONTEXT.md).
+// It is generated once and survives event switches — it names the machine, not the event.
 export async function getClientUuid() {
   let uuid = await kvGet('client_uuid')
   if (!uuid) {
