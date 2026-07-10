@@ -2,6 +2,7 @@
 // to Dexie as `pending` (ADR-0001 — local first, sync engine pushes later).
 import { useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../db.js'
+import { pushNow } from '../sync.js'
 
 function defaultValues(fields) {
   return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
@@ -46,6 +47,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       fields: values,
       sync_state: 'pending',
     })
+    pushNow()
     setCallsign('')
     setValues(defaultValues(fields))
     setError('')
@@ -67,7 +69,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               ref={callsignRef}
               className="cs"
               value={callsign}
-              onChange={(e) => setCallsign(e.target.value)}
+              onChange={(e) => setCallsign(e.target.value.toUpperCase())}
               autoFocus
             />
           </label>
@@ -89,7 +91,13 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
                 <input
                   type={f.type === 'number' ? 'number' : 'text'}
                   value={values[f.name]}
-                  onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
+                  onChange={(e) =>
+                    setValues({
+                      ...values,
+                      [f.name]:
+                        f.type === 'number' ? e.target.value : e.target.value.toUpperCase(),
+                    })
+                  }
                 />
               )}
             </label>

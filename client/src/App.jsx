@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { boot } from './boot.js'
 import { kvGet, kvSet } from './db.js'
+import { startSync } from './sync.js'
 import StatusBar from './components/StatusBar.jsx'
 import ContactList from './components/ContactList.jsx'
 import ContactEntryForm from './components/ContactEntryForm.jsx'
@@ -11,6 +12,7 @@ const EMPTY_SESSION = { callsign: '', initials: '', band: '', mode: '' }
 export default function App() {
   const [state, setState] = useState({ status: 'loading' })
   const [session, setSession] = useState(EMPTY_SESSION)
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -20,6 +22,14 @@ export default function App() {
       setState(result)
     })()
   }, [])
+
+  // The sync engine runs whenever we're on a ready Event; its exchanges with
+  // the server drive the connection indicator.
+  useEffect(() => {
+    if (state.status !== 'ready') return
+    setConnected(state.connected)
+    return startSync(setConnected)
+  }, [state])
 
   function updateSession(next) {
     setSession(next)
@@ -58,7 +68,7 @@ export default function App() {
     )
   }
 
-  const { event, clientUuid, connected } = state
+  const { event, clientUuid } = state
   const config = event.config
   const sessionComplete = Boolean(
     session.callsign.trim() && session.initials.trim() && session.band && session.mode,
