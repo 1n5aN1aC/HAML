@@ -18,7 +18,7 @@ from aiohttp import WSMsgType, web
 import db
 
 PRESENCE_TTL = 120      # seconds without a heartbeat before a station drops off
-TICK_INTERVAL = 3       # seconds between periodic roster broadcasts
+TICK_INTERVAL = 15      # seconds between periodic roster broadcasts
 
 PRESENCE_KEYS = ("client_uuid", "callsign", "initials", "band", "mode")
 CHAT_KEYS = ("uuid", "operator_callsign", "operator_initials",
@@ -27,7 +27,7 @@ CHAT_KEYS = ("uuid", "operator_callsign", "operator_initials",
 
 def setup(app):
     app["ws_clients"] = set()
-    app["presence"] = {}  # client_uuid -> {identity..., last_seen (monotonic)}
+    app["presence"] = {}  # client_uuid -> {identity..., last_seen_at (epoch s)}
 
     async def poke():
         await broadcast(app, {"type": "poke"})
@@ -57,10 +57,9 @@ def event_message(app):
 
 
 def roster_message(app):
-    now = time.monotonic()
     stations = [
         {**{k: entry[k] for k in PRESENCE_KEYS},
-         "last_seen": int(now - entry["last_seen"])}
+         "last_seen_at": entry["last_seen_at"]}
         for entry in app["presence"].values()
     ]
     stations.sort(key=lambda s: s["callsign"])
@@ -68,9 +67,9 @@ def roster_message(app):
 
 
 def purge_stale(app):
-    now = time.monotonic()
+    now = time.time()
     stale = [uuid for uuid, entry in app["presence"].items()
-             if now - entry["last_seen"] > PRESENCE_TTL]
+             if now - entry["last_seen_at"] > PRESENCE_TTL]
     for uuid in stale:
         del app["presence"][uuid]
     return bool(stale)
@@ -112,7 +111,7 @@ async def handle_presence(app, data):
         return
     app["presence"][data["client_uuid"].strip()] = {
         **{k: data[k].strip() for k in PRESENCE_KEYS},
-        "last_seen": time.monotonic(),
+        "last_seen_at": time.time(),
     }
     await broadcast(app, roster_message(app))
 
