@@ -8,8 +8,6 @@ Message types:
   client -> server:  presence, chat
   server -> client:  event, presence_list, chat, poke
 """
-import asyncio
-import contextlib
 import json
 import time
 
@@ -18,7 +16,6 @@ from aiohttp import WSMsgType, web
 import db
 
 PRESENCE_TTL = 120      # seconds without a heartbeat before a station drops off
-TICK_INTERVAL = 15      # seconds between periodic roster broadcasts
 
 PRESENCE_KEYS = ("client_uuid", "callsign", "initials", "band", "mode")
 CHAT_KEYS = ("uuid", "operator_callsign", "operator_initials",
@@ -38,7 +35,6 @@ def setup(app):
     app["poke"] = poke
     app["notify_event"] = notify_event
     app.router.add_get("/ws", ws_handler)
-    app.cleanup_ctx.append(roster_ticker)
 
 
 async def broadcast(app, message):
@@ -113,6 +109,7 @@ async def handle_presence(app, data):
         **{k: data[k].strip() for k in PRESENCE_KEYS},
         "last_seen_at": time.time(),
     }
+    purge_stale(app)
     await broadcast(app, roster_message(app))
 
 
@@ -125,17 +122,4 @@ async def handle_chat(app, data):
     await broadcast(app, {"type": "chat", "message": stored})
 
 
-async def roster_ticker(app):
-    """Periodic roster broadcast: ages last_seen and drops stale stations."""
-    async def tick():
-        while True:
-            await asyncio.sleep(TICK_INTERVAL)
-            purge_stale(app)
-            if app["ws_clients"] and app["presence"]:
-                await broadcast(app, roster_message(app))
 
-    task = asyncio.create_task(tick())
-    yield
-    task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
