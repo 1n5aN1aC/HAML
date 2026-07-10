@@ -1,7 +1,20 @@
 // Top status bar: operator identity, band/mode, connection indicator.
 // Logging stays disabled until every session value is set (App enforces it).
+import { useEffect } from 'react'
+
+const DEFAULT_MODE = (modes) =>
+  modes.includes('Phone') ? 'Phone' : (modes[0] || '')
+
 export default function StatusBar({ eventName, session, onSession, config, connected }) {
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
+  const mode = session.mode || DEFAULT_MODE(config.modes)
+  const setMode = (e) => onSession({ ...session, mode: e.target.value })
+
+  // Seed the default mode into session so App's gate opens immediately.
+  useEffect(() => {
+    if (!session.mode && mode) onSession({ ...session, mode })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <header className="status-bar">
@@ -10,26 +23,33 @@ export default function StatusBar({ eventName, session, onSession, config, conne
         className="callsign"
         placeholder="Callsign"
         value={session.callsign}
+        maxLength={10}
         onChange={set('callsign')}
       />
       <input
         className="initials"
         placeholder="Initials"
         value={session.initials}
+        maxLength={4}
         onChange={set('initials')}
       />
-      <select value={session.band} onChange={set('band')}>
-        <option value="">Band…</option>
-        {config.bands.map((b) => (
-          <option key={b} value={b}>{b}</option>
-        ))}
-      </select>
-      <select value={session.mode} onChange={set('mode')}>
-        <option value="">Mode…</option>
-        {config.modes.map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
+      <label className="band-label">
+        Band:&nbsp;
+        <select value={session.band} onChange={set('band')}>
+          <option value="">Off-Air</option>
+          {config.bands.map((b) => (
+            <option key={b} value={b}>{b}</option>
+          ))}
+        </select>
+      </label>
+      <label className="mode-label">
+        Mode:&nbsp;
+        <select value={mode} onChange={setMode}>
+          {config.modes.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+      </label>
       <span className="spacer" />
       <span
         className={connected ? 'conn conn-ok' : 'conn conn-down'}
