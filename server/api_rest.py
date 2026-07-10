@@ -31,6 +31,12 @@ def require_event(request):
     return conn
 
 
+def missing_required_fields(config, fields):
+    """Names of required template fields that are absent or blank."""
+    return [f["name"] for f in config.get("fields", [])
+            if f.get("required") and not str(fields.get(f["name"], "")).strip()]
+
+
 def require_admin(request):
     password = request.app["cfg"]["admin_password"]
     if request.headers.get("X-Admin-Password") != password:
@@ -76,6 +82,13 @@ async def post_contact(request):
         contact = db.validate_contact(body)
     except ValueError as exc:
         return json_error(400, str(exc))
+    # tombstones are exempt: a deletion must always be able to sync
+    if not contact["deleted"]:
+        missing = missing_required_fields(request.app["event"]["config"],
+                                          body["fields"])
+        if missing:
+            return json_error(
+                400, "missing required fields: " + ", ".join(missing))
     stored = db.upsert_contact(conn, contact)
     if stored:
         await request.app["poke"]()

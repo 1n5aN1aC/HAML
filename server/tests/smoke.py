@@ -173,6 +173,22 @@ def main():
         bad = make_contact("client-A", "  ", iso())
         status, _ = request("POST", "/api/contacts", body=bad)
         check(status == 400, "blank callsign is rejected")
+        empty_fields = make_contact("client-A", "K7AAA", iso(), fields={})
+        status, body = request("POST", "/api/contacts", body=empty_fields)
+        check(status == 400 and "class" in body["error"]
+              and "section" in body["error"],
+              "missing required template fields are rejected")
+        blank_field = make_contact("client-A", "K7AAA", iso(),
+                                   fields={"class": "3A", "section": "  "})
+        status, body = request("POST", "/api/contacts", body=blank_field)
+        check(status == 400 and "section" in body["error"]
+              and "class" not in body["error"],
+              "blank required template field is rejected")
+        bare_tombstone = make_contact("client-A", "K7AAA", iso(),
+                                      fields={}, deleted=True)
+        status, body = request("POST", "/api/contacts", body=bare_tombstone)
+        check(status == 200 and body["stored"],
+              "tombstone with empty fields still syncs")
 
         print("backup + event switch:")
         status, body = request("POST", "/api/admin/backup", headers=ADMIN)
@@ -194,7 +210,7 @@ def main():
                                headers=ADMIN, body={})
         check(status == 200, "old event re-activated")
         status, body = request("GET", "/api/contacts")
-        check(len(body["contacts"]) == 2, "old event's contacts survived the switch")
+        check(len(body["contacts"]) == 3, "old event's contacts survived the switch")
 
         status, body = request("GET", "/api/chat")
         check(status == 200 and body["messages"] == [], "chat history endpoint works")

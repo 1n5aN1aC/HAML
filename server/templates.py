@@ -41,6 +41,8 @@ def validate_template(template):
             raise ValueError(f"field '{name}' needs a label")
         if field.get("type") not in FIELD_TYPES:
             raise ValueError(f"field '{name}' has bad type (want {sorted(FIELD_TYPES)})")
+        if not isinstance(field.get("required", False), bool):
+            raise ValueError(f"field '{name}': 'required' must be a boolean")
         if field["type"] == "choice":
             options = field.get("options")
             if (not isinstance(options, list) or not options
