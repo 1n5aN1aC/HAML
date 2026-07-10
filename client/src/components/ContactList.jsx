@@ -10,7 +10,7 @@ function formatTime(iso) {
   return isNaN(d) ? iso : d.toISOString().slice(5, 16).replace('T', ' ')
 }
 
-export default function ContactList({ config }) {
+export default function ContactList({ config, onSelect }) {
   const contacts = useLiveQuery(
     () =>
       db.contacts
@@ -43,7 +43,7 @@ export default function ContactList({ config }) {
         </thead>
         <tbody>
           {contacts.map((c) => (
-            <tr key={c.uuid}>
+            <tr key={c.uuid} className="row-click" onClick={() => onSelect(c)}>
               <td className="sync-col">
                 <span
                   className={c.sync_state === 'synced' ? 'dot dot-synced' : 'dot dot-pending'}

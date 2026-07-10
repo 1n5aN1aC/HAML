@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../db.js'
 import { pushNow } from '../sync.js'
 import { newUuid } from '../uuid.js'
+import { validateContact } from '../contact-validation.js'
+import FieldInput from './FieldInput.jsx'
 
 function defaultValues(fields) {
   return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
@@ -21,12 +23,12 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
 
   async function logContact(e) {
     e.preventDefault()
-    if (!callsign.trim()) return
-    const missing = fields.filter(
-      (f) => f.required && !String(values[f.name] ?? '').trim(),
+    const problem = validateContact(
+      { remote_callsign: callsign, fields: values },
+      config,
     )
-    if (missing.length) {
-      setError(`Required: ${missing.map((f) => f.label).join(', ')}`)
+    if (problem) {
+      setError(problem)
       return
     }
     // QSO time defaults from server-corrected time (clock offset, plan §3.3);
@@ -78,29 +80,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             <label key={f.name}>
               {f.label}
               {f.required && ' *'}
-              {f.type === 'choice' ? (
-                <select
-                  value={values[f.name]}
-                  onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
-                >
-                  <option value="">—</option>
-                  {(f.options ?? []).map((o) => (
-                    <option key={o} value={o}>{o}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type={f.type === 'number' ? 'number' : 'text'}
-                  value={values[f.name]}
-                  onChange={(e) =>
-                    setValues({
-                      ...values,
-                      [f.name]:
-                        f.type === 'number' ? e.target.value : e.target.value.toUpperCase(),
-                    })
-                  }
-                />
-              )}
+              <FieldInput
+                field={f}
+                value={values[f.name]}
+                onChange={(v) => setValues({ ...values, [f.name]: v })}
+              />
             </label>
           ))}
           <button type="submit">Log it</button>

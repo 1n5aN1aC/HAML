@@ -11,6 +11,7 @@ import ContactList from './components/ContactList.jsx'
 import ContactEntryForm from './components/ContactEntryForm.jsx'
 import StationsPanel from './components/StationsPanel.jsx'
 import ChatPanel from './components/ChatPanel.jsx'
+import ContactModal from './components/ContactModal.jsx'
 
 const EMPTY_SESSION = { callsign: '', initials: '', band: '', mode: '' }
 
@@ -20,6 +21,7 @@ export default function App() {
   const [connected, setConnected] = useState(false)
   const [stations, setStations] = useState([])
   const [chat, setChat] = useState([])
+  const [editing, setEditing] = useState(null)
 
   useEffect(() => {
     ;(async () => {
@@ -145,7 +147,7 @@ export default function App() {
       />
       <main className="panes">
         <section className="left-pane">
-          <ContactList config={config} />
+          <ContactList config={config} onSelect={setEditing} />
           <ContactEntryForm
             config={config}
             session={session}
@@ -164,6 +166,14 @@ export default function App() {
           <div className="future-panel" />
         </aside>
       </main>
+      {editing && (
+        <ContactModal
+          contact={editing}
+          config={config}
+          clientUuid={clientUuid}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
 }

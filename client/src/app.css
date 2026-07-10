@@ -188,6 +188,75 @@ body {
 
 .entry-error { margin-top: 6px; color: #dc2626; }
 
+/* --- contact modal ----------------------------------------------------------- */
+
+.row-click { cursor: pointer; }
+.row-click:hover td { background: #eff6ff; }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px 16px;
+  min-width: 420px;
+  max-width: 640px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.modal-close {
+  border: 0;
+  background: none;
+  font-size: 15px;
+  cursor: pointer;
+  color: #6b7280;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.modal-actions .spacer { flex: 1; }
+
+.modal-actions button {
+  padding: 7px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modal-actions .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.modal-actions .btn-primary:hover { background: #1d4ed8; }
+.modal-actions .btn-danger { border-color: #dc2626; color: #dc2626; }
+.modal-actions .btn-danger:hover { background: #fef2f2; }
+
+.modal-footer {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
 /* --- full-screen states ----------------------------------------------------- */
 
 .screen {
