@@ -3,6 +3,7 @@
 const TABS = [
   { id: 'logging', label: 'Logging' },
   { id: 'radio', label: 'Radio' },
+  { id: 'stats', label: 'Statistics' },
   { id: 'admin', label: 'Admin' },
 ]
 

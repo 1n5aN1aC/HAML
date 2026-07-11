@@ -17,7 +17,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
+  padding: 4px 12px;
   background: #374151;
   color: #e5e7eb;
   font-size: 13px;
@@ -34,7 +34,7 @@ body {
   align-items: center;
   gap: 6px;
 }
-.top-bar .brand-icon { width: 18px; height: 18px; display: block; }
+.top-bar .brand-icon { width: 28px; height: 28px; display: block; }
 .top-bar .brand-text { font-weight: 600; letter-spacing: 0.5px; color: #f9fafb; }
 
 .top-bar .tabs {

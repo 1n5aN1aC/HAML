@@ -11,6 +11,7 @@ import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage, 
 import TopBar from './components/TopBar.jsx'
 import LoggingTab from './components/LoggingTab.jsx'
 import RadioTab from './components/RadioTab.jsx'
+import StatisticsTab from './components/StatisticsTab.jsx'
 import AdminTab from './components/AdminTab.jsx'
 
 const OFF_AIR = 'Off-Air'
@@ -200,6 +201,7 @@ export default function App() {
         />
       )}
       {tab === 'radio' && <RadioTab />}
+      {tab === 'stats' && <StatisticsTab />}
       {tab === 'admin' && <AdminTab />}
     </div>
   )
