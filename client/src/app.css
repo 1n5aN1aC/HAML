@@ -397,7 +397,17 @@ body {
 
 .entry-fields .cs { width: 130px; text-transform: uppercase; }
 
-.entry-error { margin-top: 6px; color: var(--danger); }
+.entry-error { min-height: 1em; margin-top: 6px; color: var(--danger); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
 
 /* live field validation: green tracks the pattern in real time; red latches
    on blur only, slightly bolder. The inset shadow draws the color inside the

@@ -110,8 +110,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               }
             />
           ))}
+          {/* invisible: keeps Enter-to-submit working without multiple
+              fields blocking implicit submission (no visible button) */}
+          <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
         </div>
-        {error && <div className="entry-error">{error}</div>}
+        <div className="entry-error">{error}</div>
       </fieldset>
     </form>
   )
