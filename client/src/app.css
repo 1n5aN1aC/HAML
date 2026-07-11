@@ -180,7 +180,11 @@ body {
 .right-pane > div { padding: 10px 12px; }
 .right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 6px; color: #6b7280; }
 .right-pane .placeholder { color: #9ca3af; font-style: italic; }
-.stations-panel { border-bottom: 1px solid #d1d5db; }
+.stations-panel {
+  border-bottom: 1px solid #d1d5db;
+  height: 200px;       /* fixed panel height; tweak as desired */
+  overflow-y: auto;    /* scrollbar appears when station list exceeds height */
+}
 .chat-panel { flex: 1; border-bottom: 1px solid #d1d5db; }
 .future-panel { height: 90px; }
 
