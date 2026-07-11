@@ -11,7 +11,7 @@ function ageBand(age) {
   return 'old'
 }
 
-export default function StationsPanel({ stations, clientUuid }) {
+export default function StationsPanel({ stations, clientUuid, conflictUuids }) {
   // `offset` is server_now - Date.now() (set by sync.js after each pull).
   const [offset, setOffset] = useState(0)
   const [tick, setTick] = useState(0)
@@ -35,14 +35,16 @@ export default function StationsPanel({ stations, clientUuid }) {
             {stations.map((s) => {
               const age = Math.max(0, Math.floor(serverNow - s.last_seen_at))
               return (
-                <tr key={s.client_uuid}>
+                <tr
+                  key={s.client_uuid}
+                  className={conflictUuids?.has(s.client_uuid) ? 'conflict' : ''}
+                >
                   <td className="cs">
                     {s.callsign}
                     <span className="initials"> {s.initials}</span>
                     {s.client_uuid === clientUuid && <span className="you"> (you)</span>}
                   </td>
-                  <td>{s.band}</td>
-                  <td>{s.mode}</td>
+                  <td>{s.band === 'Off-Air' ? s.band : `${s.band} • ${s.mode}`}</td>
                   <td className={`last-seen ${ageBand(age)}`}>
                     {age < 6 ? 'Now' : `${age}s`}
                   </td>

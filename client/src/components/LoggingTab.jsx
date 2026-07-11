@@ -2,7 +2,8 @@
 // and the contact edit modal. All data/state comes from App; only the
 // modal's open/close state lives here, so switching tabs closes it.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { kvGet } from '../db.js'
 import StatusBar from './StatusBar.jsx'
 import ContactList from './ContactList.jsx'
 import ContactEntryForm from './ContactEntryForm.jsx'
@@ -23,9 +24,35 @@ export default function LoggingTab({
 }) {
   const [editing, setEditing] = useState(null)
 
+  // Band-conflict warning: another station (seen within the last 15s) is on
+  // our band. No timer — the roster rebroadcasts on every heartbeat (≥ every
+  // 5s, including our own), so `stations` re-renders us often enough. Ages
+  // use the persisted server clock offset, same as StationsPanel.
+  const [offset, setOffset] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    kvGet('clock_offset').then((v) => { if (!cancelled) setOffset(v ?? 0) })
+    return () => { cancelled = true }
+  }, [])
+  const serverNow = (Date.now() + offset) / 1000
+  const conflicts =
+    session.band === 'Off-Air'
+      ? []
+      : stations.filter(
+          (s) =>
+            s.client_uuid !== clientUuid &&
+            s.band === session.band &&
+            serverNow - s.last_seen_at <= 15,  //Exclude stale clients
+        )
+
   return (
     <>
-      <StatusBar session={session} onSession={onSession} config={config} />
+      <StatusBar
+        session={session}
+        onSession={onSession}
+        config={config}
+        conflicts={conflicts}
+      />
       <main className="panes">
         <section className="left-pane">
           <ContactList config={config} onSelect={setEditing} />
@@ -38,7 +65,11 @@ export default function LoggingTab({
           <div className="future-panel-left" />
         </section>
         <aside className="right-pane">
-          <StationsPanel stations={stations} clientUuid={clientUuid} />
+          <StationsPanel
+            stations={stations}
+            clientUuid={clientUuid}
+            conflictUuids={new Set(conflicts.map((s) => s.client_uuid))}
+          />
           <ChatPanel
             messages={chat}
             onSend={onChatSend}

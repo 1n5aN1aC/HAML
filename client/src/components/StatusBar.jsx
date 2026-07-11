@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 const DEFAULT_MODE = (modes) =>
   modes.includes('Phone') ? 'Phone' : (modes[0] || '')
 
-export default function StatusBar({ session, onSession, config }) {
+export default function StatusBar({ session, onSession, config, conflicts = [] }) {
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
   const mode = session.mode || DEFAULT_MODE(config.modes)
   const setMode = (e) => onSession({ ...session, mode: e.target.value })
@@ -33,14 +33,6 @@ export default function StatusBar({ session, onSession, config }) {
         maxLength={4}
         onChange={set('initials')}
       />
-      <label className="band-label">
-        Band:&nbsp;
-        <select value={session.band} onChange={set('band')}>
-          {['Off-Air', ...config.bands].map((b) => (
-            <option key={b} value={b}>{b}</option>
-          ))}
-        </select>
-      </label>
       <label className="mode-label">
         Mode:&nbsp;
         <select value={mode} onChange={setMode}>
@@ -49,6 +41,23 @@ export default function StatusBar({ session, onSession, config }) {
           ))}
         </select>
       </label>
+      <label className="band-label">
+        Band:&nbsp;
+        <select
+          className={conflicts.length ? 'band-conflict' : ''}
+          value={session.band}
+          onChange={set('band')}
+        >
+          {['Off-Air', ...config.bands].map((b) => (
+            <option key={b} value={b}>{b}</option>
+          ))}
+        </select>
+      </label>
+      {conflicts.length > 0 && (
+        <span className="band-conflict-warning">
+          ⚠ {session.band} in use by {conflicts.map((s) => s.callsign).join(', ')}
+        </span>
+      )}
       <span className="spacer" />
     </header>
   )

@@ -154,6 +154,10 @@ body {
 .status-bar .initials { width: 70px; text-transform: uppercase; margin-right: 45px; }
 .status-bar .spacer { flex: 1; }
 
+/* Band-conflict warning: another station is on our band (LoggingTab). */
+.status-bar select.band-conflict { border-color: #f59e0b; }
+.status-bar .band-conflict-warning { color: #fbbf24; font-weight: 600; }
+
 .conn-ok { color: #34d399; }
 .conn-down { color: #f87171; }
 
@@ -195,6 +199,7 @@ body {
 .stations td { padding: 5px 6px; white-space: nowrap; background: #fff; }
 .stations td:first-child { border-radius: 6px 0 0 6px; padding-left: 8px; }
 .stations td:last-child { border-radius: 0 6px 6px 0; padding-right: 8px; }
+.stations tr.conflict td { background: #fef3c7; }
 .stations .cs { font-weight: 600; }
 .stations .initials { font-weight: 400; color: #6b7280; }
 .stations .you { font-weight: 400; color: #2563eb; }
