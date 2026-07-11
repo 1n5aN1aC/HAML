@@ -5,14 +5,17 @@
 // field's pattern; red only latches on blur, and clears while editing —
 // mid-typing is never punished. Empty values stay uncolored (emptiness is
 // the 'required' flag's job, enforced at submit).
-import { useState } from 'react'
+import { forwardRef, useState } from 'react'
 
 // full-match semantics, same as contact-validation.js
 function matches(pattern, value) {
   return new RegExp(`^(?:${pattern})$`).test(value)
 }
 
-export default function FieldInput({ field, value, onChange, placeholder }) {
+const FieldInput = forwardRef(function FieldInput(
+  { field, value, onChange, placeholder, onKeyDown },
+  ref,
+) {
   const [focused, setFocused] = useState(false)
   const trimmed = String(value ?? '').trim()
   let cls
@@ -28,7 +31,7 @@ export default function FieldInput({ field, value, onChange, placeholder }) {
   }
   if (field.type === 'choice') {
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} {...feedback}>
+      <select ref={ref} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} {...feedback}>
         <option value="">{placeholder}</option>
         {(field.options ?? []).map((o) => (
           <option key={o} value={o}>{o}</option>
@@ -38,13 +41,17 @@ export default function FieldInput({ field, value, onChange, placeholder }) {
   }
   return (
     <input
+      ref={ref}
       type={field.type === 'number' ? 'number' : 'text'}
       value={value}
       placeholder={placeholder}
       onChange={(e) =>
         onChange(field.type === 'number' ? e.target.value : e.target.value.toUpperCase())
       }
+      onKeyDown={onKeyDown}
       {...feedback}
     />
   )
-}
+})
+
+export default FieldInput

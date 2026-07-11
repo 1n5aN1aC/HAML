@@ -603,18 +603,6 @@ body {
 
 .entry-fields .cs { width: 130px; text-transform: uppercase; }
 
-.entry-fields button {
-  padding: 7px 16px;
-  border: 0;
-  border-radius: 4px;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.entry-fields button:hover { background: var(--accent-hover); }
-
 .entry-error { margin-top: 6px; color: var(--danger); }
 
 /* live field validation: green tracks the pattern in real time; red latches

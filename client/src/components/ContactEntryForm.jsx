@@ -20,6 +20,25 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   const [values, setValues] = useState(() => defaultValues(fields))
   const [error, setError] = useState('')
   const callsignRef = useRef(null)
+  const fieldRefs = useRef([])
+  fieldRefs.current = fields.map((_, i) => fieldRefs.current[i] ?? null)
+
+  // Fields never contain spaces, so Space doubles as "next field" (wrapping,
+  // like Tab) instead of typing a literal space.
+  function handleFieldNav(e, index, order) {
+    if (e.key === ' ') {
+      e.preventDefault()
+      order[(index + 1) % order.length]?.focus()
+    } else if (e.key === 'Tab') {
+      if (!e.shiftKey && index === order.length - 1) {
+        e.preventDefault()
+        order[0]?.focus()
+      } else if (e.shiftKey && index === 0) {
+        e.preventDefault()
+        order[order.length - 1]?.focus()
+      }
+    }
+  }
 
   async function logContact(e) {
     e.preventDefault()
@@ -72,18 +91,24 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             placeholder="Callsign"
             value={callsign}
             onChange={(e) => setCallsign(e.target.value.toUpperCase())}
+            onKeyDown={(e) =>
+              handleFieldNav(e, 0, [callsignRef.current, ...fieldRefs.current])
+            }
             autoFocus
           />
-          {fields.map((f) => (
+          {fields.map((f, i) => (
             <FieldInput
               key={f.name}
+              ref={(el) => (fieldRefs.current[i] = el)}
               field={f}
               value={values[f.name]}
               placeholder={f.label + (f.required ? ' *' : '')}
               onChange={(v) => setValues({ ...values, [f.name]: v })}
+              onKeyDown={(e) =>
+                handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current])
+              }
             />
           ))}
-          <button type="submit">Log it</button>
         </div>
         {error && <div className="entry-error">{error}</div>}
       </fieldset>
