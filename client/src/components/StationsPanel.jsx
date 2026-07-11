@@ -1,7 +1,8 @@
 // Online stations roster (plan §3.5).
-// The server sends `last_seen_at` as a wall-clock epoch second;
+// The server sends `last_seen_at` for each station as a wall-clock epoch second;
 // We tick once per second locally and compute the age here, applying the persisted server clock offset (kv: clock_offset)
 // so this client agrees with the server even if its wall clock is skewed.
+
 import { useEffect, useState } from 'react'
 import { kvGet } from '../db.js'
 
@@ -11,7 +12,7 @@ function ageBand(age) {
   return 'old'
 }
 
-export default function StationsPanel({ stations, clientUuid, conflictUuids }) {
+export default function StationsPanel({ stations, clientUuid, conflictUuids, bands = [] }) {
   // `offset` is server_now - Date.now() (set by sync.js after each pull).
   const [offset, setOffset] = useState(0)
   const [tick, setTick] = useState(0)
@@ -25,6 +26,14 @@ export default function StationsPanel({ stations, clientUuid, conflictUuids }) {
 
   const serverNow = (Date.now() + offset) / 1000
 
+  // Sort stations to same order as in config:  Lowest-first.
+  // Off-Air (or anything unrecognized) is sorted last.
+  const bandRank = (b) => {
+    const i = bands.indexOf(b)
+    return i === -1 ? bands.length : i
+  }
+  const sorted = [...stations].sort((a, b) => bandRank(a.band) - bandRank(b.band))
+
   return (
     <div className="stations-panel">
       {stations.length === 0 ? (
@@ -32,7 +41,7 @@ export default function StationsPanel({ stations, clientUuid, conflictUuids }) {
       ) : (
         <table className="stations">
           <tbody>
-            {stations.map((s) => {
+            {sorted.map((s) => {
               const age = Math.max(0, Math.floor(serverNow - s.last_seen_at))
               return (
                 <tr

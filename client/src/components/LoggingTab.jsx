@@ -42,7 +42,7 @@ export default function LoggingTab({
           (s) =>
             s.client_uuid !== clientUuid &&
             s.band === session.band &&
-            serverNow - s.last_seen_at <= 15,  //Exclude stale clients
+            serverNow - s.last_seen_at <= 61,  //Exclude stale clients.  Had to increase to 61 because browsers throttle timer to 1 minute in background tabs.
         )
 
   return (
@@ -68,6 +68,7 @@ export default function LoggingTab({
           <StationsPanel
             stations={stations}
             clientUuid={clientUuid}
+            bands={config.bands}
             conflictUuids={new Set(conflicts.map((s) => s.client_uuid))}
           />
           <ChatPanel
