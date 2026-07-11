@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>HAML</title>
+    <script>
+      // Apply the saved theme before React mounts so there's no flash of the default palette.
+      // Mirrored by App.jsx's theme state. Default is Light; the retired "current"
+      // theme maps to Light as well.
+      var savedTheme = localStorage.getItem('haml-theme')
+      document.documentElement.dataset.theme =
+        savedTheme && savedTheme !== 'current' ? savedTheme : 'light'
+    </script>
   </head>
   <body>
     <div id="root"></div>

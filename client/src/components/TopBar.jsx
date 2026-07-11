@@ -1,5 +1,5 @@
-// Slim bar always shown at the top: brand, tab navigation, the active
-// event, and whether the realtime (WebSocket) signal layer is reachable.
+// Slim bar always shown at the top: brand, tab navigation, theme picker, the
+// active event, and whether the realtime (WebSocket) signal layer is reachable.
 const TABS = [
   { id: 'logging', label: 'Logging' },
   { id: 'radio', label: 'Radio' },
@@ -7,7 +7,14 @@ const TABS = [
   { id: 'admin', label: 'Admin' },
 ]
 
-export default function TopBar({ eventName, connected, activeTab, onTab }) {
+const THEMES = [
+  { id: 'light', emoji: '☀️', label: 'Light' },
+  { id: 'dark', emoji: '🌙', label: 'Dark' },
+  { id: 'blue', emoji: '🔵', label: 'Blue' },
+  { id: 'purple', emoji: '🔮', label: 'Dark Purple' },
+]
+
+export default function TopBar({ eventName, connected, activeTab, onTab, theme, onTheme }) {
   return (
     <header className="top-bar">
       <div className="brand">
@@ -26,6 +33,20 @@ export default function TopBar({ eventName, connected, activeTab, onTab }) {
         ))}
       </nav>
       <span className="spacer" />
+      <div className="theme-picker" role="group" aria-label="Theme">
+        {THEMES.map(({ id, emoji, label }) => (
+          <button
+            key={id}
+            className={id === theme ? 'active' : ''}
+            title={`${label} theme`}
+            aria-label={`${label} theme`}
+            aria-pressed={id === theme}
+            onClick={() => onTheme(id)}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
       <span className="event-name">{eventName}</span>
       <span
         className={connected ? 'conn conn-ok' : 'conn conn-down'}

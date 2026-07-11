@@ -25,6 +25,19 @@ export default function App() {
   const [stations, setStations] = useState([])
   const [chat, setChat] = useState([])
   const [tab, setTab] = useState('logging')
+  // Persisted to localStorage (independent of dexie)
+  // Also applied in index.html on-load before dexie exists, to prevent a flash on load.
+  // Default is Light; the retired "current" theme maps to Light as well.
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('haml-theme')
+    return saved && saved !== 'current' ? saved : 'light'
+  })
+
+  function changeTheme(id) {
+    setTheme(id)
+    localStorage.setItem('haml-theme', id)
+    document.documentElement.dataset.theme = id
+  }
 
   useEffect(() => {
     ;(async () => {
@@ -186,6 +199,8 @@ export default function App() {
         eventName={event.name}
         activeTab={tab}
         onTab={setTab}
+        theme={theme}
+        onTheme={changeTheme}
       />
       {tab === 'logging' && (
         <LoggingTab
