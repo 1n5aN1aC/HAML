@@ -33,6 +33,9 @@ export default function TopBar({ eventName, connected, activeTab, onTab, theme, 
         ))}
       </nav>
       <span className="spacer" />
+      <span className="event-name">{eventName}</span>
+      <span className="event-exchange">6A OR</span>
+      <span className="spacer" />
       <div className="theme-picker" role="group" aria-label="Theme">
         {THEMES.map(({ id, emoji, label }) => (
           <button
@@ -47,7 +50,6 @@ export default function TopBar({ eventName, connected, activeTab, onTab, theme, 
           </button>
         ))}
       </div>
-      <span className="event-name">{eventName}</span>
       <span
         className={connected ? 'conn conn-ok' : 'conn conn-down'}
         title={connected ? 'Connected to server' : 'Not connected — logging locally'}

@@ -1,0 +1,63 @@
+/* Light theme — the default/base palette (the original HAML look: light-gray
+   body with dark chrome). Applies with no data-theme attribute, and also
+   matches data-theme="light" explicitly since App.jsx defaults to that id.
+   Every other theme file overrides these same token names. */
+
+:root,
+:root[data-theme="light"] {
+  /* chrome / surfaces */
+  --bg-page: #ffffff;                /* Color behind & between page elements */
+  --text: #1a1d21;                   /* Text for info areas */
+  --topbar-bg: #374151;              /* TopBar - Background */
+  --topbar-text: #e5e7eb;            /* TopBar - Unused??? */
+  --topbar-border: #1f2937;          /* TopBar - Line Underneath */
+  --topbar-title: #f9fafb;           /* TopBar - HAML brand & event name */
+  --tab-bg: #1f2937;                 /* Tabs - Unselected Tabs */
+  --tab-text: #d1d5db;               /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: #4b5563;           /* Tabs - Hovering */
+  --tab-hover-text: #fff;            /* Tabs - Hovering Text */
+  --tab-active-bg: #f4f5f7;          /* Tabs - Active Tab */
+  --tab-active-text: #1a1d21;        /* Tabs - Active Tab Text */
+  --statusbar-bg: #1f2937;           /* Statusbar - Background */
+  --statusbar-text: #f9fafb;         /* Statusbar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: #111827;     /* Statusbar - TextBox Background */
+  --statusbar-input-border: #4b5563; /* Statusbar - TextBox Border */
+  --input-bg: #fff;                  /* Whole Page - TextBox Background */
+  --input-text: #1a1d21;             /* Whole Page - TextBox Text */
+  --panel-bg: #fff;                  /* Panels - Background */
+  --panel-alt-bg: #f9fafb;           /* Panels - Background (alt) */
+  --row-accent: #fff;                /* Stations Panel - Row background */
+  --border: #d1d5db;                 /* Border around panels */
+  --border-subtle: #e5e7eb;          /* Lines between contacts in table */
+  --text-muted: #6b7280;             /* Table Headers */
+  --text-faint: #9ca3af;             /* Only used on coming soon tabs? */
+  --text-label: #374151;             /* Color of text inside text box */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #fff;
+  --accent-disabled: #9ca3af;
+  --row-hover-bg: #eff6ff;
+  --focus-ring: #1a1d21;
+  --modal-backdrop: rgba(0, 0, 0, 0.45);
+  --modal-shadow: rgba(0, 0, 0, 0.3);
+
+  /* signal foregrounds (constant meaning) */
+  --danger: #dc2626;
+  --success: #16a34a;
+  --success-bright: #34d399;
+  --warning: #f59e0b;
+  --warning-text: #fbbf24;
+  --conn-down: #f87171;
+  --fresh: #16a34a;
+  --stale: #eab308;
+  --old: #ea580c;
+  --validation-ok: #16a34a;
+  --validation-bad: #dc2626;
+  --badge-bg: #16a34a;
+  --badge-text: #fff;
+  --gate-text: #b45309;
+
+  /* signal background tints (themed as surfaces) */
+  --danger-bg: #fef2f2;
+  --conflict-bg: #fef3c7;
+}

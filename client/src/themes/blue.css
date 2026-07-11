@@ -1,0 +1,57 @@
+/* Solarized Dark theme (the "blue" slot) — teal-dark base03/base02 surfaces,
+   blue accent. */
+
+:root[data-theme="blue"] {
+  --bg-page: #002b36;                /* Color behind & between page elements */
+  --text: #93a1a1;                   /* Text for info areas */
+  --topbar-bg: #374151;              /* TopBar - Background */
+  --topbar-text: #e5e7eb;            /* TopBar - Unused??? */
+  --topbar-border: #1f2937;          /* TopBar - Line Underneath */
+  --topbar-title: #f9fafb;           /* TopBar - HAML brand & event name */
+  --tab-bg: #1f2937;                 /* Tabs - Unselected Tabs */
+  --tab-text: #d1d5db;               /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: #4b5563;           /* Tabs - Hovering */
+  --tab-hover-text: #fff;            /* Tabs - Hovering Text */
+  --tab-active-bg: #f4f5f7;          /* Tabs - Active Tab */
+  --tab-active-text: #1a1d21;        /* Tabs - Active Tab Text */
+  --statusbar-bg: #1f2937;           /* Statusbar - Background */
+  --statusbar-text: #f9fafb;         /* Statusbar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: #111827;     /* Statusbar - TextBox Background */
+  --statusbar-input-border: #4b5563; /* Statusbar - TextBox Border */
+  --input-bg: #00252e;               /* Whole Page - TextBox Background */
+  --input-text: #93a1a1;             /* Whole Page - TextBox Text */
+  --panel-bg: #073642;               /* Panels - Background */
+  --panel-alt-bg: #04303b;           /* Panels - Background (alt) */
+  --row-accent: #073642;             /* Stations Panel - Row background */
+  --border: #0d4c5a;                 /* Border around panels */
+  --border-subtle: #0a4351;          /* Lines between contacts in table */
+  --text-muted: #839496;             /* Table Headers */
+  --text-faint: #586e75;             /* Only used on coming soon tabs? */
+  --text-label: #93a1a1;             /* Color of text inside text box */
+  --accent: #268bd2;
+  --accent-hover: #1e6fa8;
+  --accent-text: #fff;
+  --accent-disabled: #33667a;
+  --row-hover-bg: #0a4351;
+  --focus-ring: #93a1a1;
+  --modal-backdrop: rgba(0, 0, 0, 0.6);
+  --modal-shadow: rgba(0, 0, 0, 0.6);
+
+  --danger: #dc322f;
+  --success: #859900;
+  --success-bright: #2aa198;
+  --warning: #b58900;
+  --warning-text: #b58900;
+  --conn-down: #dc322f;
+  --fresh: #859900;
+  --stale: #b58900;
+  --old: #cb4b16;
+  --validation-ok: #859900;
+  --validation-bad: #dc322f;
+  --badge-bg: #859900;
+  --badge-text: #002b36;
+  --gate-text: #b58900;
+
+  --danger-bg: #3a1a1a;
+  --conflict-bg: #3a2e0a;
+}

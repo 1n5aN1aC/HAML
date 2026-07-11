@@ -47,10 +47,10 @@ export default function ChatPanel({ messages, onSend, onResend, disabled }) {
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={disabled ? 'Set callsign & initials to chat' : 'Message…'}
+          maxLength={144}
+          placeholder={disabled ? 'Set callsign & initials to chat' : 'Type a chat message…'}
           disabled={disabled}
         />
-        <button disabled={disabled || !text.trim()}>Send</button>
       </form>
     </div>
   )

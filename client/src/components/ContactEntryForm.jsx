@@ -5,6 +5,7 @@ import { db, kvGet } from '../db.js'
 import { pushNow } from '../sync.js'
 import { newUuid } from '../uuid.js'
 import { validateContact } from '../contact-validation.js'
+import { alphanumeric } from '../text-input.js'
 import FieldInput from './FieldInput.jsx'
 
 function defaultValues(fields) {
@@ -90,7 +91,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             className="cs"
             placeholder="Callsign"
             value={callsign}
-            onChange={(e) => setCallsign(e.target.value.toUpperCase())}
+            onChange={(e) => setCallsign(alphanumeric(e.target.value).toUpperCase())}
             onKeyDown={(e) =>
               handleFieldNav(e, 0, [callsignRef.current, ...fieldRefs.current])
             }

@@ -1,0 +1,56 @@
+/* Sepia theme — warm "paper" light theme, tan chrome, burnt-amber accent. */
+
+:root[data-theme="sepia"] {
+  --bg-page: #fffff0;                /* Color behind & between page elements */
+  --text: #433422;                   /* Text for info areas */
+  --topbar-bg: #494949;              /* TopBar - Background */
+  --topbar-text: #ffffff;            /* TopBar - Unused??? */
+  --topbar-border: #cdbb8f;          /* TopBar - Line Underneath */
+  --topbar-title: #ffffff;           /* TopBar - HAML brand & event name */
+  --tab-bg: #d8c9a6;                 /* Tabs - Unselected Tabs */
+  --tab-text: #6b5a3e;               /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: #cdbb8f;           /* Tabs - Hovering */
+  --tab-hover-text: #2b2116;         /* Tabs - Hovering Text */
+  --tab-active-bg: #f4ecd8;          /* Tabs - Active Tab */
+  --tab-active-text: #2b2116;        /* Tabs - Active Tab Text */
+  --statusbar-bg: #e3d5b3;           /* StatusBar - Background */
+  --statusbar-text: #2b2116;         /* StatusBar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: #cec2a4;     /* StatusBar - TextBox Background */
+  --statusbar-input-border: #74684d; /* StatusBar - TextBox Border */
+  --input-bg: #fffdf5;               /* Whole Page - TextBox Background */
+  --input-text: #433422;             /* Whole Page - TextBox Text */
+  --panel-bg: #efe4c8;               /* Panels - Background */
+  --panel-alt-bg: #efe4c8;           /* Panels - Background (alt) */
+  --row-accent: #efe4c8;             /* Stations Panel - Row background */
+  --border: #d8c9a6;                 /* Border around panels */
+  --border-subtle: #e6c2c2;          /* Lines between contacts in table */
+  --text-muted: #8a795d;             /* Table Headers */
+  --text-faint: #a89a7d;             /* Only used on coming soon tabs? */
+  --text-label: #6b5a3e;             /* Color of text inside text box */
+  --accent: #b06a12;
+  --accent-hover: #935710;
+  --accent-text: #fff;
+  --accent-disabled: #c9b48f;
+  --row-hover-bg: #f0e6cf;
+  --focus-ring: #433422;
+  --modal-backdrop: rgba(60, 45, 25, 0.35);
+  --modal-shadow: rgba(60, 45, 25, 0.2);
+
+  --danger: #b91c1c;
+  --success: #4d7c0f;
+  --success-bright: #4d7c0f;
+  --warning: #b45309;
+  --warning-text: #b45309;
+  --conn-down: #b91c1c;
+  --fresh: #4d7c0f;
+  --stale: #a16207;
+  --old: #c2410c;
+  --validation-ok: #4d7c0f;
+  --validation-bad: #b91c1c;
+  --badge-bg: #4d7c0f;
+  --badge-text: #fff;
+  --gate-text: #b45309;
+
+  --danger-bg: #fbe9e6;
+  --conflict-bg: #f7ecc9;
+}

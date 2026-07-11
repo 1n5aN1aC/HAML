@@ -6,6 +6,7 @@
 // mid-typing is never punished. Empty values stay uncolored (emptiness is
 // the 'required' flag's job, enforced at submit).
 import { forwardRef, useState } from 'react'
+import { alphanumeric } from '../text-input.js'
 
 // full-match semantics, same as contact-validation.js
 function matches(pattern, value) {
@@ -46,7 +47,7 @@ const FieldInput = forwardRef(function FieldInput(
       value={value}
       placeholder={placeholder}
       onChange={(e) =>
-        onChange(field.type === 'number' ? e.target.value : e.target.value.toUpperCase())
+        onChange(field.type === 'number' ? e.target.value : alphanumeric(e.target.value).toUpperCase())
       }
       onKeyDown={onKeyDown}
       {...feedback}

@@ -1,12 +1,15 @@
 // Top status bar: operator identity, band/mode, connection indicator.
 // Logging stays disabled until every session value is set (App enforces it).
 import { useEffect } from 'react'
+import { alphanumeric } from '../text-input.js'
 
 const DEFAULT_MODE = (modes) =>
   modes.includes('Phone') ? 'Phone' : (modes[0] || '')
 
 export default function StatusBar({ session, onSession, config, conflicts = [] }) {
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
+  const setAlphanumeric = (key) => (e) =>
+    onSession({ ...session, [key]: alphanumeric(e.target.value) })
   const mode = session.mode || DEFAULT_MODE(config.modes)
   const setMode = (e) => onSession({ ...session, mode: e.target.value })
 
@@ -24,14 +27,14 @@ export default function StatusBar({ session, onSession, config, conflicts = [] }
         placeholder="Callsign"
         value={session.callsign}
         maxLength={10}
-        onChange={set('callsign')}
+        onChange={setAlphanumeric('callsign')}
       />
       <input
         className="initials"
         placeholder="Initials"
         value={session.initials}
         maxLength={4}
-        onChange={set('initials')}
+        onChange={setAlphanumeric('initials')}
       />
       <label className="mode-label">
         Mode:&nbsp;
