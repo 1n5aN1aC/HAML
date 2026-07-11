@@ -104,6 +104,71 @@ def main():
         check(status == 200 and {"field-day", "pota", "generic"} <= ids,
               "built-in templates are listed")
 
+        print("template save + delete:")
+        scratch = {
+            "name": "Smoke Scratch",
+            "fields": [
+                {"name": "grid", "label": "Grid", "type": "text",
+                 "required": True, "default": "", "order": 1,
+                 "validation": {"pattern": "[A-R]{2}\\d{2}",
+                                "message": "Grid must look like CN85"}},
+            ],
+            "bands": ["20m"], "modes": ["SSB"], "dupe_key": [],
+            "contact_list": ["grid"], "export": None,
+        }
+        status, _ = request("PUT", "/api/admin/templates/smoke-scratch",
+                            body=scratch)
+        check(status == 401, "template save rejects a missing password")
+        status, body = request("PUT", "/api/admin/templates/smoke-scratch",
+                               headers=ADMIN, body=scratch)
+        check(status == 200 and body["id"] == "smoke-scratch",
+              "valid template is saved")
+        status, body = request("GET", "/api/admin/templates", headers=ADMIN)
+        check("smoke-scratch" in {t["id"] for t in body["templates"]},
+              "saved template appears in the listing")
+        status, body = request("PUT", "/api/admin/templates/smoke-scratch",
+                               headers=ADMIN,
+                               body=dict(scratch, name="Smoke Scratch v2"))
+        check(status == 200, "overwriting an existing template works")
+        status, body = request("GET", "/api/admin/templates", headers=ADMIN)
+        names = {t["id"]: t["name"] for t in body["templates"]}
+        check(names["smoke-scratch"] == "Smoke Scratch v2",
+              "overwrite replaced the stored template")
+        status, body = request("PUT", "/api/admin/templates/..%2Fevil",
+                               headers=ADMIN, body=scratch)
+        check(status == 400, "template save rejects an unsafe id")
+
+        no_message = json.loads(json.dumps(scratch))
+        del no_message["fields"][0]["validation"]["message"]
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=no_message)
+        check(status == 400, "validation without a message is rejected")
+        bad_pattern = json.loads(json.dumps(scratch))
+        bad_pattern["fields"][0]["validation"]["pattern"] = "[unclosed"
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=bad_pattern)
+        check(status == 400, "non-compiling validation pattern is rejected")
+        bad_list = dict(scratch, contact_list=["nope"])
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=bad_list)
+        check(status == 400, "contact_list naming an unknown field is rejected")
+
+        status, _ = request("DELETE", "/api/admin/templates/smoke-scratch")
+        check(status == 401, "template delete rejects a missing password")
+        status, body = request("DELETE", "/api/admin/templates/smoke-scratch",
+                               headers=ADMIN)
+        check(status == 200 and body["deleted"] == "smoke-scratch",
+              "saved template can be deleted")
+        status, body = request("GET", "/api/admin/templates", headers=ADMIN)
+        check("smoke-scratch" not in {t["id"] for t in body["templates"]},
+              "deleted template disappears from the listing")
+        status, _ = request("DELETE", "/api/admin/templates/smoke-scratch",
+                            headers=ADMIN)
+        check(status == 404, "deleting an unknown template is a 404")
+        status, _ = request("DELETE", "/api/admin/templates/..%2Fevil",
+                            headers=ADMIN)
+        check(status == 404, "template delete rejects an unsafe id")
+
         print("event creation:")
         status, created = request("POST", "/api/admin/events", headers=ADMIN,
                                   body={"template": "field-day",
@@ -116,6 +181,10 @@ def main():
         check(event["station_callsign"] == "W7XYZ", "station callsign uppercased")
         field_names = [f["name"] for f in event["config"]["fields"]]
         check(field_names == ["class", "section"], "frozen config has template fields")
+        check(event["config"]["contact_list"] == ["class", "section"],
+              "frozen config carries contact_list")
+        check(event["config"]["fields"][0]["validation"]["message"],
+              "frozen config carries field validation")
 
         print("push/pull round trip (client A):")
         contact_a = make_contact("client-A", "N0CALL", iso())

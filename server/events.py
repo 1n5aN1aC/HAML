@@ -52,6 +52,7 @@ def create_event(data_dir, template, name, station_callsign):
         "bands": template["bands"],
         "modes": template["modes"],
         "dupe_key": template["dupe_key"],
+        "contact_list": template.get("contact_list"),
         "export": template.get("export"),
     }
     conn = db.open_db(path)

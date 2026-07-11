@@ -7,7 +7,11 @@
       "type": "text",
       "required": true,
       "default": "59",
-      "order": 1
+      "order": 1,
+      "validation": {
+        "pattern": "[1-5][1-9]\\d?",
+        "message": "RST Sent must be a signal report like 59 or 599"
+      }
     },
     {
       "name": "rst_received",
@@ -15,7 +19,11 @@
       "type": "text",
       "required": true,
       "default": "59",
-      "order": 2
+      "order": 2,
+      "validation": {
+        "pattern": "[1-5][1-9]\\d?",
+        "message": "RST Received must be a signal report like 59 or 599"
+      }
     },
     {
       "name": "their_park",
@@ -23,11 +31,16 @@
       "type": "text",
       "required": false,
       "default": "",
-      "order": 3
+      "order": 3,
+      "validation": {
+        "pattern": "[A-Z]{1,2}-\\d{4,5}",
+        "message": "Their Park must be a park reference like US-1234"
+      }
     }
   ],
-  "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"],
+  "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm", "Other"],
   "modes": ["SSB", "CW", "FT8", "FT4", "FM", "AM"],
   "dupe_key": ["remote_callsign", "band", "mode"],
+  "contact_list": ["rst_sent", "rst_received", "their_park"],
   "export": null
 }

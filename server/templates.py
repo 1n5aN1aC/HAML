@@ -5,11 +5,14 @@ template's content into the Event database, so these files are never read on
 behalf of a live Event.
 """
 import json
+import re
 from pathlib import Path
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 FIELD_TYPES = {"text", "number", "choice"}
+
+TEMPLATE_ID_RE = re.compile(r"^[a-z0-9_-]+$")
 
 
 def validate_template(template):
@@ -48,6 +51,33 @@ def validate_template(template):
             if (not isinstance(options, list) or not options
                     or not all(isinstance(o, str) for o in options)):
                 raise ValueError(f"choice field '{name}' needs a string list 'options'")
+        validation = field.get("validation")
+        if validation is not None:
+            if not isinstance(validation, dict) or set(validation) != {"pattern", "message"}:
+                raise ValueError(
+                    f"field '{name}': 'validation' must be an object with"
+                    " exactly 'pattern' and 'message'")
+            pattern = validation["pattern"]
+            if not isinstance(pattern, str) or not pattern:
+                raise ValueError(f"field '{name}': validation 'pattern' must be a non-empty string")
+            try:
+                # sanity check only — the pattern actually runs in the client's
+                # JS regex engine, so stick to the common dialect subset
+                re.compile(pattern)
+            except re.error as exc:
+                raise ValueError(f"field '{name}': bad validation pattern: {exc}")
+            if not isinstance(validation["message"], str) or not validation["message"]:
+                raise ValueError(f"field '{name}': validation 'message' must be a non-empty string")
+    contact_list = template.get("contact_list")
+    if contact_list is not None:
+        if (not isinstance(contact_list, list)
+                or not all(isinstance(n, str) for n in contact_list)):
+            raise ValueError("'contact_list' must be a list of field names")
+        if len(set(contact_list)) != len(contact_list):
+            raise ValueError("'contact_list' has duplicate field names")
+        unknown = [n for n in contact_list if n not in seen]
+        if unknown:
+            raise ValueError(f"'contact_list' names unknown fields: {', '.join(unknown)}")
 
 
 def list_templates(templates_dir=TEMPLATES_DIR):
@@ -71,6 +101,16 @@ def load_template(template_id, templates_dir=TEMPLATES_DIR):
     template = json.loads(path.read_text(encoding="utf-8"))
     validate_template(template)
     return template
+
+
+def save_template(template_id, template, templates_dir=TEMPLATES_DIR):
+    """Validate and write a template file by id, creating or overwriting.
+    Overwriting is safe: live Events use a frozen copy of the config."""
+    if not isinstance(template_id, str) or not TEMPLATE_ID_RE.match(template_id):
+        raise ValueError("template id must match [a-z0-9_-]+")
+    validate_template(template)
+    path = Path(templates_dir) / f"{template_id}.json"
+    path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
 
 
 def delete_template(template_id, templates_dir=TEMPLATES_DIR):

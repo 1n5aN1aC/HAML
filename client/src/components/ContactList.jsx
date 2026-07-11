@@ -30,7 +30,12 @@ export default function ContactList({ config, onSelect }) {
     [],
   )
 
-  const fields = config.fields
+  // template's contact_list picks and orders the custom columns; absent = all
+  const fields = config.contact_list
+    ? config.contact_list
+        .map((name) => config.fields.find((f) => f.name === name))
+        .filter(Boolean)
+    : config.fields
   if (!contacts) return <div className="contact-list" />
 
   return (

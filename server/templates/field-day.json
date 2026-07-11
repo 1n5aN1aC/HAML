@@ -7,7 +7,11 @@
       "type": "text",
       "required": true,
       "default": "",
-      "order": 1
+      "order": 1,
+      "validation": {
+        "pattern": "\\d{1,2}[A-F]",
+        "message": "Class must be a Field Day class like 3A"
+      }
     },
     {
       "name": "section",
@@ -15,11 +19,16 @@
       "type": "text",
       "required": true,
       "default": "",
-      "order": 2
+      "order": 2,
+      "validation": {
+        "pattern": "[A-Z]{2,3}",
+        "message": "ARRL Section must be an abbreviation like OR"
+      }
     }
   ],
-  "bands": ["160m", "80m", "40m", "20m", "15m", "10m", "6m", "2m", "70cm"],
+  "bands": ["160m", "80m", "40m", "20m", "15m", "10m", "6m", "2m", "1.25m", "70cm", "33cm", "23cm", "13cm", "Other"],
   "modes": ["Phone", "CW", "Digital"],
   "dupe_key": ["remote_callsign", "band", "mode"],
+  "contact_list": ["class", "section"],
   "export": null
 }

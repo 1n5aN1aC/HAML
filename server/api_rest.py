@@ -123,6 +123,21 @@ async def admin_list_templates(request):
     return web.json_response({"templates": templates.list_templates()})
 
 
+# Create or overwrite an event template file on disk.
+async def admin_save_template(request):
+    require_admin(request)
+    template_id = request.match_info["template_id"]
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return json_error(400, "body must be JSON")
+    try:
+        templates.save_template(template_id, body)
+    except ValueError as exc:
+        return json_error(400, str(exc))
+    return web.json_response({"id": template_id, "name": body["name"]})
+
+
 # Delete an event template file from disk.
 async def admin_delete_template(request):
     require_admin(request)
@@ -203,6 +218,8 @@ def setup_routes(app):
     app.router.add_get("/api/contacts", get_contacts)
     app.router.add_get("/api/chat", get_chat)
     app.router.add_get("/api/admin/templates", admin_list_templates)
+    app.router.add_put("/api/admin/templates/{template_id}",
+                       admin_save_template)
     app.router.add_delete("/api/admin/templates/{template_id}",
                           admin_delete_template)
     app.router.add_get("/api/admin/events", admin_list_events)
