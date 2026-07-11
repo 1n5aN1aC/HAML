@@ -187,6 +187,7 @@ body {
 }
 .chat-panel { flex: 1; border-bottom: 1px solid #d1d5db; }
 .future-panel { height: 90px; }
+.future-panel-left { flex: 1; background: #fff; }  /* fills the left pane below the entry form */
 
 /* --- stations panel --------------------------------------------------------- */
 
@@ -247,7 +248,13 @@ body {
 
 /* --- contact list ---------------------------------------------------------- */
 
-.contact-list { flex: 1; overflow-y: auto; background: #fff; }
+.contact-list {
+  flex: 0 1 320px;     /* preferred height; shrinks (to min) only when the pane runs out of room */
+  min-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;  /* wheel scroll stays in the list at its ends */
+  background: #fff;
+}
 
 .contact-list table { width: 100%; border-collapse: collapse; }
 
@@ -277,7 +284,12 @@ body {
 
 /* --- entry form ------------------------------------------------------------ */
 
-.entry-form { padding: 10px 12px; background: #f9fafb; border-top: 1px solid #d1d5db; }
+.entry-form {
+  padding: 10px 12px;
+  background: #f9fafb;
+  border-top: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
+}
 
 .entry-form fieldset { border: 0; margin: 0; padding: 0; }
 .entry-form fieldset:disabled { opacity: 0.45; }

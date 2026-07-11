@@ -35,6 +35,7 @@ export default function LoggingTab({
             clientUuid={clientUuid}
             disabled={!sessionComplete}
           />
+          <div className="future-panel-left" />
         </section>
         <aside className="right-pane">
           <StationsPanel stations={stations} clientUuid={clientUuid} />
