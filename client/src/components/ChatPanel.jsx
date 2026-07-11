@@ -27,8 +27,8 @@ export default function ChatPanel({ messages, onSend, onResend, disabled }) {
 
   return (
     <div className="chat-panel">
-      <h2>Chat</h2>
       <div className="chat-messages" ref={scrollRef}>
+        <h2>Chat</h2>
         {messages.length === 0 && <p className="placeholder">No messages yet</p>}
         {messages.map((m) => (
           <div key={m.uuid} className={`chat-msg${m.status === 'failed' ? ' failed' : ''}`}>

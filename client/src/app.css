@@ -254,8 +254,8 @@ body {
   border-radius: var(--panel-radius);
 }
 
-.right-pane > div { padding: 10px 12px; }
-.right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 6px; color: var(--text-muted); }
+.right-pane > div { padding: 6px 10px; }
+.right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px; color: var(--text-muted); }
 .right-pane .placeholder { color: var(--text-faint); font-style: italic; }
 .stations-panel {
   height: 200px;       /* fixed panel height; tweak as desired */
@@ -375,7 +375,7 @@ body {
 /* --- entry form ------------------------------------------------------------ */
 
 .entry-form {
-  padding: 10px 12px;
+  padding: 6px 10px;
   background: var(--panel-alt-bg);
 }
 
