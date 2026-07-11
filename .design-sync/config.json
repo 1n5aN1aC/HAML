@@ -1,0 +1,30 @@
+{
+  "projectId": "326f1483-e30e-4f0e-8e46-6162dba200f9",
+  "shape": "package",
+  "pkg": "haml-client",
+  "globalName": "HAML",
+  "entry": "client/.ds-entry.mjs",
+  "cssEntry": "src/app.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "componentSrcMap": {
+    "AdminTab": "src/components/AdminTab.jsx",
+    "ChatPanel": "src/components/ChatPanel.jsx",
+    "ContactEntryForm": "src/components/ContactEntryForm.jsx",
+    "ContactList": "src/components/ContactList.jsx",
+    "ContactModal": "src/components/ContactModal.jsx",
+    "FieldInput": "src/components/FieldInput.jsx",
+    "LoggingTab": "src/components/LoggingTab.jsx",
+    "RadioTab": "src/components/RadioTab.jsx",
+    "StationsPanel": "src/components/StationsPanel.jsx",
+    "StatisticsTab": "src/components/StatisticsTab.jsx",
+    "StatusBar": "src/components/StatusBar.jsx",
+    "TopBar": "src/components/TopBar.jsx"
+  },
+  "overrides": {
+    "TopBar": { "cardMode": "column" },
+    "StatusBar": { "cardMode": "column" },
+    "ContactEntryForm": { "cardMode": "column" },
+    "ContactModal": { "cardMode": "single", "primaryStory": "Edit", "viewport": "820x620" },
+    "LoggingTab": { "cardMode": "single", "primaryStory": "Screen", "viewport": "1280x820" }
+  }
+}
