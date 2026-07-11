@@ -71,3 +71,15 @@ def load_template(template_id, templates_dir=TEMPLATES_DIR):
     template = json.loads(path.read_text(encoding="utf-8"))
     validate_template(template)
     return template
+
+
+def delete_template(template_id, templates_dir=TEMPLATES_DIR):
+    """Delete a template file by id. Returns False when no such template."""
+    # the id must be a bare filename stem — no separators or traversal
+    if Path(template_id).name != template_id:
+        return False
+    path = Path(templates_dir) / f"{template_id}.json"
+    if not path.is_file():
+        return False
+    path.unlink()
+    return True

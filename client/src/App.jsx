@@ -4,10 +4,10 @@
 
 import { useEffect, useState } from 'react'
 import { boot } from './boot.js'
-import { kvGet, kvSet } from './db.js'
+import { kvGet, kvSet, exportEventData } from './db.js'
 import { startSync, pullNow } from './sync.js'
 import { startSocket, setPresence } from './socket.js'
-import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage } from './chat.js'
+import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage, clearChat } from './chat.js'
 import TopBar from './components/TopBar.jsx'
 import LoggingTab from './components/LoggingTab.jsx'
 import RadioTab from './components/RadioTab.jsx'
@@ -42,6 +42,10 @@ export default function App() {
   useEffect(() => {
     if (state.status !== 'ready') return
     setConnected(state.connected)
+    // Offline continuation after an event mismatch: keep logging locally
+    // against the old event, but never sync or announce presence — the
+    // server is on a different event now (ADR-0002).
+    if (state.offline) return
     // The WebSocket owns the connection indicator; sync just does data
     // transfer. Sync push/pull failures no longer flicker the status.
     const stopSync = startSync()
@@ -57,6 +61,7 @@ export default function App() {
       },
       onPresence: setStations,
       onChat: async (message) => setChat(await applyChatBroadcast(message)),
+      onChatCleared: async () => setChat(await clearChat()),
       onPoke: pullNow,
       onEvent: async (eventUuid) => {
         // Server switched Events under us: re-run boot, which surfaces the
@@ -105,6 +110,30 @@ export default function App() {
     setState(await boot({ acceptNewEvent: true }))
   }
 
+  // Keep working on the old event without the server. Nothing is wiped;
+  // reloading the page brings the mismatch screen back.
+  function continueOffline() {
+    setState({
+      status: 'ready',
+      event: state.cached,
+      clientUuid: state.clientUuid,
+      connected: false,
+      offline: true,
+    })
+  }
+
+  // Download the whole local database (event, contacts, chat) as JSON.
+  async function exportData() {
+    const data = await exportEventData()
+    const name = (data.event?.name || 'event').replace(/[^\w-]+/g, '_')
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `haml-${name}-${data.exported_at.slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   if (state.status === 'loading') {
     return <div className="screen">Connecting…</div>
   }
@@ -127,7 +156,15 @@ export default function App() {
           Switching will <strong>erase all local data</strong> from the old event.
           Contacts not yet synced will be lost.
         </p>
-        <button onClick={acceptNewEvent}>Switch to {state.event.name}</button>
+        <div className="screen-actions">
+          <button onClick={acceptNewEvent}>Switch to {state.event.name}</button>
+          <button className="btn-secondary" onClick={continueOffline}>
+            Continue offline with {state.cached.name}
+          </button>
+          <button className="btn-secondary" onClick={exportData}>
+            Export local data
+          </button>
+        </div>
       </div>
     )
   }

@@ -55,6 +55,13 @@ export async function sendMessage({ text, session, clientUuid }) {
   return loadChat()
 }
 
+// Admin cleared all chat: drop everything, including pending/failed — a
+// "failed" remnant would contradict the wipe the admin just performed.
+export async function clearChat() {
+  await db.chat.clear()
+  return loadChat()
+}
+
 export async function resendMessage(uuid) {
   const message = await db.chat.get(uuid)
   if (message && socketSend(wire(message))) {

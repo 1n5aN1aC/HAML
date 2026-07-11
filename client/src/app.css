@@ -64,6 +64,70 @@ body {
 .tab-page { padding: 20px; }
 .tab-page .placeholder { color: #9ca3af; font-style: italic; }
 
+/* --- admin tab -------------------------------------------------------------- */
+
+.admin-page { overflow-y: auto; max-width: 720px; }
+
+.admin-unlock { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.admin-unlock label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #374151; }
+.admin-unlock input { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px; }
+.admin-unlock .admin-error { flex-basis: 100%; margin: 0; }
+
+.admin-section { margin-bottom: 24px; }
+.admin-section h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 8px; color: #6b7280; }
+
+.admin-list { border-collapse: collapse; min-width: 480px; }
+.admin-list td { padding: 5px 14px 5px 0; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+.admin-list .admin-name { font-weight: 600; }
+.admin-list .admin-id, .admin-list .admin-date { color: #6b7280; }
+.admin-list .admin-actions { text-align: right; }
+
+.admin-badge {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-page button {
+  padding: 5px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-page button:hover { background: #eff6ff; }
+.admin-page button:disabled { color: #9ca3af; cursor: default; background: #fff; }
+.admin-page .btn-danger { border-color: #dc2626; color: #dc2626; }
+.admin-page .btn-danger:hover { background: #fef2f2; }
+.admin-unlock button, .admin-create button {
+  border: 0;
+  background: #2563eb;
+  color: #fff;
+  padding: 7px 14px;
+}
+.admin-unlock button:hover, .admin-create button:hover:enabled { background: #1d4ed8; }
+.admin-create button:disabled { background: #9ca3af; color: #fff; }
+
+.admin-create { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.admin-create label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #374151; }
+.admin-create input, .admin-create select {
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.admin-create .cs { width: 130px; text-transform: uppercase; font-weight: 600; }
+
+.admin-maintenance { display: flex; gap: 10px; }
+
+.admin-error { color: #dc2626; }
+.admin-notice { color: #16a34a; }
+
 /* --- status bar ----------------------------------------------------------- */
 
 .status-bar {
@@ -333,4 +397,12 @@ body {
   color: #fff;
   font-weight: 600;
   cursor: pointer;
+}
+
+.screen-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+.screen .btn-secondary {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  color: #1a1d21;
 }

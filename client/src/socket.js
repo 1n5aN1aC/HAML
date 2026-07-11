@@ -7,7 +7,8 @@ const RECONNECT_CAP = 30_000
 
 let mgr = null
 
-// handlers: { onConnect, onDisconnect, onPresence, onChat, onPoke, onEvent }
+// handlers: { onConnect, onDisconnect, onPresence, onChat, onPoke, onEvent,
+//             onChatCleared }
 // Returns a stop function.
 export function startSocket(handlers) {
   stopSocket()
@@ -84,6 +85,7 @@ function connect(m) {
     else if (data.type === 'chat') m.handlers.onChat?.(data.message)
     else if (data.type === 'poke') m.handlers.onPoke?.()
     else if (data.type === 'event') m.handlers.onEvent?.(data.event_uuid)
+    else if (data.type === 'chat_cleared') m.handlers.onChatCleared?.()
   }
 
   ws.onclose = () => {

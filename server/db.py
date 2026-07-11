@@ -179,3 +179,10 @@ def insert_chat(conn, msg):
     row = conn.execute("SELECT * FROM chat WHERE uuid = ?",
                        (msg["uuid"],)).fetchone()
     return {key: row[key] for key in row.keys()}
+
+
+def clear_chat(conn):
+    """Delete every chat message (admin action; no tombstones — clients
+    replace their local history wholesale on refresh)."""
+    conn.execute("DELETE FROM chat")
+    conn.commit()

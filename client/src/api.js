@@ -45,3 +45,53 @@ export function getContacts(since) {
     since ? `/api/contacts?since=${encodeURIComponent(since)}` : '/api/contacts',
   )
 }
+
+// --- admin endpoints (ADR-0004: gated by the shared password header) --------
+
+const adminHeaders = (password) => ({ 'X-Admin-Password': password })
+
+export function adminListTemplates(password) {
+  return request('/api/admin/templates', { headers: adminHeaders(password) })
+}
+
+export function adminDeleteTemplate(password, id) {
+  return request(`/api/admin/templates/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: adminHeaders(password),
+  })
+}
+
+export function adminListEvents(password) {
+  return request('/api/admin/events', { headers: adminHeaders(password) })
+}
+
+// Create a new event from a template; the server activates it immediately.
+export function adminCreateEvent(password, { name, station_callsign, template }) {
+  return request('/api/admin/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...adminHeaders(password) },
+    body: JSON.stringify({ name, station_callsign, template }),
+  })
+}
+
+export function adminActivateEvent(password, eventUuid) {
+  return request(`/api/admin/events/${encodeURIComponent(eventUuid)}/activate`, {
+    method: 'POST',
+    headers: adminHeaders(password),
+  })
+}
+
+// Snapshot the active event into data/backups/; returns the backup filename.
+export function adminBackup(password) {
+  return request('/api/admin/backup', {
+    method: 'POST',
+    headers: adminHeaders(password),
+  })
+}
+
+export function adminClearChat(password) {
+  return request('/api/admin/chat', {
+    method: 'DELETE',
+    headers: adminHeaders(password),
+  })
+}

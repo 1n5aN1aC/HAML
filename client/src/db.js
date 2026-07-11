@@ -35,6 +35,17 @@ export async function getClientUuid() {
   return uuid
 }
 
+// Snapshot everything belonging to the current Event for a safety export —
+// used from the mismatch screen before the operator switches (and wipes).
+export async function exportEventData() {
+  return {
+    exported_at: new Date().toISOString(),
+    event: await kvGet('event'),
+    contacts: await db.contacts.toArray(),
+    chat: await db.chat.toArray(),
+  }
+}
+
 // Event switch (ADR-0002): wipe everything that belongs to the old Event.
 // Client UUID and operator identity survive — the machine and person didn't change.
 export async function wipeEventData() {

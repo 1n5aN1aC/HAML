@@ -6,7 +6,7 @@ roster when its heartbeats stop, whatever its socket is doing.
 
 Message types:
   client -> server:  presence, chat
-  server -> client:  event, presence_list, chat, poke
+  server -> client:  event, presence_list, chat, poke, chat_cleared
 """
 import json
 import time
@@ -32,11 +32,15 @@ def setup(app):
     async def notify_event():
         await broadcast(app, event_message(app))
 
+    async def notify_chat_cleared():
+        await broadcast(app, {"type": "chat_cleared"})
+
     app["poke"] = poke
     app["notify_event"] = notify_event
+    app["notify_chat_cleared"] = notify_chat_cleared
     app.router.add_get("/ws", ws_handler)
 
-
+# Send a JSON message to every connected WebSocket client.
 async def broadcast(app, message):
     text = json.dumps(message)
     for ws in list(app["ws_clients"]):
@@ -45,13 +49,14 @@ async def broadcast(app, message):
         except (ConnectionError, RuntimeError):
             app["ws_clients"].discard(ws)
 
-
+# Build the 'event' message describing the currently active event.
+# Cruicially, this message includes the uuid of the active event.
 def event_message(app):
     active = app.get("event")
     return {"type": "event",
             "event_uuid": active["event_uuid"] if active else None}
 
-
+# Build the 'presence_list' message containing information about all live stations.
 def roster_message(app):
     stations = [
         {**{k: entry[k] for k in PRESENCE_KEYS},
@@ -61,7 +66,7 @@ def roster_message(app):
     stations.sort(key=lambda s: s["callsign"])
     return {"type": "presence_list", "stations": stations}
 
-
+# Drop old presence entries (last heartbeat older than PRESENCE_TTL)
 def purge_stale(app):
     now = time.time()
     stale = [uuid for uuid, entry in app["presence"].items()
@@ -70,7 +75,7 @@ def purge_stale(app):
         del app["presence"][uuid]
     return bool(stale)
 
-
+# Handle a single WebSocket connection's lifetime and dispatch messages.
 async def ws_handler(request):
     app = request.app
     ws = web.WebSocketResponse(heartbeat=30)
@@ -97,11 +102,11 @@ async def ws_handler(request):
         # reconnecting client shouldn't flicker off the roster.
     return ws
 
-
+# Checks if all specified keys in 'data' are non-empty strings.
 def valid_strings(data, keys):
     return all(isinstance(data.get(k), str) and data[k].strip() for k in keys)
 
-
+# Record a presence heartbeat and broadcast the updated roster.
 async def handle_presence(app, data):
     if not valid_strings(data, PRESENCE_KEYS):
         return
@@ -112,7 +117,7 @@ async def handle_presence(app, data):
     purge_stale(app)
     await broadcast(app, roster_message(app))
 
-
+# Persist a chat message and broadcast it to all clients.
 async def handle_chat(app, data):
     conn = app.get("conn")
     if conn is None or not valid_strings(data, CHAT_KEYS):
@@ -120,6 +125,3 @@ async def handle_chat(app, data):
     stored = db.insert_chat(conn, {k: data[k].strip() if k != "text"
                                    else data[k] for k in CHAT_KEYS})
     await broadcast(app, {"type": "chat", "message": stored})
-
-
-
