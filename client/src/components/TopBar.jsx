@@ -10,8 +10,8 @@ const TABS = [
 const THEMES = [
   { id: 'light', emoji: '☀️', label: 'Light' },
   { id: 'dark', emoji: '🌙', label: 'Dark' },
-  { id: 'blue', emoji: '🔵', label: 'Blue' },
-  { id: 'purple', emoji: '🔮', label: 'Dark Purple' },
+  { id: 'blue', emoji: '🔵', label: 'Solarized' },
+  { id: 'sepia', emoji: '📄', label: 'Sepia' },
 ]
 
 export default function TopBar({ eventName, connected, activeTab, onTab, theme, onTheme }) {

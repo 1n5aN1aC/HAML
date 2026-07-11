@@ -12,7 +12,7 @@ function matches(pattern, value) {
   return new RegExp(`^(?:${pattern})$`).test(value)
 }
 
-export default function FieldInput({ field, value, onChange }) {
+export default function FieldInput({ field, value, onChange, placeholder }) {
   const [focused, setFocused] = useState(false)
   const trimmed = String(value ?? '').trim()
   let cls
@@ -29,7 +29,7 @@ export default function FieldInput({ field, value, onChange }) {
   if (field.type === 'choice') {
     return (
       <select value={value} onChange={(e) => onChange(e.target.value)} {...feedback}>
-        <option value="">—</option>
+        <option value="">{placeholder}</option>
         {(field.options ?? []).map((o) => (
           <option key={o} value={o}>{o}</option>
         ))}
@@ -40,6 +40,7 @@ export default function FieldInput({ field, value, onChange }) {
     <input
       type={field.type === 'number' ? 'number' : 'text'}
       value={value}
+      placeholder={placeholder}
       onChange={(e) =>
         onChange(field.type === 'number' ? e.target.value : e.target.value.toUpperCase())
       }

@@ -66,26 +66,22 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       )}
       <fieldset disabled={disabled}>
         <div className="entry-fields">
-          <label>
-            Callsign
-            <input
-              ref={callsignRef}
-              className="cs"
-              value={callsign}
-              onChange={(e) => setCallsign(e.target.value.toUpperCase())}
-              autoFocus
-            />
-          </label>
+          <input
+            ref={callsignRef}
+            className="cs"
+            placeholder="Callsign"
+            value={callsign}
+            onChange={(e) => setCallsign(e.target.value.toUpperCase())}
+            autoFocus
+          />
           {fields.map((f) => (
-            <label key={f.name}>
-              {f.label}
-              {f.required && ' *'}
-              <FieldInput
-                field={f}
-                value={values[f.name]}
-                onChange={(v) => setValues({ ...values, [f.name]: v })}
-              />
-            </label>
+            <FieldInput
+              key={f.name}
+              field={f}
+              value={values[f.name]}
+              placeholder={f.label + (f.required ? ' *' : '')}
+              onChange={(v) => setValues({ ...values, [f.name]: v })}
+            />
           ))}
           <button type="submit">Log it</button>
         </div>

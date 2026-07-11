@@ -8,31 +8,31 @@
 
 :root {
   /* chrome / surfaces */
-  --bg-page: #f4f5f7;
-  --text: #1a1d21;
-  --topbar-bg: #374151;
-  --topbar-text: #e5e7eb;
-  --topbar-border: #1f2937;
-  --topbar-title: #f9fafb;
-  --tab-bg: #1f2937;
-  --tab-text: #d1d5db;
-  --tab-hover-bg: #4b5563;
-  --tab-hover-text: #fff;
-  --tab-active-bg: #f4f5f7;
-  --tab-active-text: #1a1d21;
-  --statusbar-bg: #1f2937;
-  --statusbar-text: #f9fafb;
-  --statusbar-input-bg: #111827;
-  --statusbar-input-border: #4b5563;
-  --input-bg: #fff;
-  --input-text: #1a1d21;
-  --panel-bg: #fff;
-  --panel-alt-bg: #f9fafb;
-  --border: #d1d5db;
-  --border-subtle: #e5e7eb;
-  --text-muted: #6b7280;
-  --text-faint: #9ca3af;
-  --text-label: #374151;
+  --bg-page: #ffffff;                /* Color behind & between page elements */
+  --text: #1a1d21;                   /* Text for info areas */
+  --topbar-bg: #374151;              /* TopBar - Background */
+  --topbar-text: #e5e7eb;            /* TopBar - Unused??? */
+  --topbar-border: #1f2937;          /* TopBar - Line Underneath */
+  --topbar-title: #f9fafb;           /* TopBar - HAML brand & event name */
+  --tab-bg: #1f2937;                 /* Tabs - Unselected Tabs */
+  --tab-text: #d1d5db;               /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: #4b5563;           /* Tabs - Hovering */
+  --tab-hover-text: #fff;            /* Tabs - Hovering Text */
+  --tab-active-bg: #f4f5f7;          /* Tabs - Active Tab */
+  --tab-active-text: #1a1d21;        /* Tabs - Active Tab Text */
+  --statusbar-bg: #1f2937;           /* Statusbar - Background */
+  --statusbar-text: #f9fafb;         /* Statusbar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: #111827;     /* Statusbar - TextBox Background */
+  --statusbar-input-border: #4b5563; /* Statusbar - TextBox Border */
+  --input-bg: #fff;                  /* Whole Page - TextBox Background */
+  --input-text: #1a1d21;             /* Whole Page - TextBox Text */
+  --panel-bg: #fff;                  /* Panels - Background */
+  --panel-alt-bg: #f9fafb;           /* Panels - Background (alt) */
+  --border: #d1d5db;                 /* Border around panels */
+  --border-subtle: #e5e7eb;          /* Lines between contacts in table */
+  --text-muted: #6b7280;             /* Table Headers */
+  --text-faint: #9ca3af;             /* Only used on coming soon tabs? */
+  --text-label: #374151;             /* Color of text inside text box */
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --accent-text: #fff;
@@ -41,6 +41,10 @@
   --focus-ring: #1a1d21;
   --modal-backdrop: rgba(0, 0, 0, 0.45);
   --modal-shadow: rgba(0, 0, 0, 0.3);
+
+  /* layout (not themed): gap between panels and their corner radius */
+  --panel-gap: 5px;
+  --panel-radius: 10px;
 
   /* signal foregrounds (constant meaning) */
   --danger: #dc2626;
@@ -65,31 +69,31 @@
 
 /* Dark: neutral gray-black surfaces (no blue tint), blue accent. */
 :root[data-theme="dark"] {
-  --bg-page: #1a1a1a;
-  --text: #e6e6e6;
-  --topbar-bg: #262626;
-  --topbar-text: #d4d4d4;
-  --topbar-border: #0f0f0f;
-  --topbar-title: #f5f5f5;
-  --tab-bg: #1a1a1a;
-  --tab-text: #a3a3a3;
-  --tab-hover-bg: #3a3a3a;
-  --tab-hover-text: #fff;
-  --tab-active-bg: #1a1a1a;
-  --tab-active-text: #f5f5f5;
-  --statusbar-bg: #141414;
-  --statusbar-text: #f5f5f5;
-  --statusbar-input-bg: #2a2a2a;
-  --statusbar-input-border: #404040;
-  --input-bg: #202020;
-  --input-text: #e6e6e6;
-  --panel-bg: #212121;
-  --panel-alt-bg: #1a1a1a;
-  --border: #3a3a3a;
-  --border-subtle: #2e2e2e;
-  --text-muted: #a3a3a3;
-  --text-faint: #6b6b6b;
-  --text-label: #d4d4d4;
+  --bg-page: #1e1e1e;                /* Color behind & between page elements */
+  --text: #e6e6e6;                   /* Text for info areas */
+  --topbar-bg: #333333;              /* TopBar - Background */
+  --topbar-text: #d4d4d4;            /* TopBar - Unused??? */
+  --topbar-border: #000000;          /* TopBar - Line Underneath */
+  --topbar-title: #f5f5f5;           /* TopBar - HAML brand & event name */
+  --tab-bg: #1a1a1a;                 /* Tabs - Unselected Tabs */
+  --tab-text: #a3a3a3;               /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: #454545;           /* Tabs - Hovering */
+  --tab-hover-text: #fff;            /* Tabs - Hovering Text */
+  --tab-active-bg: #1a1a1a;          /* Tabs - Active Tab */
+  --tab-active-text: #f5f5f5;        /* Tabs - Active Tab Text */
+  --statusbar-bg: #333333;           /* Statusbar - Background */
+  --statusbar-text: #f5f5f5;         /* Statusbar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: #1e1e1e;     /* Statusbar - TextBox Background */
+  --statusbar-input-border: #4a4a4a; /* Statusbar - TextBox Border */
+  --input-bg: #3a3a3a;               /* Whole Page - TextBox Background */
+  --input-text: #e0e0e0;             /* Whole Page - TextBox Text */
+  --panel-bg: #2d2d2d;               /* Panels - Background */
+  --panel-alt-bg: #2d2d2d;           /* Panels - Background (alt) */
+  --border: #444444;                 /* Border around panels */
+  --border-subtle: #2e2e2e;          /* Lines between contacts in table */
+  --text-muted: #a3a3a3;             /* Table Headers */
+  --text-faint: #6b6b6b;             /* Only used on coming soon tabs? */
+  --text-label: #d4d4d4;             /* Color of text inside text box */
   --accent: #3b82f6;
   --accent-hover: #2563eb;
   --accent-text: #fff;
@@ -118,114 +122,114 @@
   --conflict-bg: #3a2e0a;
 }
 
-/* Blue: slate/navy surfaces, brightened blue accent. */
+/* Solarized Dark: teal-dark base03/base02 surfaces, blue accent (the "blue" slot). */
 :root[data-theme="blue"] {
-  --bg-page: #111827;
-  --text: #e5e7eb;
-  --topbar-bg: #1f2937;
-  --topbar-text: #e5e7eb;
-  --topbar-border: #0f172a;
-  --topbar-title: #f9fafb;
-  --tab-bg: #111827;
-  --tab-text: #9ca3af;
-  --tab-hover-bg: #374151;
-  --tab-hover-text: #fff;
-  --tab-active-bg: #111827;
-  --tab-active-text: #f9fafb;
-  --statusbar-bg: #0f172a;
-  --statusbar-text: #f9fafb;
-  --statusbar-input-bg: #1f2937;
-  --statusbar-input-border: #374151;
-  --input-bg: #111827;
-  --input-text: #e5e7eb;
-  --panel-bg: #1f2937;
-  --panel-alt-bg: #111827;
-  --border: #374151;
-  --border-subtle: #303a4a;
-  --text-muted: #9ca3af;
-  --text-faint: #6b7280;
-  --text-label: #d1d5db;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
+  --bg-page: #002b36;                /* Color behind & between page elements */
+  --text: #93a1a1;                   /* Text for info areas */
+  --topbar-bg: #08404a;              /* TopBar - Background */
+  --topbar-text: #93a1a1;            /* TopBar - Unused??? */
+  --topbar-border: #001f27;          /* TopBar - Line Underneath */
+  --topbar-title: #eee8d5;           /* TopBar - HAML brand & event name */
+  --tab-bg: #002b36;                 /* Tabs - Unselected Tabs */
+  --tab-text: #657b83;               /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: #0d4c5a;           /* Tabs - Hovering */
+  --tab-hover-text: #eee8d5;         /* Tabs - Hovering Text */
+  --tab-active-bg: #002b36;          /* Tabs - Active Tab */
+  --tab-active-text: #eee8d5;        /* Tabs - Active Tab Text */
+  --statusbar-bg: #08404a;           /* Statusbar - Background */
+  --statusbar-text: #eee8d5;         /* Statusbar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: #00252e;     /* Statusbar - TextBox Background */
+  --statusbar-input-border: #0d4c5a; /* Statusbar - TextBox Border */
+  --input-bg: #00252e;               /* Whole Page - TextBox Background */
+  --input-text: #93a1a1;             /* Whole Page - TextBox Text */
+  --panel-bg: #073642;               /* Panels - Background */
+  --panel-alt-bg: #04303b;           /* Panels - Background (alt) */
+  --border: #0d4c5a;                 /* Border around panels */
+  --border-subtle: #0a4351;          /* Lines between contacts in table */
+  --text-muted: #839496;             /* Table Headers */
+  --text-faint: #586e75;             /* Only used on coming soon tabs? */
+  --text-label: #93a1a1;             /* Color of text inside text box */
+  --accent: #268bd2;
+  --accent-hover: #1e6fa8;
   --accent-text: #fff;
-  --accent-disabled: #4b5563;
-  --row-hover-bg: #243244;
-  --focus-ring: #e5e7eb;
+  --accent-disabled: #33667a;
+  --row-hover-bg: #0a4351;
+  --focus-ring: #93a1a1;
   --modal-backdrop: rgba(0, 0, 0, 0.6);
   --modal-shadow: rgba(0, 0, 0, 0.6);
 
-  --danger: #f87171;
-  --success: #22c55e;
-  --success-bright: #34d399;
-  --warning: #fbbf24;
-  --warning-text: #fbbf24;
-  --conn-down: #f87171;
-  --fresh: #22c55e;
-  --stale: #eab308;
-  --old: #f97316;
-  --validation-ok: #22c55e;
-  --validation-bad: #f87171;
-  --badge-bg: #16a34a;
-  --badge-text: #fff;
-  --gate-text: #fbbf24;
+  --danger: #dc322f;
+  --success: #859900;
+  --success-bright: #2aa198;
+  --warning: #b58900;
+  --warning-text: #b58900;
+  --conn-down: #dc322f;
+  --fresh: #859900;
+  --stale: #b58900;
+  --old: #cb4b16;
+  --validation-ok: #859900;
+  --validation-bad: #dc322f;
+  --badge-bg: #859900;
+  --badge-text: #002b36;
+  --gate-text: #b58900;
 
-  --danger-bg: #3b1a1a;
-  --conflict-bg: #422006;
+  --danger-bg: #3a1a1a;
+  --conflict-bg: #3a2e0a;
 }
 
-/* Dark Purple: purple-tinted surfaces + violet accent. */
-:root[data-theme="purple"] {
-  --bg-page: #1a1420;
-  --text: #ede9f4;
-  --topbar-bg: #2a1f38;
-  --topbar-text: #d8cce8;
-  --topbar-border: #120d18;
-  --topbar-title: #f5f0fb;
-  --tab-bg: #1f1730;
-  --tab-text: #b6a6cf;
-  --tab-hover-bg: #3b2d52;
-  --tab-hover-text: #fff;
-  --tab-active-bg: #1a1420;
-  --tab-active-text: #f5f0fb;
-  --statusbar-bg: #150f1e;
-  --statusbar-text: #f5f0fb;
-  --statusbar-input-bg: #241a2e;
-  --statusbar-input-border: #3b2d52;
-  --input-bg: #1f1730;
-  --input-text: #ede9f4;
-  --panel-bg: #241a2e;
-  --panel-alt-bg: #1f1730;
-  --border: #3b2d52;
-  --border-subtle: #2e2340;
-  --text-muted: #a795c2;
-  --text-faint: #7c6c96;
-  --text-label: #cabbe0;
-  --accent: #8b5cf6;
-  --accent-hover: #7c3aed;
+/* Sepia: warm "paper" light theme, tan chrome, burnt-amber accent. */
+:root[data-theme="sepia"] {
+  --bg-page: #fffff0;                /* Color behind & between page elements */
+  --text: #433422;                   /* Text for info areas */
+  --topbar-bg: #494949;              /* TopBar - Background */
+  --topbar-text: #ffffff;            /* TopBar - Unused??? */
+  --topbar-border: #cdbb8f;          /* TopBar - Line Underneath */
+  --topbar-title: #ffffff;           /* TopBar - HAML brand & event name */
+  --tab-bg: #d8c9a6;                 /* Tabs - Unselected Tabs */
+  --tab-text: #6b5a3e;               /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: #cdbb8f;           /* Tabs - Hovering */
+  --tab-hover-text: #2b2116;         /* Tabs - Hovering Text */
+  --tab-active-bg: #f4ecd8;          /* Tabs - Active Tab */
+  --tab-active-text: #2b2116;        /* Tabs - Active Tab Text */
+  --statusbar-bg: #e3d5b3;           /* StatusBar - Background */
+  --statusbar-text: #2b2116;         /* StatusBar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: #cec2a4;     /* StatusBar - TextBox Background */
+  --statusbar-input-border: #74684d; /* StatusBar - TextBox Border */
+  --input-bg: #fffdf5;               /* Whole Page - TextBox Background */
+  --input-text: #433422;             /* Whole Page - TextBox Text */
+  --panel-bg: #efe4c8;               /* Panels - Background */
+  --panel-alt-bg: #efe4c8;           /* Panels - Background (alt) */
+  --border: #d8c9a6;                 /* Border around panels */
+  --border-subtle: #e6c2c2;          /* Lines between contacts in table */
+  --text-muted: #8a795d;             /* Table Headers */
+  --text-faint: #a89a7d;             /* Only used on coming soon tabs? */
+  --text-label: #6b5a3e;             /* Color of text inside text box */
+  --accent: #b06a12;
+  --accent-hover: #935710;
   --accent-text: #fff;
-  --accent-disabled: #4b3d63;
-  --row-hover-bg: #2f2440;
-  --focus-ring: #ede9f4;
-  --modal-backdrop: rgba(10, 5, 15, 0.65);
-  --modal-shadow: rgba(0, 0, 0, 0.6);
+  --accent-disabled: #c9b48f;
+  --row-hover-bg: #f0e6cf;
+  --focus-ring: #433422;
+  --modal-backdrop: rgba(60, 45, 25, 0.35);
+  --modal-shadow: rgba(60, 45, 25, 0.2);
 
-  --danger: #f87171;
-  --success: #22c55e;
-  --success-bright: #34d399;
-  --warning: #fbbf24;
-  --warning-text: #fbbf24;
-  --conn-down: #f87171;
-  --fresh: #22c55e;
-  --stale: #eab308;
-  --old: #f97316;
-  --validation-ok: #22c55e;
-  --validation-bad: #f87171;
-  --badge-bg: #16a34a;
+  --danger: #b91c1c;
+  --success: #4d7c0f;
+  --success-bright: #4d7c0f;
+  --warning: #b45309;
+  --warning-text: #b45309;
+  --conn-down: #b91c1c;
+  --fresh: #4d7c0f;
+  --stale: #a16207;
+  --old: #c2410c;
+  --validation-ok: #4d7c0f;
+  --validation-bad: #b91c1c;
+  --badge-bg: #4d7c0f;
   --badge-text: #fff;
-  --gate-text: #fbbf24;
+  --gate-text: #b45309;
 
-  --danger-bg: #3a1a24;
-  --conflict-bg: #3a2a10;
+  --danger-bg: #fbe9e6;
+  --conflict-bg: #f7ecc9;
 }
 
 /* --- base ----------------------------------------------------------------- */
@@ -294,7 +298,13 @@ body {
 .top-bar .tab.active { background: var(--tab-active-bg); color: var(--tab-active-text); }
 
 /* theme picker: tiny emoji buttons, active one lifted out of its dim state */
-.theme-picker { display: flex; gap: 2px; }
+.theme-picker {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
 .theme-picker button {
   border: 0;
   background: none;
@@ -417,14 +427,23 @@ body {
 
 /* --- panes ---------------------------------------------------------------- */
 
-.panes { display: flex; flex: 1; min-height: 0; }
+/* Panels are cards: a small gap of page background separates them from each
+   other and the window edges (padding + gap), and each gets a full border and
+   rounded corners below. Tune --panel-gap / --panel-radius to taste. */
+.panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: var(--panel-gap);
+  padding: var(--panel-gap);
+}
 
 .left-pane {
   flex: 2;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid var(--border);
+  gap: var(--panel-gap);
 }
 
 .right-pane {
@@ -433,18 +452,30 @@ body {
   flex-direction: column;
   min-width: 250px;
   max-width: 400px;
+  gap: var(--panel-gap);
+}
+
+/* card frame shared by every panel in both panes */
+.contact-list,
+.entry-form,
+.future-panel-left,
+.stations-panel,
+.chat-panel,
+.future-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
 }
 
 .right-pane > div { padding: 10px 12px; }
 .right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 6px; color: var(--text-muted); }
 .right-pane .placeholder { color: var(--text-faint); font-style: italic; }
 .stations-panel {
-  border-bottom: 1px solid var(--border);
   height: 200px;       /* fixed panel height; tweak as desired */
   overflow-y: auto;    /* scrollbar appears when station list exceeds height */
+  background: var(--panel-alt-bg);
 }
-.chat-panel { flex: 1; border-bottom: 1px solid var(--border); }
-.future-panel { height: 90px; }
+.chat-panel { flex: 1; overflow: hidden; background: var(--panel-alt-bg); }
+.future-panel { height: 90px; background: var(--panel-alt-bg); }
 .future-panel-left { flex: 1; background: var(--panel-bg); }  /* fills the left pane below the entry form */
 
 /* --- stations panel --------------------------------------------------------- */
@@ -514,7 +545,8 @@ body {
 .contact-list {
   flex: 0 1 320px;     /* preferred height; shrinks (to min) only when the pane runs out of room */
   min-height: 200px;
-  overflow-y: auto;
+  overflow-y: scroll;             /* always reserve a scrollbar track, even when content fits */
+  scrollbar-gutter: stable;       /* prevent layout shift as items appear/disappear */
   overscroll-behavior: contain;  /* wheel scroll stays in the list at its ends */
   background: var(--panel-bg);
 }
@@ -535,6 +567,7 @@ body {
   font-size: 12px;
   text-transform: uppercase;
   color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
 }
 
 .contact-list .cs { font-weight: 600; }
@@ -550,8 +583,6 @@ body {
 .entry-form {
   padding: 10px 12px;
   background: var(--panel-alt-bg);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
 }
 
 .entry-form fieldset { border: 0; margin: 0; padding: 0; }
@@ -559,9 +590,7 @@ body {
 
 .entry-gate { margin-bottom: 8px; color: var(--gate-text); }
 
-.entry-fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-
-.entry-fields label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-label); }
+.entry-fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
 .entry-fields input, .entry-fields select {
   padding: 6px 8px;
@@ -572,7 +601,7 @@ body {
   color: var(--input-text);
 }
 
-.entry-fields .cs { width: 130px; text-transform: uppercase; font-weight: 600; }
+.entry-fields .cs { width: 130px; text-transform: uppercase; }
 
 .entry-fields button {
   padding: 7px 16px;
