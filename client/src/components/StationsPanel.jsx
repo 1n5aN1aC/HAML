@@ -27,7 +27,6 @@ export default function StationsPanel({ stations, clientUuid }) {
 
   return (
     <div className="stations-panel">
-      <h2>Stations</h2>
       {stations.length === 0 ? (
         <p className="placeholder">No stations online</p>
       ) : (
