@@ -97,7 +97,7 @@ def start_server(config_path):
             return proc
         except (urllib.error.URLError, ConnectionError):
             continue
-    proc.terminate()
+    stop_server(proc)
     raise AssertionError("server never came up")
 
 
@@ -255,7 +255,6 @@ def main():
         contact_a = make_contact("client-A", "N0CALL", iso())
         status, body = request("POST", "/api/contacts", body=contact_a)
         check(status == 200 and body["stored"], "push stores a new contact")
-        cursor0 = body["server_time"]
         status, body = request("POST", "/api/contacts", body=contact_a)
         check(status == 200 and body["stored"], "duplicate push is a harmless upsert")
         status, body = request("GET", "/api/contacts")
@@ -289,7 +288,7 @@ def main():
         contact_b = make_contact("client-B", "W1AW", iso())
         status, body = request("POST", "/api/contacts", body=contact_b)
         check(status == 200 and body["stored"], "second contact stored")
-        status, body = request("GET", "/api/contacts?since=" + urllib.parse.quote(cursor0))
+        status, body = request("GET", "/api/contacts?since=" + urllib.parse.quote(cursor1))
         check({c["uuid"] for c in body["contacts"]}
               == {contact_a["uuid"], contact_b["uuid"]},
               "old cursor sees both changed contacts")
@@ -320,9 +319,10 @@ def main():
         status, body = request("POST", "/api/contacts", body=tombstone)
         check(status == 200 and body["stored"], "tombstone stored")
         status, body = request("GET", "/api/contacts?since=" + urllib.parse.quote(cursor2))
-        deleted_row = next(c for c in body["contacts"]
-                           if c["uuid"] == contact_a["uuid"])
-        check(deleted_row["deleted"] is True, "tombstone syncs to other clients")
+        deleted_row = next((c for c in body["contacts"]
+                            if c["uuid"] == contact_a["uuid"]), None)
+        check(deleted_row is not None and deleted_row["deleted"] is True,
+              "tombstone syncs to other clients")
 
         print("validation:")
         status, _ = request("POST", "/api/contacts",

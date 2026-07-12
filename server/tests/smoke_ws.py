@@ -84,9 +84,11 @@ async def next_message(ws, timeout=2):
     return json.loads(msg.data)
 
 
-async def no_more_messages(ws, timeout=0.3):
+async def no_more_messages(ws, timeout=2):
     """True if no message arrives within timeout — used to prove a
-    malformed message was silently ignored rather than broadcast."""
+    malformed message was silently ignored rather than broadcast. The
+    window is generous so a slow machine can't false-pass by delaying
+    a broadcast past it (at the cost of a slower run)."""
     try:
         await asyncio.wait_for(ws.receive(), timeout=timeout)
         return False
