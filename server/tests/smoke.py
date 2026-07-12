@@ -2,7 +2,8 @@
 
 Stdlib only. Spawns the real server on a scratch port with a scratch data dir,
 then walks the API as two simulated clients: event creation, push/pull, the
-LWW conflict rule, tombstone sync, the cursor, backup, and event switching.
+LWW conflict rule, tombstone sync, the cursor, backup, event switching, the
+admin event listing, and persistence across a server restart.
 
 Run: python server/tests/smoke.py   (uses sys.executable for the subprocess)
 """
@@ -82,6 +83,33 @@ def make_contact(client_uuid, remote, edited_at, **overrides):
     return contact
 
 
+def start_server(config_path):
+    proc = subprocess.Popen([sys.executable, str(SERVER_DIR / "main.py"),
+                             str(config_path)])
+    for _ in range(50):  # wait for the server to come up
+        time.sleep(0.1)
+        if proc.poll() is not None:
+            raise AssertionError(
+                f"server exited early (code {proc.returncode}) — "
+                f"is port {PORT} already in use?")
+        try:
+            request("GET", "/api/event")
+            return proc
+        except (urllib.error.URLError, ConnectionError):
+            continue
+    proc.terminate()
+    raise AssertionError("server never came up")
+
+
+def stop_server(proc):
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
+
+
 def main():
     data_dir = Path(tempfile.mkdtemp(prefix="haml-smoke-"))
     config_path = data_dir / "config.json"
@@ -90,23 +118,9 @@ def main():
         "data_dir": str(data_dir), "admin_password": "test-pw",
     }))
 
-    proc = subprocess.Popen([sys.executable, str(SERVER_DIR / "main.py"),
-                             str(config_path)])
+    proc = start_server(config_path)
     passed = False
     try:
-        for _ in range(50):  # wait for the server to come up
-            time.sleep(0.1)
-            if proc.poll() is not None:
-                raise AssertionError(
-                    f"server exited early (code {proc.returncode}) — "
-                    f"is port {PORT} already in use?")
-            try:
-                status, _ = request("GET", "/api/event")
-                break
-            except (urllib.error.URLError, ConnectionError):
-                continue
-        else:
-            raise AssertionError("server never came up")
 
         print("no active event:")
         status, body = request("GET", "/api/event")
@@ -123,6 +137,25 @@ def main():
         ids = {t["id"] for t in body["templates"]}
         check({"field-day", "pota", "generic"} <= ids,
               "built-in templates are listed")
+        status, _ = request("GET", "/api/admin/templates",
+                            headers={"X-Admin-Password": "wrong-pw"})
+        check(status == 401, "admin endpoint rejects a wrong password")
+        status, _ = request("GET", "/api/admin/events")
+        check(status == 401, "event listing rejects a missing password")
+        status, _ = request("POST", "/api/admin/events",
+                            body={"template": "field-day", "name": "Nope",
+                                  "station_callsign": "W7XYZ"})
+        check(status == 401, "event creation rejects a missing password")
+        status, _ = request("POST", f"/api/admin/events/{uuid.uuid4()}/activate",
+                            body={})
+        check(status == 401, "event activation rejects a missing password")
+        status, _ = request("POST", "/api/admin/backup")
+        check(status == 401, "backup rejects a missing password")
+
+        print("event listing before any event exists:")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check(status == 200 and body["events"] == [],
+              "event listing is empty before any event exists")
 
         print("template save + delete:")
         scratch = {
@@ -206,6 +239,18 @@ def main():
         check(event["config"]["fields"][0]["validation"]["message"],
               "frozen config carries field validation")
 
+        print("event listing:")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check(status == 200 and len(body["events"]) == 1,
+              "event listing shows the new event")
+        listed = body["events"][0]
+        check(listed["event_uuid"] == created["event_uuid"]
+              and listed["name"] == "Field Day 2026"
+              and listed["station_callsign"] == "W7XYZ"
+              and listed["template_name"] == "ARRL Field Day",
+              "listing carries the event's meta")
+        check(listed["active"] is True, "the only event is marked active")
+
         print("push/pull round trip (client A):")
         contact_a = make_contact("client-A", "N0CALL", iso())
         status, body = request("POST", "/api/contacts", body=contact_a)
@@ -248,6 +293,21 @@ def main():
         check({c["uuid"] for c in body["contacts"]}
               == {contact_a["uuid"], contact_b["uuid"]},
               "old cursor sees both changed contacts")
+        # exclusion: an up-to-date cursor must filter out unchanged rows
+        time.sleep(0.002)  # step past the last write's millisecond ('>=' cursor)
+        status, body = request("GET", "/api/contacts")
+        cursor_now = body["server_time"]
+        status, body = request("GET",
+                               "/api/contacts?since=" + urllib.parse.quote(cursor_now))
+        check(body["contacts"] == [],
+              "up-to-date cursor returns no contacts")
+        touched = dict(contact_b, operator_initials="QQ", last_edited=iso(+5))
+        status, body = request("POST", "/api/contacts", body=touched)
+        check(status == 200 and body["stored"], "re-edit of the second contact stored")
+        status, body = request("GET",
+                               "/api/contacts?since=" + urllib.parse.quote(cursor_now))
+        check([c["uuid"] for c in body["contacts"]] == [contact_b["uuid"]],
+              "cursor pull returns only the re-edited contact, not the unchanged one")
         status, body = request("GET", "/api/contacts?since=not-a-timestamp")
         check(status == 400 and "since" in body["error"],
               "bad 'since' timestamp is rejected")
@@ -311,6 +371,11 @@ def main():
         status, event = request("GET", "/api/event")
         check(event["event_uuid"] == second["event_uuid"],
               "new event is now active")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        active_flags = {e["event_uuid"]: e["active"] for e in body["events"]}
+        check(active_flags == {created["event_uuid"]: False,
+                               second["event_uuid"]: True},
+              "listing shows both events with the active flag on the new one")
         status, body = request("GET", "/api/contacts")
         check(body["contacts"] == [], "new event starts with an empty log")
         status, _ = request("POST",
@@ -323,19 +388,36 @@ def main():
         check(status == 200, "old event re-activated")
         status, body = request("GET", "/api/contacts")
         check(len(body["contacts"]) == 3, "old event's contacts survived the switch")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        active_flags = {e["event_uuid"]: e["active"] for e in body["events"]}
+        check(active_flags == {created["event_uuid"]: True,
+                               second["event_uuid"]: False},
+              "listing's active flag follows the re-activation")
 
         status, body = request("GET", "/api/chat")
         check(status == 200 and body["messages"] == [], "chat history endpoint works")
 
+        print("restart persistence:")
+        stop_server(proc)
+        proc = start_server(config_path)
+        status, event = request("GET", "/api/event")
+        check(status == 200 and event["event_uuid"] == created["event_uuid"],
+              "active event survives a server restart")
+        check(event["station_callsign"] == "W7XYZ"
+              and [f["name"] for f in event["config"]["fields"]]
+              == ["class", "section"],
+              "event meta and frozen config survive a restart")
+        status, body = request("GET", "/api/contacts")
+        check(len(body["contacts"]) == 3, "contacts survive a server restart")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check({e["event_uuid"] for e in body["events"]}
+              == {created["event_uuid"], second["event_uuid"]},
+              "event listing is intact after a restart")
+
         print(f"\nPASS — {checks} checks")
         passed = True
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=10)
+        stop_server(proc)
         if passed:
             cleanup(data_dir)
         else:
