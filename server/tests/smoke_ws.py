@@ -16,6 +16,7 @@ Run: python server/tests/smoke_ws.py   (uses sys.executable for the subprocess)
 """
 import asyncio
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -43,9 +44,13 @@ def check(condition, label):
     print(f"  ok: {label}")
 
 
-def wait_for_server():
+def wait_for_server(proc):
     for _ in range(50):
         time.sleep(0.1)
+        if proc.poll() is not None:
+            raise AssertionError(
+                f"server exited early (code {proc.returncode}) — "
+                f"is port {PORT} already in use?")
         try:
             urllib.request.urlopen(BASE + "/api/event", timeout=1)
             return
@@ -54,6 +59,17 @@ def wait_for_server():
         except (urllib.error.URLError, ConnectionError):
             continue
     raise AssertionError("server never came up")
+
+
+def cleanup(data_dir):
+    """Remove the scratch dir, retrying briefly: on Windows the server's db
+    file handles can outlive proc.wait() by a moment."""
+    for _ in range(10):
+        shutil.rmtree(data_dir, ignore_errors=True)
+        if not data_dir.exists():
+            return
+        time.sleep(0.2)
+    print(f"warning: could not remove {data_dir}")
 
 
 async def rest(session, method, path, body=None, headers=None):
@@ -226,9 +242,19 @@ if __name__ == "__main__":
     }))
     proc = subprocess.Popen([sys.executable, str(SERVER_DIR / "main.py"),
                              str(config_path)])
+    passed = False
     try:
-        wait_for_server()
+        wait_for_server(proc)
         asyncio.run(main())
+        passed = True
     finally:
         proc.terminate()
-        proc.wait(timeout=10)
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=10)
+        if passed:
+            cleanup(data_dir)
+        else:
+            print(f"keeping scratch dir for debugging: {data_dir}")

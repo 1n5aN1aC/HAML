@@ -7,6 +7,7 @@ LWW conflict rule, tombstone sync, the cursor, backup, and event switching.
 Run: python server/tests/smoke.py   (uses sys.executable for the subprocess)
 """
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,6 +33,17 @@ def check(condition, label):
     if not condition:
         raise AssertionError(f"FAIL: {label}")
     print(f"  ok: {label}")
+
+
+def cleanup(data_dir):
+    """Remove the scratch dir, retrying briefly: on Windows the server's db
+    file handles can outlive proc.wait() by a moment."""
+    for _ in range(10):
+        shutil.rmtree(data_dir, ignore_errors=True)
+        if not data_dir.exists():
+            return
+        time.sleep(0.2)
+    print(f"warning: could not remove {data_dir}")
 
 
 def request(method, path, body=None, headers=None):
@@ -80,9 +92,14 @@ def main():
 
     proc = subprocess.Popen([sys.executable, str(SERVER_DIR / "main.py"),
                              str(config_path)])
+    passed = False
     try:
         for _ in range(50):  # wait for the server to come up
             time.sleep(0.1)
+            if proc.poll() is not None:
+                raise AssertionError(
+                    f"server exited early (code {proc.returncode}) — "
+                    f"is port {PORT} already in use?")
             try:
                 status, _ = request("GET", "/api/event")
                 break
@@ -102,8 +119,9 @@ def main():
         status, _ = request("GET", "/api/admin/templates")
         check(status == 401, "admin endpoint rejects a missing password")
         status, body = request("GET", "/api/admin/templates", headers=ADMIN)
+        check(status == 200, "admin endpoint accepts the password")
         ids = {t["id"] for t in body["templates"]}
-        check(status == 200 and {"field-day", "pota", "generic"} <= ids,
+        check({"field-day", "pota", "generic"} <= ids,
               "built-in templates are listed")
 
         print("template save + delete:")
@@ -200,8 +218,10 @@ def main():
               and body["contacts"][0]["uuid"] == contact_a["uuid"]
               and body["contacts"][0]["fields"]["section"] == "OR",
               "full pull returns the contact with its JSON fields")
-        check(bool(datetime.fromisoformat(body["server_time"])),
-              "pull response carries a parseable server_time")
+        skew = abs((datetime.fromisoformat(body["server_time"])
+                    - datetime.now(timezone.utc)).total_seconds())
+        check(skew < 10,
+              "pull response server_time is close to the current time")
         cursor1 = body["server_time"]
 
         print("LWW conflict (client B edits the same contact):")
@@ -222,7 +242,8 @@ def main():
         check([c["uuid"] for c in body["contacts"]] == [contact_a["uuid"]],
               "pull since cursor returns the re-edited contact")
         contact_b = make_contact("client-B", "W1AW", iso())
-        request("POST", "/api/contacts", body=contact_b)
+        status, body = request("POST", "/api/contacts", body=contact_b)
+        check(status == 200 and body["stored"], "second contact stored")
         status, body = request("GET", "/api/contacts?since=" + urllib.parse.quote(cursor0))
         check({c["uuid"] for c in body["contacts"]}
               == {contact_a["uuid"], contact_b["uuid"]},
@@ -237,6 +258,7 @@ def main():
         cursor2 = body["server_time"]
         tombstone = dict(newer, deleted=True, last_edited=iso(+10))
         status, body = request("POST", "/api/contacts", body=tombstone)
+        check(status == 200 and body["stored"], "tombstone stored")
         status, body = request("GET", "/api/contacts?since=" + urllib.parse.quote(cursor2))
         deleted_row = next(c for c in body["contacts"]
                            if c["uuid"] == contact_a["uuid"])
@@ -306,9 +328,18 @@ def main():
         check(status == 200 and body["messages"] == [], "chat history endpoint works")
 
         print(f"\nPASS — {checks} checks")
+        passed = True
     finally:
         proc.terminate()
-        proc.wait(timeout=10)
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=10)
+        if passed:
+            cleanup(data_dir)
+        else:
+            print(f"keeping scratch dir for debugging: {data_dir}")
 
 
 if __name__ == "__main__":
