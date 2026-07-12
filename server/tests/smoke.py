@@ -3,7 +3,8 @@
 Stdlib only. Spawns the real server on a scratch port with a scratch data dir,
 then walks the API as two simulated clients: event creation, push/pull, the
 LWW conflict rule, tombstone sync, the cursor, backup, event switching, the
-admin event listing, and persistence across a server restart.
+admin event listing, event-creation validation, and persistence across a
+server restart.
 
 Run: python server/tests/smoke.py   (uses sys.executable for the subprocess)
 """
@@ -128,6 +129,19 @@ def main():
               "GET /api/event is 404 before any event exists")
         status, _ = request("POST", "/api/admin/backup", headers=ADMIN)
         check(status == 404, "backup is 404 before any event exists")
+        status, body = request("POST", "/api/contacts",
+                               body=make_contact("client-A", "N0CALL", iso()))
+        check(status == 404 and body["error"] == "no active event",
+              "contact push is 404 before any event exists")
+        status, body = request("GET", "/api/contacts")
+        check(status == 404 and body["error"] == "no active event",
+              "contact pull is 404 before any event exists")
+        status, body = request("GET", "/api/chat")
+        check(status == 404 and body["error"] == "no active event",
+              "chat history is 404 before any event exists")
+        status, body = request("DELETE", "/api/admin/chat", headers=ADMIN)
+        check(status == 404 and body["error"] == "no active event",
+              "chat clear is 404 before any event exists")
 
         print("admin auth:")
         status, _ = request("GET", "/api/admin/templates")
@@ -221,6 +235,52 @@ def main():
         status, _ = request("DELETE", "/api/admin/templates/..%2Fevil",
                             headers=ADMIN)
         check(status == 404, "template delete rejects an unsafe id")
+
+        print("event creation validation:")
+        good = {"template": "field-day", "name": "Field Day 2026",
+                "station_callsign": "W7XYZ"}
+        without_name = {k: v for k, v in good.items() if k != "name"}
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=without_name)
+        check(status == 400 and "name" in body["error"],
+              "event creation without a name is rejected")
+        status, _ = request("POST", "/api/admin/events", headers=ADMIN,
+                            body=dict(good, name="   "))
+        check(status == 400, "event creation with a blank name is rejected")
+        without_callsign = {k: v for k, v in good.items()
+                            if k != "station_callsign"}
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=without_callsign)
+        check(status == 400 and "station_callsign" in body["error"],
+              "event creation without a station_callsign is rejected")
+        status, _ = request("POST", "/api/admin/events", headers=ADMIN,
+                            body=dict(good, station_callsign="   "))
+        check(status == 400,
+              "event creation with a blank station_callsign is rejected")
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=dict(good, template="no-such-template"))
+        check(status == 400 and body["error"].startswith("bad template"),
+              "event creation with an unknown template is rejected")
+        without_template = {k: v for k, v in good.items() if k != "template"}
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=without_template)
+        check(status == 400 and body["error"].startswith("bad template"),
+              "event creation without a template is rejected")
+        raw_req = urllib.request.Request(
+            BASE + "/api/admin/events", method="POST", data=b"not json",
+            headers={"Content-Type": "application/json", **ADMIN})
+        try:
+            urllib.request.urlopen(raw_req, timeout=5)
+            raise AssertionError("FAIL: non-JSON event body did not raise")
+        except urllib.error.HTTPError as exc:
+            status, body = exc.code, json.loads(exc.read())
+        check(status == 400 and body["error"] == "body must be JSON",
+              "non-JSON event creation body is rejected")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check(body["events"] == [],
+              "no half-created event leaked from the rejected attempts")
+        status, _ = request("GET", "/api/event")
+        check(status == 404, "still no active event after the rejected attempts")
 
         print("event creation:")
         status, created = request("POST", "/api/admin/events", headers=ADMIN,

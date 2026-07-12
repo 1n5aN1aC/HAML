@@ -1,5 +1,6 @@
 """End-to-end smoke test for the WebSocket signal layer (presence, chat,
-pokes, event/chat_cleared broadcasts) plus the REST endpoints tied to it
+pokes, event/chat_cleared broadcasts, event-switch broadcasts, and
+garbage-frame handling) plus the REST endpoints tied to it
 (GET /api/chat, DELETE /api/admin/chat).
 
 Separate from smoke.py: this needs an async client that opens a socket and
@@ -10,7 +11,9 @@ Requires aiohttp (already the server's only dependency) for both the WS
 client and the REST calls made from this script.
 
 Not covered here: PRESENCE_TTL expiry / purge_stale (real-time expiry is
-too slow for a smoke test), reconnect storms, many concurrent clients.
+too slow for a smoke test), the dead-socket discard path in broadcast()
+(not deterministically reachable from outside the process), reconnect
+storms, many concurrent clients.
 
 Run: python server/tests/smoke_ws.py   (uses sys.executable for the subprocess)
 """
@@ -124,6 +127,15 @@ async def main():
         check(await no_more_messages(client_a),
               "chat before any event exists produces no broadcast")
 
+        print("presence with no active event still works:")
+        # presence needs no db connection; same client_uuid as the later
+        # sections, so the global in-memory roster stays a single station
+        await client_a.send_str(json.dumps(presence("client-A", "W7XYZ")))
+        roster = await next_message(client_a)
+        check(roster["type"] == "presence_list"
+              and {s["client_uuid"] for s in roster["stations"]} == {"client-A"},
+              "heartbeat before any event exists still broadcasts the roster")
+
         print("create event:")
         status, created = await rest(session, "POST", "/api/admin/events",
                                      headers=ADMIN,
@@ -157,6 +169,21 @@ async def main():
         check(len(roster["stations"]) == 1,
               "roster still has exactly one station after the malformed sends")
 
+        print("garbage frames are ignored:")
+        # batch the sends behind a single silence window: any erroneous
+        # broadcast from an earlier send would still arrive within it
+        await client_a.send_str("definitely not json")
+        await client_a.send_str(json.dumps({"type": "bogus"}))
+        await client_a.send_str(json.dumps({"hello": "no type"}))
+        await client_a.send_bytes(b"\x00\x01binary")
+        check(await no_more_messages(client_a),
+              "non-JSON, unknown-type, untyped, and binary frames"
+              " produce no broadcast")
+        await client_a.send_str(json.dumps(presence("client-A", "W7XYZ")))
+        roster = await next_message(client_a)
+        check(roster["type"] == "presence_list",
+              "socket and dispatcher survive the garbage frames")
+
         print("second client:")
         client_b = await session.ws_connect(WS_URL)
         await next_message(client_b)  # event
@@ -180,6 +207,21 @@ async def main():
         check(status == 200 and len(body["messages"]) == 1
               and body["messages"][0]["text"] == "CQ CQ",
               "REST chat history shows the message sent over WS")
+
+        print("duplicate chat uuid is idempotent:")
+        # a resend (e.g. after a reconnect) re-broadcasts the stored row,
+        # so the original text wins even if the resend's text differs
+        await client_a.send_str(json.dumps(
+            chat("client-A", "EDITED TEXT", msg_uuid="chat-1")))
+        dup_a = await next_message(client_a)
+        dup_b = await next_message(client_b)
+        for msg in (dup_a, dup_b):
+            check(msg["type"] == "chat" and msg["message"]["text"] == "CQ CQ",
+                  "duplicate uuid re-broadcasts the original message")
+        status, body = await rest(session, "GET", "/api/chat")
+        check(len(body["messages"]) == 1
+              and body["messages"][0]["text"] == "CQ CQ",
+              "chat history is unchanged after the duplicate send")
 
         print("malformed chat is ignored:")
         bad_chat = chat("client-A", "should not land", msg_uuid="chat-2")
@@ -220,6 +262,29 @@ async def main():
               "both clients receive chat_cleared")
         status, body = await rest(session, "GET", "/api/chat")
         check(body["messages"] == [], "REST chat history is empty after clearing")
+
+        print("event switch broadcast:")
+        status, second = await rest(session, "POST", "/api/admin/events",
+                                    headers=ADMIN,
+                                    body={"template": "pota",
+                                          "name": "WS Smoke 2",
+                                          "station_callsign": "KJ7ABC"})
+        check(status == 201, "second event created")
+        ev_a = await next_message(client_a)
+        ev_b = await next_message(client_b)
+        check(ev_a == {"type": "event",
+                       "event_uuid": second["event_uuid"]} == ev_b,
+              "both clients are notified when a new event is created")
+        status, _ = await rest(
+            session, "POST",
+            f"/api/admin/events/{created['event_uuid']}/activate",
+            headers=ADMIN, body={})
+        check(status == 200, "first event re-activated")
+        ev_a = await next_message(client_a)
+        ev_b = await next_message(client_b)
+        check(ev_a == {"type": "event",
+                       "event_uuid": created["event_uuid"]} == ev_b,
+              "both clients are notified when an existing event is activated")
 
         print("disconnect doesn't flicker the roster:")
         await client_b.close()
