@@ -79,11 +79,6 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
 
   return (
     <form className="entry-form" onSubmit={logContact}>
-      {disabled && (
-        <div className="entry-gate">
-          Enter your callsign, initials, band, and mode above to start logging.
-        </div>
-      )}
       <fieldset disabled={disabled}>
         <div className="entry-fields">
           <input
@@ -114,8 +109,14 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               fields blocking implicit submission (no visible button) */}
           <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
         </div>
-        <div className="entry-error">{error}</div>
+        {!disabled && <div className="entry-error">{error}</div>}
       </fieldset>
+      {/* outside the fieldset so it isn't dimmed by fieldset:disabled */}
+      {disabled && (
+        <div className="entry-gate">
+          Enter your callsign, initials, band, and mode above to start logging.
+        </div>
+      )}
     </form>
   )
 }
