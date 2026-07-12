@@ -5,41 +5,61 @@
 
 :root,
 :root[data-theme="light"] {
-  /* chrome / surfaces */
-  --bg-page: #ffffff;                /* Color behind & between page elements */
-  --text: #1a1d21;                   /* Text for info areas */
-  --topbar-bg: #374151;              /* TopBar - Background */
-  --topbar-text: #e5e7eb;            /* TopBar - Unused??? */
-  --topbar-border: #1f2937;          /* TopBar - Line Underneath */
-  --topbar-title: #f9fafb;           /* TopBar - HAML brand & event name */
-  --tab-bg: #1f2937;                 /* Tabs - Unselected Tabs */
-  --tab-text: #d1d5db;               /* Tabs - Unselected Tab Text */
-  --tab-hover-bg: #4b5563;           /* Tabs - Hovering */
-  --tab-hover-text: #fff;            /* Tabs - Hovering Text */
-  --tab-active-bg: #f4f5f7;          /* Tabs - Active Tab */
-  --tab-active-text: #1a1d21;        /* Tabs - Active Tab Text */
-  --statusbar-bg: #1f2937;           /* Statusbar - Background */
-  --statusbar-text: #f9fafb;         /* Statusbar - Text (Op, Band, Mode) */
-  --statusbar-input-bg: #111827;     /* Statusbar - TextBox Background */
-  --statusbar-input-border: #4b5563; /* Statusbar - TextBox Border */
-  --input-bg: #fff;                  /* Whole Page - TextBox Background */
-  --input-text: #1a1d21;             /* Whole Page - TextBox Text */
-  --panel-bg: #fff;                  /* Panels - Background */
-  --panel-alt-bg: #f9fafb;           /* Panels - Background (alt) */
-  --row-accent: #fff;                /* Stations Panel - Row background */
-  --border: #d1d5db;                 /* Border around panels */
-  --border-subtle: #e5e7eb;          /* Lines between contacts in table */
-  --text-muted: #6b7280;             /* Table Headers */
-  --text-faint: #9ca3af;             /* Only used on coming soon tabs? */
-  --text-label: #374151;             /* Color of text inside text box */
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
+  /* Main Theme Colors */
+  --theme-primary: #f9fafb;          /* Box Background */
+  --theme-secondary: #ffffff;        /* Page Background */
+  --theme-border: #d1d5db;           /* Box Borders */
+  --theme-text: #1a1d21;                /* Text */
+
+   /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-primary) 50%, var(--theme-secondary) 50%);
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-primary) 30%);
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-primary) 50%);
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-primary) 30%);
+
+  --bg-page: var(--theme-secondary);       /* Color behind & between page elements */
+  --text: var(--theme-text);               /* Text for info areas */
+  --input-bg: var(--theme-halfway);        /* Whole Page - TextBox Background */
+  --input-text: var(--theme-text-subtle);  /* Whole Page - TextBox Text */
+  --panel-bg: var(--theme-primary);        /* Panels - Background */
+  --panel-alt-bg: var(--theme-primary);    /* Panels - Background (alt) */
+  --row-accent: #3B4252;                 /* Stations Panel - Row background */
+  --border: var(--theme-border);          /* Border around panels */
+  --border-subtle: var(--theme-border-subtle); /* Lines between contacts in table */
+  --text-muted: var(--theme-text-faint);   /* Table Headers */
+  --text-faint: var(--theme-text-faint);   /* Only used on coming soon tabs? */
+  --text-label: var(--theme-text);         /* Color of text inside text box */
+  --accent: #3b82f6;
   --accent-text: #fff;
-  --accent-disabled: #9ca3af;
-  --row-hover-bg: #eff6ff;
-  --focus-ring: #1a1d21;
-  --modal-backdrop: rgba(0, 0, 0, 0.45);
-  --modal-shadow: rgba(0, 0, 0, 0.3);
+  --accent-disabled: #4b4b4b;
+  --row-hover-bg: #2a2a2a;
+  --focus-ring: #e6e6e6;
+  --modal-backdrop: rgba(0, 0, 0, 0.6);
+  --modal-shadow: rgba(0, 0, 0, 0.6);
+
+  /* TopBar Styles */
+  --theme-topbar: #374151;
+  --theme-topbar-text: #fff;
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text) 30%);
+
+  --topbar-bg: var(--theme-topbar);             /* TopBar - Background */
+  --topbar-text: var(--theme-topbar-text);      /* TopBar - Unused??? */
+  --topbar-border: var(--theme-border);         /* TopBar - Line Underneath */
+  --topbar-title: var(--theme-text);            /* TopBar - HAML brand & event name */
+  --tab-bg: var(--theme-statusbar-color);       /* Tabs - Unselected Tabs */
+  --tab-text: var(--theme-topbar-text);         /* Tabs - Unselected Tab Text */
+  --tab-hover-bg: var(--theme-topbar-hover);    /* Tabs - Hovering */
+  --tab-hover-text: var(--theme-topbar-text);   /* Tabs - Hovering Text */
+  --tab-active-bg: var(--theme-topbar-text);    /* Tabs - Active Tab */
+  --tab-active-text: var(--theme-topbar);       /* Tabs - Active Tab Text */
+  
+  /* StatusBar Styles */
+  --theme-statusbar-color: #1f2937;
+
+  --statusbar-text: var(--theme-text);          /* Statusbar - Text (Op, Band, Mode) */
+  --statusbar-input-bg: var(--theme-halfway);              /* Statusbar - TextBox Background */
+  --statusbar-input-border: var(--theme-border);          /* Statusbar - TextBox Border */
+
 
   /* signal foregrounds (constant meaning) */
   --danger: #dc2626;
@@ -56,8 +76,4 @@
   --badge-bg: #16a34a;
   --badge-text: #fff;
   --gate-text: #b45309;
-
-  /* signal background tints (themed as surfaces) */
-  --danger-bg: #fef2f2;
-  --conflict-bg: #fef3c7;
 }

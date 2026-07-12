@@ -58,7 +58,7 @@ export default function StatusBar({ session, onSession, config, conflicts = [] }
       </label>
       {conflicts.length > 0 && (
         <span className="band-conflict-warning">
-          ⚠ {session.band} in use by {conflicts.map((s) => s.callsign).join(', ')}
+          ⚠ In use by {conflicts.map((s) => s.callsign).join(', ')}
         </span>
       )}
       <span className="spacer" />

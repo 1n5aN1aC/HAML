@@ -53,6 +53,7 @@ export default function LoggingTab({
         config={config}
         conflicts={conflicts}
       />
+      <div className="status-bar-separator" />
       <main className="panes">
         <section className="left-pane">
           <ContactList config={config} onSelect={setEditing} />

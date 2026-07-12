@@ -27,7 +27,7 @@ the design system's own class names and `var(--…)` tokens. Read `styles.css` /
 Tokens (`var(--…)`):
 - Surfaces/text: `--bg-page`, `--panel-bg`, `--panel-alt-bg`, `--text`,
   `--text-muted`, `--text-faint`, `--text-label`, `--border`, `--border-subtle`
-- Accent/actions: `--accent`, `--accent-hover`, `--accent-text`,
+- Accent/actions: `--accent`, `--accent-text`,
   `--accent-disabled`, `--row-hover-bg`, `--focus-ring`
 - Chrome: `--topbar-bg`, `--topbar-text`, `--topbar-title`, `--tab-bg`,
   `--tab-active-bg`, `--statusbar-bg`, `--statusbar-text`

@@ -32,7 +32,7 @@ const FieldInput = forwardRef(function FieldInput(
   }
   if (field.type === 'choice') {
     return (
-      <select ref={ref} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} {...feedback}>
+      <select ref={ref} className="field-input" value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} {...feedback}>
         <option value="">{placeholder}</option>
         {(field.options ?? []).map((o) => (
           <option key={o} value={o}>{o}</option>
@@ -42,6 +42,7 @@ const FieldInput = forwardRef(function FieldInput(
   }
   return (
     <input
+      className="field-input"
       ref={ref}
       type={field.type === 'number' ? 'number' : 'text'}
       value={value}

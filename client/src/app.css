@@ -136,8 +136,8 @@ body {
   margin-left: 8px;
   padding: 1px 7px;
   border-radius: 8px;
-  background: var(--badge-bg);
-  color: var(--badge-text);
+  background: var(--theme-green);
+  color: var(--theme-primary);
   font-size: 11px;
   font-weight: 600;
 }
@@ -160,7 +160,7 @@ body {
   color: var(--accent-text);
   padding: 7px 14px;
 }
-.admin-unlock button:hover, .admin-create button:hover:enabled { background: var(--accent-hover); }
+.admin-unlock button:hover, .admin-create button:hover:enabled { background: var(--accent); }
 .admin-create button:disabled { background: var(--accent-disabled); color: var(--accent-text); }
 
 .admin-create { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
@@ -187,7 +187,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--statusbar-bg);
+  background: var(--theme-statusbar-color);
   color: var(--statusbar-text);
 }
 
@@ -489,9 +489,9 @@ input.v-bad, select.v-bad {
 }
 
 .modal-actions .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-.modal-actions .btn-primary:hover { background: var(--accent-hover); }
+.modal-actions .btn-primary:hover { background: var(--accent); }
 .modal-actions .btn-danger { border-color: var(--danger); color: var(--danger); }
-.modal-actions .btn-danger:hover { background: var(--danger-bg); }
+.modal-actions .btn-danger:hover { background: var(--theme-secondary); }
 
 .modal-footer {
   margin-top: 10px;
@@ -528,4 +528,8 @@ input.v-bad, select.v-bad {
   background: var(--panel-bg);
   border: 1px solid var(--border);
   color: var(--text);
+}
+
+.status-bar-separator {
+  border-bottom: 1px solid var(--topbar-border);
 }
