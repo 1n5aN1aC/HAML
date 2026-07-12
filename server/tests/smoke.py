@@ -95,6 +95,8 @@ def main():
         status, body = request("GET", "/api/event")
         check(status == 404 and body["error"] == "no active event",
               "GET /api/event is 404 before any event exists")
+        status, _ = request("POST", "/api/admin/backup", headers=ADMIN)
+        check(status == 404, "backup is 404 before any event exists")
 
         print("admin auth:")
         status, _ = request("GET", "/api/admin/templates")
@@ -198,6 +200,8 @@ def main():
               and body["contacts"][0]["uuid"] == contact_a["uuid"]
               and body["contacts"][0]["fields"]["section"] == "OR",
               "full pull returns the contact with its JSON fields")
+        check(bool(datetime.fromisoformat(body["server_time"])),
+              "pull response carries a parseable server_time")
         cursor1 = body["server_time"]
 
         print("LWW conflict (client B edits the same contact):")
@@ -223,6 +227,9 @@ def main():
         check({c["uuid"] for c in body["contacts"]}
               == {contact_a["uuid"], contact_b["uuid"]},
               "old cursor sees both changed contacts")
+        status, body = request("GET", "/api/contacts?since=not-a-timestamp")
+        check(status == 400 and "since" in body["error"],
+              "bad 'since' timestamp is rejected")
 
         print("soft delete:")
         # a real client's cursor comes from a pull response, never a push
@@ -239,6 +246,16 @@ def main():
         status, _ = request("POST", "/api/contacts",
                             body={"uuid": "x"})
         check(status == 400, "incomplete contact is rejected")
+        raw_req = urllib.request.Request(
+            BASE + "/api/contacts", method="POST", data=b"not json",
+            headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(raw_req, timeout=5)
+            raise AssertionError("FAIL: non-JSON body did not raise")
+        except urllib.error.HTTPError as exc:
+            status, body = exc.code, json.loads(exc.read())
+        check(status == 400 and body["error"] == "body must be JSON",
+              "non-JSON contact body is rejected")
         bad = make_contact("client-A", "  ", iso())
         status, _ = request("POST", "/api/contacts", body=bad)
         check(status == 400, "blank callsign is rejected")
@@ -274,6 +291,10 @@ def main():
               "new event is now active")
         status, body = request("GET", "/api/contacts")
         check(body["contacts"] == [], "new event starts with an empty log")
+        status, _ = request("POST",
+                            f"/api/admin/events/{uuid.uuid4()}/activate",
+                            headers=ADMIN, body={})
+        check(status == 404, "activating a nonexistent event is a 404")
         status, body = request("POST",
                                f"/api/admin/events/{created['event_uuid']}/activate",
                                headers=ADMIN, body={})

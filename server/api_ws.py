@@ -63,7 +63,6 @@ def roster_message(app):
          "last_seen_at": entry["last_seen_at"]}
         for entry in app["presence"].values()
     ]
-    stations.sort(key=lambda s: s["callsign"])
     return {"type": "presence_list", "stations": stations}
 
 # Drop old presence entries (last heartbeat older than PRESENCE_TTL)
