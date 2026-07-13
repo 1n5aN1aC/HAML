@@ -1,17 +1,12 @@
 // Slim bar always shown at the top: brand, tab navigation, theme picker, the
 // active event, and whether the realtime (WebSocket) signal layer is reachable.
+import { THEMES } from '../themes.js'
+
 const TABS = [
   { id: 'logging', label: 'Logging' },
   { id: 'radio', label: 'Radio' },
   { id: 'stats', label: 'Statistics' },
   { id: 'admin', label: 'Admin' },
-]
-
-const THEMES = [
-  { id: 'light', emoji: '☀️', label: 'Light' },
-  { id: 'dark', emoji: '🌙', label: 'Dark' },
-  { id: 'blue', emoji: '🔵', label: 'Solarized' },
-  { id: 'sepia', emoji: '📄', label: 'Sepia' },
 ]
 
 export default function TopBar({ eventName, connected, activeTab, onTab, theme, onTheme }) {
@@ -34,20 +29,19 @@ export default function TopBar({ eventName, connected, activeTab, onTab, theme, 
       </nav>
       <span className="spacer" />
       <span className="event-name">{eventName}</span>
-      <div className="theme-picker" role="group" aria-label="Theme">
-        {THEMES.map(({ id, emoji, label }) => (
-          <button
-            key={id}
-            className={id === theme ? 'active' : ''}
-            title={`${label} theme`}
-            aria-label={`${label} theme`}
-            aria-pressed={id === theme}
-            onClick={() => onTheme(id)}
-          >
-            {emoji}
-          </button>
+      <select
+        className="theme-picker"
+        value={theme}
+        title="Theme"
+        aria-label="Theme"
+        onChange={(e) => onTheme(e.target.value)}
+      >
+        {THEMES.map(({ id, label }) => (
+          <option key={id} value={id}>
+            {label}
+          </option>
         ))}
-      </div>
+      </select>
       <span
         className={connected ? 'conn conn-ok' : 'conn conn-down'}
         title={connected ? 'Connected to server' : 'Not connected — logging locally'}

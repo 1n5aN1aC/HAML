@@ -1,0 +1,33 @@
+/* Arctic theme — cool blue-gray light theme (Nord-inspired), steel-blue accent. */
+
+:root[data-theme="light-arctic"] {
+  /* Main Theme Colors */
+  --theme-surface: #e2e9f1;          /* Box Background */
+  --theme-page: #f5f8fb;             /* Page Background */
+  --theme-border: #b9c8d8;           /* Box Borders */
+  --theme-text: #263241;             /* Text */
+
+  --theme-accent: #38678f;           /* Accent / primary action */
+  --theme-accent-text: #fff;         /* Text on accent */
+
+  /* Signal Colors */
+  --theme-success: #2f9e63;          /* Success / fresh / validation-ok */
+  --theme-danger: #c53a4b;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #d18a1f;          /* Warning / gate / stale */
+  --theme-danger-bg: #fde5e7;        /* Danger-button hover tint */
+
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #45586d;           /* TopBar background */
+  --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #333d4d;        /* StatusBar + unselected tab background */
+
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
+}

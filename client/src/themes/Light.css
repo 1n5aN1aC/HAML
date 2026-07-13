@@ -1,11 +1,13 @@
-/* Light theme — the default (the original HAML look: light-gray body with
-   dark chrome). index.html's inline script guarantees data-theme is always
-   set before first paint, so there is no bare :root fallback. */
+/* Light theme — the default light theme, neutral gray-white surfaces, blue accent.
+   The bare :root selector makes this the fallback when data-theme holds an
+   unknown/retired id (index.html applies the saved id without validating it);
+   real themes win on specificity. */
 
+:root,
 :root[data-theme="light"] {
   /* Main Theme Colors */
   --theme-surface: #eef0f3;          /* Box Background */
-  --theme-page: #ffffff;             /* Page Background */
+  --theme-page: #fff;                /* Page Background */
   --theme-border: #d1d5db;           /* Box Borders */
   --theme-text: #1a1d21;             /* Text */
 

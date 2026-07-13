@@ -1,6 +1,6 @@
 /* Sepia theme — warm "paper" light theme, dark chrome, burnt-amber accent. */
 
-:root[data-theme="sepia"] {
+:root[data-theme="light-sepia"] {
   /* Main Theme Colors */
   --theme-surface: #efe4c8;          /* Box Background */
   --theme-page: #fffff0;             /* Page Background */

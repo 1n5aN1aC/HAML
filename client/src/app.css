@@ -1,19 +1,9 @@
 /* --- theme tokens --------------------------------------------------------- */
-/* Each theme lives in its own file under ./themes/, keyed by [data-theme="..."]
-   on <html>. There is no :root fallback — index.html's inline script always
-   sets a valid data-theme before first paint. A theme defines exactly the
-   --theme-* token set (15 hand-picked colors + 7 color-mix derivations; see
-   themes/light.css) and nothing else; app.css consumes those tokens directly.
-   To add a theme: copy themes/light.css, change the values, set its own
-   [data-theme="..."] selector, add the @import below, register it in
-   TopBar.jsx's THEMES list and index.html's valid-theme list. Signal colors
-   (danger/success/warning + the freshness ramp) keep their meaning across
-   every theme; only their brightness is re-tuned per theme. */
-
-@import "./themes/light.css";
-@import "./themes/dark.css";
-@import "./themes/blue.css";
-@import "./themes/sepia.css";
+/* Each theme lives in its own file under ./themes/, keyed by [data-theme="..."] on <html>.
+   themes.js auto-discovers and loads every file in that folder and builds the picker list.
+   Adding a theme is just: create new file in themes/ folder, and the name becomes the ID —
+   normalized to lowercase with dashes ("Light Sage.css" → "light-sage"), which is also
+   exactly what the file's [data-theme="..."] selector must say. */
 
 :root {
   /* layout (not themed): gap between panels and their corner radius */
@@ -91,30 +81,22 @@ body {
 .top-bar .tab:hover { background: var(--theme-topbar-hover); color: var(--theme-topbar-text); }
 .top-bar .tab.active { background: var(--theme-topbar-text); color: var(--theme-topbar); }
 
-/* theme picker: tiny emoji buttons, active one lifted out of its dim state */
+/* theme picker: native select drawn with the chrome tokens so it sits quietly
+   in the top bar on any palette; the open list inherits the same colors */
 .theme-picker {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--theme-border);
-  border-radius: 8px;
-}
-.theme-picker button {
-  border: 0;
-  background: none;
-  padding: 2px 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--theme-topbar-hover);
   border-radius: 6px;
-  font-size: 15px;
-  line-height: 1;
+  background: var(--theme-statusbar);
+  color: var(--theme-topbar-text);
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
-  opacity: 0.45;
-  filter: grayscale(0.5);
 }
-.theme-picker button:hover { opacity: 0.8; filter: none; }
-.theme-picker button.active {
-  opacity: 1;
-  filter: none;
-  background: var(--theme-topbar-hover);
+.theme-picker:hover { background: var(--theme-topbar-hover); }
+.theme-picker option {
+  background: var(--theme-statusbar);
+  color: var(--theme-topbar-text);
 }
 
 .tab-page { padding: 20px; }

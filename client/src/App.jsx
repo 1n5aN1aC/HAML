@@ -8,6 +8,7 @@ import { kvGet, kvSet, exportEventData } from './db.js'
 import { startSync, pullNow } from './sync.js'
 import { startSocket, setPresence } from './socket.js'
 import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage, clearChat } from './chat.js'
+import { validTheme } from './themes.js'
 import TopBar from './components/TopBar.jsx'
 import LoggingTab from './components/LoggingTab.jsx'
 import RadioTab from './components/RadioTab.jsx'
@@ -26,18 +27,19 @@ export default function App() {
   const [chat, setChat] = useState([])
   const [tab, setTab] = useState('logging')
   // Persisted to localStorage (independent of dexie)
-  // Also applied in index.html on-load before dexie exists, to prevent a flash on load.
-  // Unknown/retired ids fall back to Light (keep this list in sync with
-  // index.html and TopBar.jsx's THEMES).
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('haml-theme')
-    return ['light', 'dark', 'blue', 'sepia'].includes(saved) ? saved : 'light'
-  })
+  // Also applied in index.html on-load before dexie exists, to prevent a flash
+  // on load. The theme list is auto-discovered from themes/*.css (themes.js);
+  // unknown/retired ids fall back to the default.
+  const [theme, setTheme] = useState(() => validTheme(localStorage.getItem('haml-theme')))
+
+  // index.html applies the saved id unvalidated; this corrects a retired id.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+  }, [theme])
 
   function changeTheme(id) {
     setTheme(id)
     localStorage.setItem('haml-theme', id)
-    document.documentElement.dataset.theme = id
   }
 
   useEffect(() => {
