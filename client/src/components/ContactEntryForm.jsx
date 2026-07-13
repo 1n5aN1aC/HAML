@@ -6,7 +6,7 @@ import { pushNow } from '../sync.js'
 import { newUuid } from '../uuid.js'
 import { validateContact } from '../contact-validation.js'
 import { sanitizeText } from '../text-input.js'
-import { playSubmit, playDuplicate } from '../sounds.js'
+import { playSubmit, playDuplicate, playDx } from '../sounds.js'
 import { findDuplicate, findLatestContact } from '../dupes.js'
 import FieldInput from './FieldInput.jsx'
 
@@ -135,7 +135,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       sync_state: 'pending',
     })
     pushNow()
-    playSubmit()
+    // DX contacts get their own submit sound:
+    if (String(values.section ?? '').trim() === 'DX') playDx()
+    else playSubmit()
     setCallsign('')
     setValues(defaultValues(fields))
     setError('')
