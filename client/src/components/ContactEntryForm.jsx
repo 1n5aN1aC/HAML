@@ -1,6 +1,6 @@
 // Entry form: remote callsign + the Event's template fields. Writes straight
 // to Dexie as `pending` (ADR-0001 — local first, sync engine pushes later).
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../db.js'
 import { pushNow } from '../sync.js'
 import { newUuid } from '../uuid.js'
@@ -8,6 +8,26 @@ import { validateContact } from '../contact-validation.js'
 import { alphanumeric } from '../text-input.js'
 import { playSubmit } from '../sounds.js'
 import FieldInput from './FieldInput.jsx'
+
+// UTC + local wall clock, corrected by the same server clock offset used for
+// QSO timestamps so what's shown matches what gets logged.
+function EntryClock() {
+  const [offset, setOffset] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    kvGet('clock_offset').then((v) => setOffset(v ?? 0))
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const d = new Date(now + offset)
+  const utc = d.toLocaleTimeString('en-GB', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC',
+  })
+  const local = d.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  })
+  return <span className="entry-clock">{utc} / {local}</span>
+}
 
 function defaultValues(fields) {
   return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
@@ -110,6 +130,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
           {/* invisible: keeps Enter-to-submit working without multiple
               fields blocking implicit submission (no visible button) */}
           <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
+          <EntryClock />
         </div>
         {!disabled && <div className="entry-error">{error}</div>}
       </fieldset>

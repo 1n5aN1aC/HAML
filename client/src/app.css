@@ -409,6 +409,13 @@ body {
 
 .entry-fields .cs { width: 130px; text-transform: uppercase; }
 
+.entry-clock {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--theme-text-faint);
+  white-space: nowrap;
+}
+
 .entry-error { min-height: 1em; margin-top: 6px; color: var(--theme-danger); }
 
 .sr-only {
