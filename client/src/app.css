@@ -290,7 +290,7 @@ body {
   flex: 2;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  min-width: 550px;
   gap: var(--panel-gap);
 }
 
@@ -309,12 +309,15 @@ body {
 .future-panel-left,
 .stations-panel,
 .chat-panel,
-.future-panel {
+.map-panel {
   border: 1px solid var(--theme-border);
   border-radius: var(--panel-radius);
 }
 
 .right-pane > div { padding: 6px 10px; }
+/* map fills its card edge-to-edge; height follows pane width at the SVG's
+   native ratio (no letterboxing), and the chat panel absorbs the leftover */
+.right-pane > .map-panel { padding: 0; aspect-ratio: 958 / 592; }
 .right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px; color: var(--theme-text-faint); }
 .right-pane .placeholder { color: var(--theme-text-faint); font-style: italic; }
 .stations-panel {
@@ -323,7 +326,90 @@ body {
   background: var(--theme-surface);
 }
 .chat-panel { flex: 1; overflow: hidden; background: var(--theme-surface); }
-.future-panel { height: 90px; background: var(--theme-surface); }
+/* appearance only — sizing belongs to the usage site (see .right-pane rule above) */
+.map-panel {
+  position: relative;     /* anchors the counter/popup overlay */
+  overflow: hidden;
+  background: #9ec7f3;    /* ocean blue behind the section map */
+}
+.map-panel object { width: 100%; height: 100%; display: block; }
+
+/* Counter + missing-sections popup overlay, bottom-left of the map. All em,
+   so a usage site can scale it wholesale: .stats-map .map-panel { font-size: 18px } */
+.map-counter {
+  position: absolute;
+  bottom: 0.6em;
+  left: 0.6em;
+  padding: 0.4em 0.9em;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.3em;
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  font-size: 1em;
+  font-weight: 600;
+  cursor: pointer;
+}
+.map-counter:hover { background: var(--theme-hover); }
+
+.map-missing {
+  position: absolute;
+  bottom: 3.2em;          /* clears the counter button */
+  left: 0.6em;
+  min-width: 14em;
+  max-width: 22em;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.45em;
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+}
+.map-missing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6em 0.85em;
+  border-bottom: 1px solid var(--theme-border);
+  font-weight: 600;
+}
+.map-missing-header button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--theme-text-faint);
+  font-size: 1.4em;
+  line-height: 1;
+  cursor: pointer;
+}
+.map-missing-header button:hover { color: var(--theme-text); }
+.map-missing-list {
+  padding: 0.6em 0.85em;
+  max-height: 16em;
+  overflow-y: auto;
+  line-height: 1.7;
+}
+.section-chip {
+  display: inline-block;
+  margin: 0.15em 0.3em 0.15em 0;
+  padding: 0.1em 0.45em;
+  border-radius: 0.25em;
+  background: var(--theme-raised);
+}
+
+/* hover tooltip naming the section under the cursor; positioned by MapPanel.jsx */
+.map-tooltip {
+  display: none;
+  position: fixed;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--theme-topbar);
+  color: var(--theme-topbar-text);
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
 .future-panel-left { flex: 1; background: var(--theme-surface); }  /* fills the left pane below the entry form */
 
 /* --- stations panel --------------------------------------------------------- */
