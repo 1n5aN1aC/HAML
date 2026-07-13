@@ -3,13 +3,16 @@
 Stdlib only. Spawns the real server on a scratch port with a scratch data dir,
 then walks the API as two simulated clients: event creation, push/pull, the
 LWW conflict rule, tombstone sync, the cursor, backup, event switching, the
-admin event listing, event-creation validation, persistence across a
-server restart, and event deletion.
+admin event listing, event-creation validation, the template editor (save,
+fetch, delete, and an event created from a saved template), persistence
+across a server restart, event deletion, and disk edge cases (broken
+template files, stray dbs, a dangling state.json).
 
 Run: python server/tests/smoke.py   (uses sys.executable for the subprocess)
 """
 import json
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -171,12 +174,13 @@ def main():
         check(status == 200 and body["events"] == [],
               "event listing is empty before any event exists")
 
-        print("template save + delete:")
+        print("template save:")
         scratch = {
             "name": "Smoke Scratch",
             "fields": [
                 {"name": "grid", "label": "Grid", "type": "text",
-                 "required": True, "default": "", "max_length": 4, "order": 1,
+                 "required": True, "remember": True, "default": "",
+                 "max_length": 4, "order": 1,
                  "validation": {"pattern": "[A-R]{2}\\d{2}",
                                 "message": "Grid must look like CN85"}},
             ],
@@ -239,6 +243,11 @@ def main():
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_dupe)
         check(status == 400, "unknown duplicate_type is rejected")
+        no_dupe = {k: v for k, v in scratch.items() if k != "duplicate_type"}
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=no_dupe)
+        check(status == 400 and "duplicate_type" in body["error"],
+              "template without a duplicate_type is rejected")
         bad_list = dict(scratch, contact_list=["nope"])
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_list)
@@ -255,22 +264,26 @@ def main():
                                headers=ADMIN, body=bad_default)
         check(status == 400 and "default" in body["error"],
               "non-string field default is rejected")
+        bad_remember = json.loads(json.dumps(scratch))
+        bad_remember["fields"][0]["remember"] = "yes"
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=bad_remember)
+        check(status == 400 and "remember" in body["error"],
+              "non-boolean field 'remember' is rejected")
 
-        status, _ = request("DELETE", "/api/admin/templates/smoke-scratch")
-        check(status == 401, "template delete rejects a missing password")
-        status, body = request("DELETE", "/api/admin/templates/smoke-scratch",
-                               headers=ADMIN)
-        check(status == 200 and body["deleted"] == "smoke-scratch",
-              "saved template can be deleted")
-        status, body = request("GET", "/api/admin/templates", headers=ADMIN)
-        check("smoke-scratch" not in {t["id"] for t in body["templates"]},
-              "deleted template disappears from the listing")
-        status, _ = request("DELETE", "/api/admin/templates/smoke-scratch",
-                            headers=ADMIN)
-        check(status == 404, "deleting an unknown template is a 404")
-        status, _ = request("DELETE", "/api/admin/templates/..%2Fevil",
-                            headers=ADMIN)
-        check(status == 404, "template delete rejects an unsafe id")
+        print("broken template file on disk:")
+        broken_path = SERVER_DIR / "templates" / "smoke-broken.json"
+        broken_path.write_text("{not json", encoding="utf-8")
+        try:
+            status, body = request("GET", "/api/admin/templates",
+                                   headers=ADMIN)
+            check("smoke-broken" not in {t["id"] for t in body["templates"]},
+                  "broken template file is skipped by the listing")
+            status, _ = request("GET", "/api/admin/templates/smoke-broken",
+                                headers=ADMIN)
+            check(status == 404, "fetching a broken template file is a 404")
+        finally:
+            broken_path.unlink()
 
         print("event creation validation:")
         good = {"template": "field-day", "name": "Field Day 2026",
@@ -330,10 +343,14 @@ def main():
         check(event["station_callsign"] == "W7XYZ", "station callsign uppercased")
         field_names = [f["name"] for f in event["config"]["fields"]]
         check(field_names == ["class", "section"], "frozen config has template fields")
-        check(event["config"]["contact_list"] == ["class", "section"],
-              "frozen config carries contact_list")
+        check(event["config"]["contact_list"] is None,
+              "frozen config carries the absent contact_list (show all fields)")
         check(event["config"]["fields"][0]["validation"]["message"],
               "frozen config carries field validation")
+        check(event["config"]["duplicate_type"] == "band-mode",
+              "frozen config carries duplicate_type")
+        check(event["config"]["fields"][0]["remember"] is True,
+              "frozen config carries the remember flag")
 
         print("event listing:")
         status, body = request("GET", "/api/admin/events", headers=ADMIN)
@@ -347,6 +364,49 @@ def main():
               "listing carries the event's meta")
         check(listed["active"] is True, "the only event is marked active")
 
+        print("event from a saved template + template delete:")
+        status, scratch_event = request("POST", "/api/admin/events",
+                                        headers=ADMIN,
+                                        body={"template": "smoke-scratch",
+                                              "name": "Scratch Event",
+                                              "station_callsign": "KJ7ABC"})
+        check(status == 201, "event created from the editor-saved template")
+        status, event = request("GET", "/api/event")
+        config = event["config"]
+        check([f["name"] for f in config["fields"]] == ["grid"]
+              and config["fields"][0]["remember"] is True
+              and config["duplicate_type"] == "none"
+              and config["contact_list"] == ["grid"],
+              "frozen config mirrors the saved template")
+        status, _ = request("DELETE", "/api/admin/templates/smoke-scratch")
+        check(status == 401, "template delete rejects a missing password")
+        status, body = request("DELETE", "/api/admin/templates/smoke-scratch",
+                               headers=ADMIN)
+        check(status == 200 and body["deleted"] == "smoke-scratch",
+              "saved template can be deleted")
+        status, body = request("GET", "/api/admin/templates", headers=ADMIN)
+        check("smoke-scratch" not in {t["id"] for t in body["templates"]},
+              "deleted template disappears from the listing")
+        status, _ = request("DELETE", "/api/admin/templates/smoke-scratch",
+                            headers=ADMIN)
+        check(status == 404, "deleting an unknown template is a 404")
+        status, _ = request("DELETE", "/api/admin/templates/..%2Fevil",
+                            headers=ADMIN)
+        check(status == 404, "template delete rejects an unsafe id")
+        status, event = request("GET", "/api/event")
+        check(status == 200
+              and [f["name"] for f in event["config"]["fields"]] == ["grid"],
+              "event's frozen config survives its template's deletion")
+        # restore the single-event state the rest of the walk expects
+        status, _ = request("POST",
+                            f"/api/admin/events/{created['event_uuid']}/activate",
+                            headers=ADMIN, body={})
+        check(status == 200, "field-day event re-activated")
+        status, _ = request("DELETE",
+                            f"/api/admin/events/{scratch_event['event_uuid']}",
+                            headers=ADMIN)
+        check(status == 200, "scratch event deleted")
+
         print("push/pull round trip (client A):")
         contact_a = make_contact("client-A", "N0CALL", iso())
         status, body = request("POST", "/api/contacts", body=contact_a)
@@ -358,6 +418,7 @@ def main():
               and body["contacts"][0]["uuid"] == contact_a["uuid"]
               and body["contacts"][0]["fields"]["section"] == "OR",
               "full pull returns the contact with its JSON fields")
+        created_a = body["contacts"][0]["created_at"]
         skew = abs((datetime.fromisoformat(body["server_time"])
                     - datetime.now(timezone.utc)).total_seconds())
         check(skew < 10,
@@ -376,18 +437,25 @@ def main():
         row = body["contacts"][0]
         check(row["operator_initials"] == "XX" and row["client_uuid"] == "client-B",
               "stored row is the LWW winner, stamped with the last editor")
+        check(row["created_at"] == created_a,
+              "LWW overwrite preserves the original created_at")
 
         print("cursor semantics:")
         status, body = request("GET", "/api/contacts?since=" + urllib.parse.quote(cursor1))
         check([c["uuid"] for c in body["contacts"]] == [contact_a["uuid"]],
               "pull since cursor returns the re-edited contact")
-        contact_b = make_contact("client-B", "W1AW", iso())
+        b_created = iso(-7200)
+        contact_b = make_contact("client-B", "W1AW", iso(), created_at=b_created)
         status, body = request("POST", "/api/contacts", body=contact_b)
         check(status == 200 and body["stored"], "second contact stored")
         status, body = request("GET", "/api/contacts?since=" + urllib.parse.quote(cursor1))
         check({c["uuid"] for c in body["contacts"]}
               == {contact_a["uuid"], contact_b["uuid"]},
               "old cursor sees both changed contacts")
+        row_b = next((c for c in body["contacts"]
+                      if c["uuid"] == contact_b["uuid"]), None)
+        check(row_b is not None and row_b["created_at"] == b_created,
+              "client-supplied created_at is honored on first insert")
         # exclusion: an up-to-date cursor must filter out unchanged rows
         time.sleep(0.002)  # step past the last write's millisecond ('>=' cursor)
         status, body = request("GET", "/api/contacts")
@@ -437,6 +505,18 @@ def main():
         bad = make_contact("client-A", "  ", iso())
         status, _ = request("POST", "/api/contacts", body=bad)
         check(status == 400, "blank callsign is rejected")
+        status, body = request("POST", "/api/contacts", body=[1, 2, 3])
+        check(status == 400 and body["error"] == "contact must be a JSON object",
+              "JSON-array contact body is rejected")
+        bad_ts = make_contact("client-A", "K7AAA", "not-a-timestamp")
+        status, body = request("POST", "/api/contacts", body=bad_ts)
+        check(status == 400 and body["error"].startswith("bad timestamp"),
+              "unparseable timestamp is rejected")
+        bad_fields = make_contact("client-A", "K7AAA", iso(),
+                                  fields="not an object")
+        status, body = request("POST", "/api/contacts", body=bad_fields)
+        check(status == 400 and "fields" in body["error"],
+              "non-object fields value is rejected")
         empty_fields = make_contact("client-A", "K7AAA", iso(), fields={})
         status, body = request("POST", "/api/contacts", body=empty_fields)
         check(status == 400 and "class" in body["error"]
@@ -454,11 +534,34 @@ def main():
         check(status == 200 and body["stored"],
               "tombstone with empty fields still syncs")
 
+        print("naive timestamp normalization:")
+        naive = (datetime.now(timezone.utc).replace(tzinfo=None)
+                 .isoformat(timespec="milliseconds"))
+        naive_contact = make_contact("client-A", "K7BBB", naive)
+        status, body = request("POST", "/api/contacts", body=naive_contact)
+        check(status == 200 and body["stored"],
+              "contact with a timezone-less timestamp is accepted")
+        status, body = request("GET", "/api/contacts")
+        row = next((c for c in body["contacts"]
+                    if c["uuid"] == naive_contact["uuid"]), None)
+        check(row is not None and row["last_edited"] == naive + "+00:00",
+              "timezone-less timestamp is stored as UTC")
+
         print("backup + event switch:")
         status, body = request("POST", "/api/admin/backup", headers=ADMIN)
         check(status == 200
               and (data_dir / "backups" / body["backup"]).exists(),
               "backup file lands in backups/")
+        backup_conn = sqlite3.connect(data_dir / "backups" / body["backup"])
+        try:
+            n_contacts = backup_conn.execute(
+                "SELECT COUNT(*) FROM contacts").fetchone()[0]
+            backup_name = backup_conn.execute(
+                "SELECT value FROM meta WHERE key = 'event_name'").fetchone()[0]
+        finally:
+            backup_conn.close()
+        check(n_contacts == 4 and backup_name == "Field Day 2026",
+              "backup is a working copy with the contacts and meta")
         status, second = request("POST", "/api/admin/events", headers=ADMIN,
                                  body={"template": "pota",
                                        "name": "POTA Sunday",
@@ -483,7 +586,7 @@ def main():
                                headers=ADMIN, body={})
         check(status == 200, "old event re-activated")
         status, body = request("GET", "/api/contacts")
-        check(len(body["contacts"]) == 3, "old event's contacts survived the switch")
+        check(len(body["contacts"]) == 4, "old event's contacts survived the switch")
         status, body = request("GET", "/api/admin/events", headers=ADMIN)
         active_flags = {e["event_uuid"]: e["active"] for e in body["events"]}
         check(active_flags == {created["event_uuid"]: True,
@@ -504,7 +607,7 @@ def main():
               == ["class", "section"],
               "event meta and frozen config survive a restart")
         status, body = request("GET", "/api/contacts")
-        check(len(body["contacts"]) == 3, "contacts survive a server restart")
+        check(len(body["contacts"]) == 4, "contacts survive a server restart")
         status, body = request("GET", "/api/admin/events", headers=ADMIN)
         check({e["event_uuid"] for e in body["events"]}
               == {created["event_uuid"], second["event_uuid"]},
@@ -538,6 +641,43 @@ def main():
         status, event = request("GET", "/api/event")
         check(status == 200 and event["event_uuid"] == created["event_uuid"],
               "active event is untouched by the deletion")
+
+        print("slug fallback:")
+        status, punct = request("POST", "/api/admin/events", headers=ADMIN,
+                                body={"template": "pota", "name": "***",
+                                      "station_callsign": "K7AAA"})
+        check(status == 201
+              and (data_dir / "events"
+                   / f"event-{punct['event_uuid'][:8]}.db").exists(),
+              "name without alphanumerics falls back to the 'event' slug")
+        status, _ = request("POST",
+                            f"/api/admin/events/{created['event_uuid']}/activate",
+                            headers=ADMIN, body={})
+        check(status == 200, "field-day event re-activated after the slug check")
+        status, _ = request("DELETE",
+                            f"/api/admin/events/{punct['event_uuid']}",
+                            headers=ADMIN)
+        check(status == 200, "slug-check event deleted")
+
+        print("disk resilience:")
+        # a stray db with no event meta must not break the listing
+        (data_dir / "events" / "stray.db").write_bytes(b"")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check([e["event_uuid"] for e in body["events"]]
+              == [created["event_uuid"]],
+              "stray db file without event meta is skipped by the listing")
+        # state.json pointing at a missing db file must not crash the boot
+        stop_server(proc)
+        (data_dir / "state.json").write_text(
+            json.dumps({"active": "events/no-such-file.db"}))
+        proc = start_server(config_path)
+        status, body = request("GET", "/api/event")
+        check(status == 404 and body["error"] == "no active event",
+              "server boots with no active event when state.json dangles")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check([e["event_uuid"] for e in body["events"]]
+              == [created["event_uuid"]],
+              "event listing still works with a dangling state.json")
 
         print(f"\nPASS — {checks} checks")
         passed = True

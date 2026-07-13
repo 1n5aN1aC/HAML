@@ -13,7 +13,10 @@ client and the REST calls made from this script.
 Not covered here: PRESENCE_TTL expiry / purge_stale (real-time expiry is
 too slow for a smoke test), the dead-socket discard path in broadcast()
 (not deterministically reachable from outside the process), reconnect
-storms, many concurrent clients.
+storms, many concurrent clients, and the on_shutdown close_all handler
+(GOING_AWAY close on open sockets — this script tears down with
+proc.terminate(), a hard kill on Windows that never runs aiohttp's
+shutdown hooks).
 
 Run: python server/tests/smoke_ws.py   (uses sys.executable for the subprocess)
 """
@@ -249,6 +252,15 @@ async def main():
         poke_b = await next_message(client_b)
         check(poke_a == {"type": "poke"} == poke_b,
               "both clients are poked after a contact write")
+
+        print("no poke on a losing LWW write:")
+        stale = dict(contact, operator_initials="ZZ",
+                     last_edited="2025-12-31T00:00:00.000Z")
+        status, body = await rest(session, "POST", "/api/contacts", body=stale)
+        check(status == 200 and body["stored"] is False,
+              "older edit is rejected (LWW)")
+        check(await no_more_messages(client_a),
+              "losing write produces no poke")
 
         print("chat clear (REST, admin-gated):")
         status, _ = await rest(session, "DELETE", "/api/admin/chat")
