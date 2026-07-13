@@ -7,11 +7,13 @@
     <title>HAML</title>
     <script>
       // Apply the saved theme before React mounts so there's no flash of the default palette.
-      // Mirrored by App.jsx's theme state. Default is Light; the retired "current"
-      // theme maps to Light as well.
+      // Mirrored by App.jsx's theme state. Unknown/retired ids (e.g. the old
+      // "current") fall back to Light — required: the theme CSS has no :root
+      // fallback, so an invalid data-theme would render with no colors at all.
       var savedTheme = localStorage.getItem('haml-theme')
+      var validThemes = ['light', 'dark', 'blue', 'sepia']
       document.documentElement.dataset.theme =
-        savedTheme && savedTheme !== 'current' ? savedTheme : 'light'
+        validThemes.indexOf(savedTheme) !== -1 ? savedTheme : 'light'
     </script>
   </head>
   <body>

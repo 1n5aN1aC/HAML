@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { kvGet } from '../db.js'
 
 function ageBand(age) {
-  if (age < 10) return 'fresh'
+  if (age < 15) return 'fresh'
   if (age <= 60) return 'stale'
   return 'old'
 }

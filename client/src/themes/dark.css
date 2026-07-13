@@ -2,75 +2,32 @@
 
 :root[data-theme="dark"] {
   /* Main Theme Colors */
-  --theme-primary: #2E3440;          /* Box Background */
-  --theme-secondary: #000000;        /* Page Background */
+  --theme-surface: #2E3440;          /* Box Background */
+  --theme-page: #000000;             /* Page Background */
   --theme-border: #4C566A;           /* Box Borders */
   --theme-text: #ddd;                /* Text */
 
-  --theme-accent: #3b82f6;           /* Accent Color */
-  --theme-green: #22c55e;            /* Green Color */
+  --theme-accent: #3b82f6;           /* Accent / primary action */
+  --theme-accent-text: #fff;         /* Text on accent */
 
-   /* Derived Theme Colors */
-  --theme-halfway: color-mix(in srgb, var(--theme-primary) 50%, var(--theme-secondary) 50%);
-  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-primary) 30%);
-  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-primary) 50%);
-  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-primary) 30%);
+  /* Signal Colors */
+  --theme-success: #22c55e;          /* Success / fresh / validation-ok */
+  --theme-danger: #f87171;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #fbbf24;          /* Warning / gate / stale */
+  --theme-danger-bg: #3a1a1a;        /* Danger-button hover tint */
 
-  --bg-page: var(--theme-secondary);       /* Color behind & between page elements */
-  --text: var(--theme-text);               /* Text for info areas */
-  --input-bg: var(--theme-halfway);        /* Whole Page - TextBox Background */
-  --input-text: var(--theme-text-subtle);  /* Whole Page - TextBox Text */
-  --panel-bg: var(--theme-primary);        /* Panels - Background */
-  --panel-alt-bg: var(--theme-primary);    /* Panels - Background (alt) */
-  --row-accent: #3B4252;                 /* Stations Panel - Row background */
-  --border: var(--theme-border);           /* Border around panels */
-  --border-subtle: var(--theme-border-subtle); /* Lines between contacts in table */
-  --text-muted: var(--theme-text-faint);   /* Table Headers */
-  --text-faint: var(--theme-text-faint);   /* Only used on coming soon tabs? */
-  --text-label: var(--theme-text);         /* Color of text inside text box */
-  --accent: var(--theme-accent);
-  --accent-text: #fff;
-  --accent-disabled: #4b4b4b;
-  --row-hover-bg: #2a2a2a;
-  --focus-ring: #e6e6e6;
-  --modal-backdrop: rgba(0, 0, 0, 0.6);
-  --modal-shadow: rgba(0, 0, 0, 0.6);
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #374151;           /* TopBar background */
+  --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #1f2937;        /* StatusBar + unselected tab background */
 
-  /* TopBar Styles */
-  --theme-topbar: #374151;
-  --theme-topbar-text: #fff;
-  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text) 30%);
-
-  --topbar-bg: var(--theme-topbar);             /* TopBar - Background */
-  --topbar-text: var(--theme-topbar-text);      /* TopBar - Unused??? */
-  --topbar-border: var(--theme-border);         /* TopBar - Line Underneath */
-  --topbar-title: var(--theme-text);            /* TopBar - HAML brand & event name */
-  --tab-bg: var(--theme-statusbar-color);       /* Tabs - Unselected Tabs */
-  --tab-text: var(--theme-topbar-text);         /* Tabs - Unselected Tab Text */
-  --tab-hover-bg: var(--theme-topbar-hover);    /* Tabs - Hovering */
-  --tab-hover-text: var(--theme-topbar-text);   /* Tabs - Hovering Text */
-  --tab-active-bg: var(--theme-topbar-text);    /* Tabs - Active Tab */
-  --tab-active-text: var(--theme-topbar);       /* Tabs - Active Tab Text */
-  
-  /* StatusBar Styles */
-  --theme-statusbar-color: #1f2937;
-
-  --statusbar-text: var(--theme-text);           /* Statusbar - Text (Op, Band, Mode) */
-  --statusbar-input-bg: var(--theme-halfway);    /* Statusbar - TextBox Background */
-  --statusbar-input-border: var(--theme-border); /* Statusbar - TextBox Border */
-
-  --danger: #f87171;
-  --success: #22c55e;
-  --success-bright: #34d399;
-  --warning: #fbbf24;
-  --warning-text: #fbbf24;
-  --conn-down: #f87171;
-  --fresh: var(--theme-green);
-  --stale: #eab308;
-  --old: #f97316;
-  --validation-ok: #22c55e;
-  --validation-bad: #ff4a4a;
-  --gate-text: #fbbf24;
-
-  --conflict-bg: #665e14;
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
 }

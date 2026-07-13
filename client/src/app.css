@@ -1,12 +1,14 @@
 /* --- theme tokens --------------------------------------------------------- */
-/* Each theme's color tokens live in their own file under ./themes/, keyed by
-   [data-theme="..."] on <html> (set in index.html / App.jsx). Light doubles
-   as the default (matches :root with no attribute) since it's the base look.
-   To add a theme: copy themes/light.css, rename every token's value, set its
-   own [data-theme="..."] selector, add the @import below, and register it in
-   TopBar.jsx's THEMES list. Signal colors (danger/success/warning + the
-   freshness ramp) keep their meaning across every theme; only their
-   brightness and paired background tints are re-tuned per theme. */
+/* Each theme lives in its own file under ./themes/, keyed by [data-theme="..."]
+   on <html>. There is no :root fallback — index.html's inline script always
+   sets a valid data-theme before first paint. A theme defines exactly the
+   --theme-* token set (15 hand-picked colors + 7 color-mix derivations; see
+   themes/light.css) and nothing else; app.css consumes those tokens directly.
+   To add a theme: copy themes/light.css, change the values, set its own
+   [data-theme="..."] selector, add the @import below, register it in
+   TopBar.jsx's THEMES list and index.html's valid-theme list. Signal colors
+   (danger/success/warning + the freshness ramp) keep their meaning across
+   every theme; only their brightness is re-tuned per theme. */
 
 @import "./themes/light.css";
 @import "./themes/dark.css";
@@ -17,6 +19,10 @@
   /* layout (not themed): gap between panels and their corner radius */
   --panel-gap: 5px;
   --panel-radius: 10px;
+
+  /* modal dimming/shadow (not themed) */
+  --modal-backdrop: rgba(0, 0, 0, 0.6);
+  --modal-shadow: rgba(0, 0, 0, 0.6);
 }
 
 /* --- base ----------------------------------------------------------------- */
@@ -28,8 +34,8 @@ html, body, #root { height: 100%; margin: 0; }
 body {
   font-family: system-ui, sans-serif;
   font-size: 14px;
-  background: var(--bg-page);
-  color: var(--text);
+  background: var(--theme-page);
+  color: var(--theme-text);
 }
 
 .app { display: flex; flex-direction: column; height: 100%; }
@@ -41,15 +47,14 @@ body {
   align-items: center;
   gap: 12px;
   padding: 4px 12px;
-  background: var(--topbar-bg);
-  color: var(--topbar-text);
+  background: var(--theme-topbar);
+  color: var(--theme-topbar-text);
   font-size: 13px;
-  border-bottom: 1px solid var(--topbar-border);
+  border-bottom: 1px solid var(--theme-border);
   position: relative;
 }
 
-.top-bar .event-name { font-weight: 600; color: var(--topbar-title); }
-.top-bar .event-exchange { font-size: 12px; opacity: 0.7; }
+.top-bar .event-name { font-weight: 600; font-size: 16px; color: var(--theme-topbar-text); }
 .top-bar .spacer { flex: 1; }
 .top-bar .conn { font-weight: 600; }
 
@@ -59,7 +64,7 @@ body {
   gap: 6px;
 }
 .top-bar .brand-icon { width: 28px; height: 28px; display: block; }
-.top-bar .brand-text { font-weight: 600; letter-spacing: 0.5px; color: var(--topbar-title); }
+.top-bar .brand-text { font-weight: 600; letter-spacing: 0.5px; color: var(--theme-topbar-text); }
 
 .top-bar .tabs {
   display: flex;
@@ -75,22 +80,22 @@ body {
   padding: 6px 20px;
   border: 0;
   border-radius: 8px 8px 0 0;
-  background: var(--tab-bg);
-  color: var(--tab-text);
+  background: var(--theme-statusbar);
+  color: var(--theme-topbar-text);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
-.top-bar .tab:hover { background: var(--tab-hover-bg); color: var(--tab-hover-text); }
-.top-bar .tab.active { background: var(--tab-active-bg); color: var(--tab-active-text); }
+.top-bar .tab:hover { background: var(--theme-topbar-hover); color: var(--theme-topbar-text); }
+.top-bar .tab.active { background: var(--theme-topbar-text); color: var(--theme-topbar); }
 
 /* theme picker: tiny emoji buttons, active one lifted out of its dim state */
 .theme-picker {
   display: flex;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--theme-border);
   border-radius: 8px;
 }
 .theme-picker button {
@@ -108,77 +113,77 @@ body {
 .theme-picker button.active {
   opacity: 1;
   filter: none;
-  background: var(--tab-hover-bg);
+  background: var(--theme-topbar-hover);
 }
 
 .tab-page { padding: 20px; }
-.tab-page .placeholder { color: var(--text-faint); font-style: italic; }
+.tab-page .placeholder { color: var(--theme-text-faint); font-style: italic; }
 
 /* --- admin tab -------------------------------------------------------------- */
 
 .admin-page { overflow-y: auto; max-width: 720px; }
 
 .admin-unlock { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-.admin-unlock label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-label); }
-.admin-unlock input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; background: var(--input-bg); color: var(--input-text); }
+.admin-unlock label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--theme-text); }
+.admin-unlock input { padding: 6px 8px; border: 1px solid var(--theme-border); border-radius: 4px; font-size: 14px; background: var(--theme-halfway); color: var(--theme-text-subtle); }
 .admin-unlock .admin-error { flex-basis: 100%; margin: 0; }
 
 .admin-section { margin-bottom: 24px; }
-.admin-section h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 8px; color: var(--text-muted); }
+.admin-section h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 8px; color: var(--theme-text-faint); }
 
 .admin-list { border-collapse: collapse; min-width: 480px; }
-.admin-list td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+.admin-list td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--theme-border-subtle); white-space: nowrap; }
 .admin-list .admin-name { font-weight: 600; }
-.admin-list .admin-id, .admin-list .admin-date { color: var(--text-muted); }
+.admin-list .admin-id, .admin-list .admin-date { color: var(--theme-text-faint); }
 .admin-list .admin-actions { text-align: right; }
 
 .admin-badge {
   margin-left: 8px;
   padding: 1px 7px;
   border-radius: 8px;
-  background: var(--theme-green);
-  color: var(--theme-primary);
+  background: var(--theme-success);
+  color: var(--theme-surface);
   font-size: 11px;
   font-weight: 600;
 }
 
 .admin-page button {
   padding: 5px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--theme-border);
   border-radius: 4px;
-  background: var(--panel-bg);
+  background: var(--theme-surface);
   font-weight: 600;
   cursor: pointer;
 }
-.admin-page button:hover { background: var(--row-hover-bg); }
-.admin-page button:disabled { color: var(--text-faint); cursor: default; background: var(--panel-bg); }
-.admin-page .btn-danger { border-color: var(--danger); color: var(--danger); }
-.admin-page .btn-danger:hover { background: var(--danger-bg); }
+.admin-page button:hover { background: var(--theme-hover); }
+.admin-page button:disabled { color: var(--theme-text-faint); cursor: default; background: var(--theme-surface); }
+.admin-page .btn-danger { border-color: var(--theme-danger); color: var(--theme-danger); }
+.admin-page .btn-danger:hover { background: var(--theme-danger-bg); }
 .admin-unlock button, .admin-create button {
   border: 0;
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--theme-accent);
+  color: var(--theme-accent-text);
   padding: 7px 14px;
 }
-.admin-unlock button:hover, .admin-create button:hover:enabled { background: var(--accent); }
-.admin-create button:disabled { background: var(--accent-disabled); color: var(--accent-text); }
+.admin-unlock button:hover, .admin-create button:hover:enabled { background: var(--theme-accent); }
+.admin-create button:disabled { background: var(--theme-text-faint); color: var(--theme-accent-text); }
 
 .admin-create { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-.admin-create label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-label); }
+.admin-create label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--theme-text); }
 .admin-create input, .admin-create select {
   padding: 6px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--theme-border);
   border-radius: 4px;
   font-size: 14px;
-  background: var(--input-bg);
-  color: var(--input-text);
+  background: var(--theme-halfway);
+  color: var(--theme-text-subtle);
 }
 .admin-create .cs { width: 130px; text-transform: uppercase; font-weight: 600; }
 
 .admin-maintenance { display: flex; gap: 10px; }
 
-.admin-error { color: var(--danger); }
-.admin-notice { color: var(--success); }
+.admin-error { color: var(--theme-danger); }
+.admin-notice { color: var(--theme-success); }
 
 /* --- status bar ----------------------------------------------------------- */
 
@@ -187,31 +192,37 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--theme-statusbar-color);
-  color: var(--statusbar-text);
+  background: var(--theme-statusbar);
+  color: var(--theme-topbar-text);
 }
-
-.status-bar .event-name { font-weight: 600; margin-right: 12px; }
 
 .status-bar input, .status-bar select {
   padding: 4px 6px;
-  border: 1px solid var(--statusbar-input-border);
+  border: 1px solid var(--theme-border);
   border-radius: 4px;
-  background: var(--statusbar-input-bg);
-  color: var(--statusbar-text);
+  background: var(--theme-halfway);
+  color: var(--theme-text);
 }
 
 .status-bar .operator-info-label { font-weight: 600; margin-right: 4px; }
 .status-bar .callsign { width: 110px; text-transform: uppercase; }
 .status-bar .initials { width: 70px; text-transform: uppercase; margin-right: 45px; }
 .status-bar .spacer { flex: 1; }
+.status-bar .exchange-label { font-weight: 600; margin-right: 6px; }
+.status-bar .event-exchange {
+  font-size: 16px;
+  opacity: 0.7;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
 
 /* Band-conflict warning: another station is on our band (LoggingTab). */
-.status-bar select.band-conflict { border-color: var(--warning); }
-.status-bar .band-conflict-warning { color: var(--warning-text); font-weight: 600; }
+.status-bar select.band-conflict { border-color: var(--theme-warning); }
+.status-bar .band-conflict-warning { color: var(--theme-warning); font-weight: 600; }
 
-.conn-ok { color: var(--success-bright); }
-.conn-down { color: var(--conn-down); }
+.conn-ok { color: var(--theme-success); }
+.conn-down { color: var(--theme-danger); }
 
 /* --- panes ---------------------------------------------------------------- */
 
@@ -250,21 +261,21 @@ body {
 .stations-panel,
 .chat-panel,
 .future-panel {
-  border: 1px solid var(--border);
+  border: 1px solid var(--theme-border);
   border-radius: var(--panel-radius);
 }
 
 .right-pane > div { padding: 6px 10px; }
-.right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px; color: var(--text-muted); }
-.right-pane .placeholder { color: var(--text-faint); font-style: italic; }
+.right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px; color: var(--theme-text-faint); }
+.right-pane .placeholder { color: var(--theme-text-faint); font-style: italic; }
 .stations-panel {
   height: 200px;       /* fixed panel height; tweak as desired */
   overflow-y: auto;    /* scrollbar appears when station list exceeds height */
-  background: var(--panel-alt-bg);
+  background: var(--theme-surface);
 }
-.chat-panel { flex: 1; overflow: hidden; background: var(--panel-alt-bg); }
-.future-panel { height: 90px; background: var(--panel-alt-bg); }
-.future-panel-left { flex: 1; background: var(--panel-bg); }  /* fills the left pane below the entry form */
+.chat-panel { flex: 1; overflow: hidden; background: var(--theme-surface); }
+.future-panel { height: 90px; background: var(--theme-surface); }
+.future-panel-left { flex: 1; background: var(--theme-surface); }  /* fills the left pane below the entry form */
 
 /* --- stations panel --------------------------------------------------------- */
 
@@ -272,20 +283,20 @@ body {
 .stations td {
   padding: 2px 6px;
   white-space: nowrap;
-  background: var(--row-accent);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  background: var(--theme-raised);
+  border-top: 1px solid var(--theme-border);
+  border-bottom: 1px solid var(--theme-border);
 }
-.stations td:first-child { border-radius: 6px 0 0 6px; padding-left: 8px; border-left: 1px solid var(--border); }
-.stations td:last-child { border-radius: 0 6px 6px 0; padding-right: 8px; border-right: 1px solid var(--border); }
-.stations tr.conflict td { background: var(--conflict-bg); }
+.stations td:first-child { border-radius: 6px 0 0 6px; padding-left: 8px; border-left: 1px solid var(--theme-border); }
+.stations td:last-child { border-radius: 0 6px 6px 0; padding-right: 8px; border-right: 1px solid var(--theme-border); }
+.stations tr.conflict td { background: var(--theme-conflict-bg); }
 .stations .cs { font-weight: 600; }
-.stations .initials { font-weight: 400; color: var(--text-muted); }
-.stations .you { font-weight: 400; color: var(--accent); }
-.stations .last-seen { text-align: right; color: var(--text-faint); font-size: 12px; }
-.stations .last-seen.fresh { color: var(--fresh); }   /* green: < 10s */
-.stations .last-seen.stale { color: var(--stale); }   /* yellow: 10–60s */
-.stations .last-seen.old   { color: var(--old); }      /* orange: > 60s */
+.stations .initials { font-weight: 400; color: var(--theme-text-faint); }
+.stations .you { font-weight: 400; color: var(--theme-accent); }
+.stations .last-seen { text-align: right; color: var(--theme-text-faint); font-size: 12px; }
+.stations .last-seen.fresh { color: var(--theme-success); }   /* green: < 15s */
+.stations .last-seen.stale { color: var(--theme-warning); }   /* yellow: 15–60s */
+.stations .last-seen.old   { color: var(--theme-danger); }   /* red: > 60s */
 
 /* --- chat panel -------------------------------------------------------------- */
 
@@ -294,18 +305,18 @@ body {
 .chat-messages { flex: 1; overflow-y: auto; min-height: 0; }
 
 .chat-msg { padding: 2px 0; overflow-wrap: break-word; }
-.chat-msg.failed { color: var(--danger); }
-.chat-time { color: var(--text-faint); font-size: 11px; }
+.chat-msg.failed { color: var(--theme-danger); }
+.chat-time { color: var(--theme-text-faint); font-size: 11px; }
 .chat-from { font-weight: 600; }
-.chat-flag { color: var(--text-faint); }
+.chat-flag { color: var(--theme-text-faint); }
 
 .chat-resend {
   margin-left: 6px;
   padding: 0 6px;
-  border: 1px solid var(--danger);
+  border: 1px solid var(--theme-danger);
   border-radius: 3px;
   background: none;
-  color: var(--danger);
+  color: var(--theme-danger);
   font-size: 11px;
   cursor: pointer;
 }
@@ -316,23 +327,11 @@ body {
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--theme-border);
   border-radius: 4px;
-  background: var(--input-bg);
-  color: var(--input-text);
+  background: var(--theme-halfway);
+  color: var(--theme-text-subtle);
 }
-
-.chat-form button {
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 4px;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.chat-form button:disabled { background: var(--accent-disabled); cursor: default; }
 
 /* --- contact list ---------------------------------------------------------- */
 
@@ -342,7 +341,7 @@ body {
   overflow-y: scroll;             /* always reserve a scrollbar track, even when content fits */
   scrollbar-gutter: stable;       /* prevent layout shift as items appear/disappear */
   overscroll-behavior: contain;  /* wheel scroll stays in the list at its ends */
-  background: var(--panel-bg);
+  background: var(--theme-surface);
 }
 
 .contact-list table { width: 100%; border-collapse: collapse; }
@@ -350,33 +349,33 @@ body {
 .contact-list th, .contact-list td {
   padding: 5px 8px;
   text-align: left;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--theme-border-subtle);
   white-space: nowrap;
 }
 
 .contact-list thead th {
   position: sticky;
   top: 0;
-  background: var(--panel-alt-bg);
+  background: var(--theme-surface);
   font-size: 12px;
   text-transform: uppercase;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
+  color: var(--theme-text-faint);
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .contact-list .cs { font-weight: 600; }
-.contact-list .empty { color: var(--text-faint); font-style: italic; text-align: center; }
+.contact-list .empty { color: var(--theme-text-faint); font-style: italic; text-align: center; }
 .sync-col { width: 20px; }
 
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
-.dot-synced { background: var(--success-bright); }
-.dot-pending { background: var(--warning-text); }
+.dot-synced { background: var(--theme-success); }
+.dot-pending { background: var(--theme-warning); }
 
 /* --- entry form ------------------------------------------------------------ */
 
 .entry-form {
   padding: 6px 10px;
-  background: var(--panel-alt-bg);
+  background: var(--theme-surface);
 }
 
 .entry-form fieldset { border: 0; margin: 0; padding: 0; }
@@ -384,22 +383,22 @@ body {
 
 /* shown in place of .entry-error while the form is gated; same footprint
    so the form doesn't shift when the gate lifts */
-.entry-gate { min-height: 1em; margin-top: 6px; color: var(--gate-text); }
+.entry-gate { min-height: 1em; margin-top: 6px; color: var(--theme-warning); }
 
 .entry-fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
 .entry-fields input, .entry-fields select {
   padding: 6px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--theme-border);
   border-radius: 4px;
   font-size: 14px;
-  background: var(--input-bg);
-  color: var(--input-text);
+  background: var(--theme-halfway);
+  color: var(--theme-text-subtle);
 }
 
 .entry-fields .cs { width: 130px; text-transform: uppercase; }
 
-.entry-error { min-height: 1em; margin-top: 6px; color: var(--danger); }
+.entry-error { min-height: 1em; margin-top: 6px; color: var(--theme-danger); }
 
 .sr-only {
   position: absolute;
@@ -415,25 +414,25 @@ body {
    on blur only, slightly bolder. The inset shadow draws the color inside the
    box so the focus outline can't cover it, without shifting layout. */
 input.v-ok, select.v-ok {
-  border-color: var(--validation-ok);
-  box-shadow: inset 0 0 0 2px var(--validation-ok);
+  border-color: var(--theme-success);
+  box-shadow: inset 0 0 0 2px var(--theme-success);
 }
 input.v-bad, select.v-bad {
-  border-color: var(--validation-bad);
-  box-shadow: inset 0 0 0 3px var(--validation-bad);
+  border-color: var(--theme-danger);
+  box-shadow: inset 0 0 0 3px var(--theme-danger);
 }
 
 /* draw our own focus ring — native rings differ per browser and can cover
    the validation colors; it keeps distinct from the green/red validation */
 .entry-fields input:focus, .entry-fields select:focus {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--theme-text);
   outline-offset: 0;
 }
 
 /* --- contact modal ----------------------------------------------------------- */
 
 .row-click { cursor: pointer; }
-.row-click:hover td { background: var(--row-hover-bg); }
+.row-click:hover td { background: var(--theme-hover); }
 
 .modal-backdrop {
   position: fixed;
@@ -446,7 +445,7 @@ input.v-bad, select.v-bad {
 }
 
 .modal {
-  background: var(--panel-bg);
+  background: var(--theme-surface);
   border-radius: 8px;
   padding: 14px 16px;
   min-width: 420px;
@@ -467,7 +466,7 @@ input.v-bad, select.v-bad {
   background: none;
   font-size: 15px;
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--theme-text-faint);
 }
 
 .modal-actions {
@@ -481,22 +480,22 @@ input.v-bad, select.v-bad {
 
 .modal-actions button {
   padding: 7px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--theme-border);
   border-radius: 4px;
-  background: var(--panel-bg);
+  background: var(--theme-surface);
   font-weight: 600;
   cursor: pointer;
 }
 
-.modal-actions .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-.modal-actions .btn-primary:hover { background: var(--accent); }
-.modal-actions .btn-danger { border-color: var(--danger); color: var(--danger); }
-.modal-actions .btn-danger:hover { background: var(--theme-secondary); }
+.modal-actions .btn-primary { background: var(--theme-accent); border-color: var(--theme-accent); color: var(--theme-accent-text); }
+.modal-actions .btn-primary:hover { background: var(--theme-accent); }
+.modal-actions .btn-danger { border-color: var(--theme-danger); color: var(--theme-danger); }
+.modal-actions .btn-danger:hover { background: var(--theme-page); }
 
 .modal-footer {
   margin-top: 10px;
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--theme-text-faint);
 }
 
 /* --- full-screen states ----------------------------------------------------- */
@@ -516,8 +515,8 @@ input.v-bad, select.v-bad {
   padding: 8px 18px;
   border: 0;
   border-radius: 4px;
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--theme-accent);
+  color: var(--theme-accent-text);
   font-weight: 600;
   cursor: pointer;
 }
@@ -525,11 +524,11 @@ input.v-bad, select.v-bad {
 .screen-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
 .screen .btn-secondary {
-  background: var(--panel-bg);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  color: var(--theme-text);
 }
 
 .status-bar-separator {
-  border-bottom: 1px solid var(--topbar-border);
+  border-bottom: 1px solid var(--theme-border);
 }

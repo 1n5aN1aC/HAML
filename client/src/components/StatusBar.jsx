@@ -62,6 +62,8 @@ export default function StatusBar({ session, onSession, config, conflicts = [] }
         </span>
       )}
       <span className="spacer" />
+      <span className="exchange-label">Exchange:</span>
+      <span className="event-exchange">6A OR</span>
     </header>
   )
 }

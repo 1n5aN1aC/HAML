@@ -1,55 +1,33 @@
-/* Sepia theme — warm "paper" light theme, tan chrome, burnt-amber accent. */
+/* Sepia theme — warm "paper" light theme, dark chrome, burnt-amber accent. */
 
 :root[data-theme="sepia"] {
-  --bg-page: #fffff0;                /* Color behind & between page elements */
-  --text: #433422;                   /* Text for info areas */
-  --topbar-bg: #494949;              /* TopBar - Background */
-  --topbar-text: #ffffff;            /* TopBar - Unused??? */
-  --topbar-border: #cdbb8f;          /* TopBar - Line Underneath */
-  --topbar-title: #ffffff;           /* TopBar - HAML brand & event name */
-  --tab-bg: #d8c9a6;                 /* Tabs - Unselected Tabs */
-  --tab-text: #6b5a3e;               /* Tabs - Unselected Tab Text */
-  --tab-hover-bg: #cdbb8f;           /* Tabs - Hovering */
-  --tab-hover-text: #2b2116;         /* Tabs - Hovering Text */
-  --tab-active-bg: #f4ecd8;          /* Tabs - Active Tab */
-  --tab-active-text: #2b2116;        /* Tabs - Active Tab Text */
-  --statusbar-bg: #e3d5b3;           /* StatusBar - Background */
-  --statusbar-text: #2b2116;         /* StatusBar - Text (Op, Band, Mode) */
-  --statusbar-input-bg: #cec2a4;     /* StatusBar - TextBox Background */
-  --statusbar-input-border: #74684d; /* StatusBar - TextBox Border */
-  --input-bg: #fffdf5;               /* Whole Page - TextBox Background */
-  --input-text: #433422;             /* Whole Page - TextBox Text */
-  --panel-bg: #efe4c8;               /* Panels - Background */
-  --panel-alt-bg: #efe4c8;           /* Panels - Background (alt) */
-  --row-accent: #efe4c8;             /* Stations Panel - Row background */
-  --border: #d8c9a6;                 /* Border around panels */
-  --border-subtle: #e6c2c2;          /* Lines between contacts in table */
-  --text-muted: #8a795d;             /* Table Headers */
-  --text-faint: #a89a7d;             /* Only used on coming soon tabs? */
-  --text-label: #6b5a3e;             /* Color of text inside text box */
-  --accent: #b06a12;
-  --accent-text: #fff;
-  --accent-disabled: #c9b48f;
-  --row-hover-bg: #f0e6cf;
-  --focus-ring: #433422;
-  --modal-backdrop: rgba(60, 45, 25, 0.35);
-  --modal-shadow: rgba(60, 45, 25, 0.2);
+  /* Main Theme Colors */
+  --theme-surface: #efe4c8;          /* Box Background */
+  --theme-page: #fffff0;             /* Page Background */
+  --theme-border: #d8c9a6;           /* Box Borders */
+  --theme-text: #433422;             /* Text */
 
-  --danger: #b91c1c;
-  --success: #4d7c0f;
-  --success-bright: #4d7c0f;
-  --warning: #b45309;
-  --warning-text: #b45309;
-  --conn-down: #b91c1c;
-  --fresh: #4d7c0f;
-  --stale: #a16207;
-  --old: #c2410c;
-  --validation-ok: #4d7c0f;
-  --validation-bad: #b91c1c;
-  --badge-bg: #4d7c0f;
-  --badge-text: #fff;
-  --gate-text: #b45309;
+  --theme-accent: #b06a12;           /* Accent / primary action */
+  --theme-accent-text: #fff;         /* Text on accent */
 
-  --danger-bg: #fbe9e6;
-  --conflict-bg: #f7ecc9;
+  /* Signal Colors */
+  --theme-success: #4bb80c;          /* Success / fresh / validation-ok */
+  --theme-danger: #b91c1c;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #b45309;          /* Warning / gate / stale */
+  --theme-danger-bg: #fbe9e6;        /* Danger-button hover tint */
+
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #494949;           /* TopBar background */
+  --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #494949;        /* StatusBar + unselected tab background */
+
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 20%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
 }

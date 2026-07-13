@@ -27,10 +27,11 @@ export default function App() {
   const [tab, setTab] = useState('logging')
   // Persisted to localStorage (independent of dexie)
   // Also applied in index.html on-load before dexie exists, to prevent a flash on load.
-  // Default is Light; the retired "current" theme maps to Light as well.
+  // Unknown/retired ids fall back to Light (keep this list in sync with
+  // index.html and TopBar.jsx's THEMES).
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('haml-theme')
-    return saved && saved !== 'current' ? saved : 'light'
+    return ['light', 'dark', 'blue', 'sepia'].includes(saved) ? saved : 'light'
   })
 
   function changeTheme(id) {
