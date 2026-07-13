@@ -1,8 +1,7 @@
 // ARRL/RAC section abbreviations → full names, used for map hover tooltips.
 // The shapes in public/map.svg carry ids matching these abbreviations.
 
-// Sections that count toward the worked-sections tally (US only, matching the
-// old project's "X / 71" counter — Canada/Mexico/DX are named but not tracked).
+// Sections that count toward the worked-sections tally.
 export const TRACKED_SECTIONS = [
   // New England
   'CT', 'RI', 'EMA', 'WMA', 'ME', 'VT', 'NH',
@@ -26,6 +25,8 @@ export const TRACKED_SECTIONS = [
   'CO', 'IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD',
   // Canada
   'AB', 'ONE', 'BC', 'ONN', 'GH', 'ONS', 'MB', 'PE', 'NB', 'QC', 'NL', 'SK', 'NS', 'TER',
+  // DX and Mexico
+  'DX', 'MX',
 ]
 
 export const SECTION_NAMES = {

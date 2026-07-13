@@ -102,8 +102,14 @@ export default function MapPanel() {
     return () => obj.removeEventListener('load', setup)
   }, [])
 
+  // Belt to the SVG-side suspenders: fast exits can outrun the events inside the embedded SVG document,
+  // This wrapper's own mouseleave (in the host document) always fires, so the tooltip can't be left stranded.
+  const hideTooltip = () => {
+    tooltipRef.current.style.display = 'none'
+  }
+
   return (
-    <div className="map-panel">
+    <div className="map-panel" onMouseLeave={hideTooltip}>
       <object
         ref={objectRef}
         type="image/svg+xml"
