@@ -3,8 +3,8 @@
 Stdlib only. Spawns the real server on a scratch port with a scratch data dir,
 then walks the API as two simulated clients: event creation, push/pull, the
 LWW conflict rule, tombstone sync, the cursor, backup, event switching, the
-admin event listing, event-creation validation, and persistence across a
-server restart.
+admin event listing, event-creation validation, persistence across a
+server restart, and event deletion.
 
 Run: python server/tests/smoke.py   (uses sys.executable for the subprocess)
 """
@@ -478,6 +478,35 @@ def main():
         check({e["event_uuid"] for e in body["events"]}
               == {created["event_uuid"], second["event_uuid"]},
               "event listing is intact after a restart")
+
+        print("event deletion:")
+        status, _ = request("DELETE",
+                            f"/api/admin/events/{second['event_uuid']}")
+        check(status == 401, "event delete rejects a missing password")
+        status, _ = request("DELETE", f"/api/admin/events/{uuid.uuid4()}",
+                            headers=ADMIN)
+        check(status == 404, "deleting a nonexistent event is a 404")
+        status, body = request("DELETE",
+                               f"/api/admin/events/{created['event_uuid']}",
+                               headers=ADMIN)
+        check(status == 400 and "active" in body["error"],
+              "deleting the active event is rejected")
+        status, body = request("DELETE",
+                               f"/api/admin/events/{second['event_uuid']}",
+                               headers=ADMIN)
+        check(status == 200 and body["deleted"] == second["event_uuid"],
+              "inactive event can be deleted")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check([e["event_uuid"] for e in body["events"]]
+              == [created["event_uuid"]],
+              "deleted event disappears from the listing")
+        status, _ = request("DELETE",
+                            f"/api/admin/events/{second['event_uuid']}",
+                            headers=ADMIN)
+        check(status == 404, "deleting an already-deleted event is a 404")
+        status, event = request("GET", "/api/event")
+        check(status == 200 and event["event_uuid"] == created["event_uuid"],
+              "active event is untouched by the deletion")
 
         print(f"\nPASS — {checks} checks")
         passed = True

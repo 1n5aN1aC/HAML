@@ -1,4 +1,5 @@
-"""Event lifecycle: create from template, list, activate, back up (ADR-0002).
+"""Event lifecycle: create from template, list, activate, delete, back up
+(ADR-0002).
 
 The data directory holds:
   state.json           -> {"active": "events/<file>.db"} (which Event is live)
@@ -109,6 +110,19 @@ def activate_event(data_dir, event_uuid):
     if path:
         _set_active(data_dir, path)
     return path
+
+
+def delete_event(data_dir, event_uuid):
+    """Remove an Event database file. Returns True when deleted, False when
+    unknown; raises ValueError for the active Event (its file is held open
+    and connected clients are logging into it)."""
+    path = find_event_path(data_dir, event_uuid)
+    if path is None:
+        return False
+    if path == get_active_path(data_dir):
+        raise ValueError("cannot delete the active event")
+    path.unlink()
+    return True
 
 
 def backup_event(conn, data_dir, event_name):

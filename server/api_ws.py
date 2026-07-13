@@ -11,7 +11,7 @@ Message types:
 import json
 import time
 
-from aiohttp import WSMsgType, web
+from aiohttp import WSCloseCode, WSMsgType, web
 
 import db
 
@@ -35,9 +35,16 @@ def setup(app):
     async def notify_chat_cleared():
         await broadcast(app, {"type": "chat_cleared"})
 
+    # Close open sockets on shutdown so Ctrl-C doesn't hang waiting on
+    # ws_handler receive loops that would otherwise never return.
+    async def close_all(app):
+        for ws in list(app["ws_clients"]):
+            await ws.close(code=WSCloseCode.GOING_AWAY, message=b"server shutdown")
+
     app["poke"] = poke
     app["notify_event"] = notify_event
     app["notify_chat_cleared"] = notify_chat_cleared
+    app.on_shutdown.append(close_all)
     app.router.add_get("/ws", ws_handler)
 
 # Send a JSON message to every connected WebSocket client.

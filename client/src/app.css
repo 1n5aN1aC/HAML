@@ -139,6 +139,7 @@ body {
 .admin-list .admin-name { font-weight: 600; }
 .admin-list .admin-id, .admin-list .admin-date { color: var(--theme-text-faint); }
 .admin-list .admin-actions { text-align: right; }
+.admin-list .admin-actions button + button { margin-left: 6px; }
 
 .admin-badge {
   margin-left: 8px;

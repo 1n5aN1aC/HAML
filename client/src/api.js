@@ -81,6 +81,14 @@ export function adminActivateEvent(password, eventUuid) {
   })
 }
 
+// Delete an inactive event's database; the server refuses the active one.
+export function adminDeleteEvent(password, eventUuid) {
+  return request(`/api/admin/events/${encodeURIComponent(eventUuid)}`, {
+    method: 'DELETE',
+    headers: adminHeaders(password),
+  })
+}
+
 // Snapshot the active event into data/backups/; returns the backup filename.
 export function adminBackup(password) {
   return request('/api/admin/backup', {

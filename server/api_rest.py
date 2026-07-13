@@ -193,6 +193,19 @@ async def admin_activate_event(request):
     return web.json_response(request.app["event"])
 
 
+# Delete an inactive event's database file from disk.
+async def admin_delete_event(request):
+    require_admin(request)
+    data_dir = request.app["cfg"]["data_dir"]
+    event_uuid = request.match_info["event_uuid"]
+    try:
+        if not events.delete_event(data_dir, event_uuid):
+            return json_error(404, "no such event")
+    except ValueError as exc:
+        return json_error(400, str(exc))
+    return web.json_response({"deleted": event_uuid})
+
+
 # Snapshot the active event to a backup file.
 async def admin_backup(request):
     require_admin(request)
@@ -226,5 +239,7 @@ def setup_routes(app):
     app.router.add_post("/api/admin/events", admin_create_event)
     app.router.add_post("/api/admin/events/{event_uuid}/activate",
                         admin_activate_event)
+    app.router.add_delete("/api/admin/events/{event_uuid}",
+                          admin_delete_event)
     app.router.add_post("/api/admin/backup", admin_backup)
     app.router.add_delete("/api/admin/chat", admin_clear_chat)

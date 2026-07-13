@@ -8,6 +8,7 @@ import {
   adminListEvents,
   adminCreateEvent,
   adminActivateEvent,
+  adminDeleteEvent,
   adminBackup,
   adminClearChat,
 } from '../api.js'
@@ -80,6 +81,19 @@ export default function AdminTab() {
       return
     run(async () => {
       await adminActivateEvent(password, event.event_uuid)
+      await refresh()
+    })
+  }
+
+  function deleteEvent(event) {
+    if (
+      !window.confirm(
+        `Delete "${event.name}"? Its entire log will be permanently removed.`,
+      )
+    )
+      return
+    run(async () => {
+      await adminDeleteEvent(password, event.event_uuid)
       await refresh()
     })
   }
@@ -158,8 +172,15 @@ export default function AdminTab() {
                   {event.created_at && new Date(event.created_at).toLocaleDateString()}
                 </td>
                 <td className="admin-actions">
-                  {!event.active && (
-                    <button onClick={() => activateEvent(event)}>Activate</button>
+                  {event.active ? (
+                    <button onClick={backup}>Backup</button>
+                  ) : (
+                    <>
+                      <button onClick={() => activateEvent(event)}>Activate</button>
+                      <button className="btn-danger" onClick={() => deleteEvent(event)}>
+                        Delete
+                      </button>
+                    </>
                   )}
                 </td>
               </tr>
@@ -231,7 +252,6 @@ export default function AdminTab() {
       <section className="admin-section">
         <h2>Maintenance</h2>
         <div className="admin-maintenance">
-          <button onClick={backup}>Backup active event</button>
           <button className="btn-danger" onClick={clearAllChat}>
             Delete all chat
           </button>
