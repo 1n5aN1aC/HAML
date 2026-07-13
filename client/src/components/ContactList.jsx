@@ -44,9 +44,9 @@ export default function ContactList({ config, onSelect }) {
         <thead>
           <tr>
             <th className="sync-col" title="Sync state" />
-            <th>Time (UTC)</th>
+            <th>UTC</th>
             <th>Local</th>
-            <th>Callsign</th>
+            <th>Call</th>
             <th>Band</th>
             <th>Mode</th>
             {fields.map((f) => (

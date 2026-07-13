@@ -269,15 +269,10 @@ export default function AdminTab() {
                 <td className="admin-name">{t.name}</td>
                 <td className="admin-id">{t.id}</td>
                 <td className="admin-actions">
-                  {/* the example template is living documentation — hands off */}
-                  {t.id !== 'example' && (
-                    <>
-                      <button onClick={() => editTemplate(t.id)}>Edit</button>
-                      <button className="btn-danger" onClick={() => deleteTemplate(t)}>
-                        Delete
-                      </button>
-                    </>
-                  )}
+                  <button onClick={() => editTemplate(t.id)}>Edit</button>
+                  <button className="btn-danger" onClick={() => deleteTemplate(t)}>
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}

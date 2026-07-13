@@ -17,6 +17,10 @@ DUPLICATE_TYPES = {"band-mode", "any", "band-mode-day", "none"}
 
 TEMPLATE_ID_RE = re.compile(r"^[a-z0-9_-]+$")
 
+# The example template is living documentation on disk, not a usable contest
+# definition, so it's hidden from the listing the client sees.
+HIDDEN_TEMPLATE_IDS = {"example"}
+
 
 def validate_template(template):
     """Raise ValueError if the template JSON is malformed."""
@@ -103,6 +107,8 @@ def list_templates(templates_dir=TEMPLATES_DIR):
     """Return [{id, name}] for every valid template file, sorted by id."""
     result = []
     for path in sorted(Path(templates_dir).glob("*.json")):
+        if path.stem in HIDDEN_TEMPLATE_IDS:
+            continue
         try:
             template = json.loads(path.read_text(encoding="utf-8"))
             validate_template(template)
