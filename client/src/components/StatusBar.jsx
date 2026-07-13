@@ -6,7 +6,7 @@ import { alphanumeric } from '../text-input.js'
 const DEFAULT_MODE = (modes) =>
   modes.includes('Phone') ? 'Phone' : (modes[0] || '')
 
-export default function StatusBar({ session, onSession, config, conflicts = [] }) {
+export default function StatusBar({ session, onSession, config, stationCallsign, conflicts = [] }) {
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
   const setAlphanumeric = (key) => (e) =>
     onSession({ ...session, [key]: alphanumeric(e.target.value) })
@@ -63,7 +63,7 @@ export default function StatusBar({ session, onSession, config, conflicts = [] }
       )}
       <span className="spacer" />
       <span className="exchange-label">Exchange:</span>
-      <span className="event-exchange">6A OR</span>
+      <span className="event-exchange">{[stationCallsign, '6A OR'].filter(Boolean).join(' ')}</span>
     </header>
   )
 }

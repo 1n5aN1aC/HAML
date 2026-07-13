@@ -219,6 +219,7 @@ body {
   border: 1px solid var(--theme-border);
   border-radius: 4px;
   padding: 4px 8px;
+  word-spacing: 8px;
 }
 
 /* Band-conflict warning: another station is on our band (LoggingTab). */

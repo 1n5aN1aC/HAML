@@ -214,6 +214,7 @@ export default function App() {
           session={session}
           onSession={updateSession}
           config={config}
+          stationCallsign={event.station_callsign}
           clientUuid={clientUuid}
           sessionComplete={sessionComplete}
           stations={stations}
