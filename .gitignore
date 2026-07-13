@@ -5,10 +5,9 @@ server/data/
 node_modules/
 client/dist/
 
-# design-sync (claude.ai/design) build artifacts — durable inputs under .design-sync/ are committed
+# Junk & build artifacts
 .ds-sync/
 ds-bundle/
 client/.ds-entry.mjs
-.design-sync/.cache/
-.design-sync/learnings/
-.design-sync/node_modules
+.design-sync/
+.claude/
