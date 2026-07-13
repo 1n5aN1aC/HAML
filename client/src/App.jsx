@@ -9,6 +9,7 @@ import { startSync, pullNow } from './sync.js'
 import { startSocket, setPresence } from './socket.js'
 import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage, clearChat } from './chat.js'
 import { validTheme } from './themes.js'
+import { playChat } from './sounds.js'
 import TopBar from './components/TopBar.jsx'
 import LoggingTab from './components/LoggingTab.jsx'
 import RadioTab from './components/RadioTab.jsx'
@@ -77,7 +78,10 @@ export default function App() {
         setStations([])
       },
       onPresence: setStations,
-      onChat: async (message) => setChat(await applyChatBroadcast(message)),
+      onChat: async (message) => {
+        playChat()
+        setChat(await applyChatBroadcast(message))
+      },
       onChatCleared: async () => setChat(await clearChat()),
       onPoke: pullNow,
       onEvent: async (eventUuid) => {

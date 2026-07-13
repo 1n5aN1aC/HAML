@@ -6,6 +6,7 @@ import { pushNow } from '../sync.js'
 import { newUuid } from '../uuid.js'
 import { validateContact } from '../contact-validation.js'
 import { alphanumeric } from '../text-input.js'
+import { playSubmit } from '../sounds.js'
 import FieldInput from './FieldInput.jsx'
 
 function defaultValues(fields) {
@@ -71,6 +72,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       sync_state: 'pending',
     })
     pushNow()
+    playSubmit()
     setCallsign('')
     setValues(defaultValues(fields))
     setError('')
