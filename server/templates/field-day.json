@@ -8,11 +8,11 @@
       "required": true,
       "remember": true,
       "default": "",
-      "max_length": 3,
       "order": 1,
+      "max_length": 3,
       "validation": {
         "pattern": "\\d{1,2}[A-F]",
-        "message": "Class must be a Field Day class like 3A"
+        "message": "Improper Field Day Class"
       }
     },
     {
@@ -22,17 +22,35 @@
       "required": true,
       "remember": true,
       "default": "",
-      "max_length": 3,
       "order": 2,
+      "max_length": 3,
       "validation": {
-        "pattern": "[A-Z]{2,3}",
-        "message": "ARRL Section must be an abbreviation like OR"
+        "pattern": "AB|AK|AL|AR|AZ|BC|CO|CT|DE|DX|EB|EMA|ENY|EPA|EWA|GA|GH|IA|ID|IL|IN|KS|KY|LA|LAX|MB|MDC|ME|MI|MN|MO|MS|MT|NB|NC|ND|NE|NFL|NH|NL|NLI|NM|NNJ|NNY|NS|NTX|NV|OH|OK|ONE|ONN|ONS|OR|ORG|PAC|PE|PR|QC|RI|SB|SC|SCV|SD|SDG|SF|SFL|SJV|SK|SNJ|STX|SV|TER|TN|UT|VA|VI|VT|WCF|WI|WMA|WNY|WPA|WTX|WV|WWA|WY",
+        "message": "Improper Section"
       }
     }
   ],
-  "bands": ["160m", "80m", "40m", "20m", "15m", "10m", "6m", "2m", "1.25m", "70cm", "33cm", "23cm", "13cm", "Other"],
-  "modes": ["Phone", "CW", "Digital"],
+  "bands": [
+    "160m",
+    "80m",
+    "40m",
+    "20m",
+    "15m",
+    "10m",
+    "6m",
+    "2m",
+    "1.25m",
+    "70cm",
+    "33cm",
+    "23cm",
+    "13cm",
+    "Other"
+  ],
+  "modes": [
+    "Phone",
+    "CW",
+    "Digital"
+  ],
   "duplicate_type": "band-mode",
-  "contact_list": ["class", "section"],
   "export": null
 }

@@ -124,7 +124,7 @@ body {
 
 /* --- admin tab -------------------------------------------------------------- */
 
-.admin-page { overflow-y: auto; max-width: 720px; }
+.admin-page { overflow-y: auto; }
 
 .admin-unlock { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .admin-unlock label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--theme-text); }
@@ -188,6 +188,50 @@ body {
 
 .admin-error { color: var(--theme-danger); }
 .admin-notice { color: var(--theme-success); }
+
+.admin-new-template { margin-top: 10px; }
+
+/* --- template editor (admin sub-view) -------------------------------------- */
+
+.template-globals,
+.template-field-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.template-globals label,
+.template-field label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--theme-text); }
+.template-editor input,
+.template-editor select,
+.template-editor textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--theme-halfway);
+  color: var(--theme-text-subtle);
+}
+.template-editor input:disabled { color: var(--theme-text-faint); }
+.template-export { flex-basis: 100%; }
+.template-export textarea { font-family: monospace; resize: vertical; }
+
+.template-field {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--theme-border-subtle);
+  border-radius: 6px;
+}
+.template-field-row + .template-field-row { margin-top: 8px; }
+.template-num { width: 80px; }
+.template-pattern { width: 520px; }
+.template-message { width: 220px; }
+.template-check { flex-direction: row !important; align-items: center; gap: 5px !important; }
+.template-field-actions { display: flex; gap: 6px; margin-left: auto; }
+
+.template-editor-actions { display: flex; gap: 10px; }
+.template-editor-actions .btn-save {
+  border: 0;
+  background: var(--theme-accent);
+  color: var(--theme-accent-text);
+  padding: 7px 14px;
+}
+.template-editor-actions .btn-save:disabled { background: var(--theme-text-faint); color: var(--theme-accent-text); }
 
 /* --- status bar ----------------------------------------------------------- */
 

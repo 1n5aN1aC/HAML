@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import {
   adminListTemplates,
+  adminGetTemplate,
   adminDeleteTemplate,
   adminListEvents,
   adminCreateEvent,
@@ -12,6 +13,7 @@ import {
   adminBackup,
   adminClearChat,
 } from '../api.js'
+import TemplateEditor from './TemplateEditor.jsx'
 
 const EMPTY_FORM = { name: '', station_callsign: '', template: '' }
 
@@ -24,6 +26,8 @@ export default function AdminTab() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  // null, or { id, template } — id/template are null when creating from scratch
+  const [editing, setEditing] = useState(null)
 
   async function refresh(pw = password) {
     const [{ events }, { templates }] = await Promise.all([
@@ -65,11 +69,25 @@ export default function AdminTab() {
     }
   }
 
-  function deleteTemplate(id) {
+  function deleteTemplate(t) {
+    if (!window.confirm(`Delete template "${t.name}"? This cannot be undone.`))
+      return
     run(async () => {
-      await adminDeleteTemplate(password, id)
+      await adminDeleteTemplate(password, t.id)
       await refresh()
     })
+  }
+
+  function editTemplate(id) {
+    run(async () => {
+      const template = await adminGetTemplate(password, id)
+      setEditing({ id, template })
+    })
+  }
+
+  function closeEditor(saved) {
+    setEditing(null)
+    if (saved) run(refresh)
   }
 
   function activateEvent(event) {
@@ -144,6 +162,18 @@ export default function AdminTab() {
           {unlockError && <p className="admin-error">{unlockError}</p>}
         </form>
       </div>
+    )
+  }
+
+  if (editing) {
+    return (
+      <TemplateEditor
+        password={password}
+        templateId={editing.id}
+        initial={editing.template}
+        existingIds={templates.map((t) => t.id)}
+        onDone={closeEditor}
+      />
     )
   }
 
@@ -239,7 +269,8 @@ export default function AdminTab() {
                 <td className="admin-name">{t.name}</td>
                 <td className="admin-id">{t.id}</td>
                 <td className="admin-actions">
-                  <button className="btn-danger" onClick={() => deleteTemplate(t.id)}>
+                  <button onClick={() => editTemplate(t.id)}>Edit</button>
+                  <button className="btn-danger" onClick={() => deleteTemplate(t)}>
                     Delete
                   </button>
                 </td>
@@ -247,6 +278,12 @@ export default function AdminTab() {
             ))}
           </tbody>
         </table>
+        <button
+          className="admin-new-template"
+          onClick={() => setEditing({ id: null, template: null })}
+        >
+          New template
+        </button>
       </section>
 
       <section className="admin-section">

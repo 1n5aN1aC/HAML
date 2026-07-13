@@ -55,6 +55,13 @@ def validate_template(template):
         # contact with the same callsign (autofill on callsign blur)
         if not isinstance(field.get("remember", False), bool):
             raise ValueError(f"field '{name}': 'remember' must be a boolean")
+        # order drives the entry form's sort; missing values would compare NaN
+        order = field.get("order")
+        if not isinstance(order, int) or isinstance(order, bool):
+            raise ValueError(f"field '{name}' needs an integer 'order'")
+        default = field.get("default")
+        if default is not None and not isinstance(default, str):
+            raise ValueError(f"field '{name}': 'default' must be a string")
         if field["type"] in ("text", "number"):
             max_length = field.get("max_length")
             if (not isinstance(max_length, int) or isinstance(max_length, bool)
@@ -109,6 +116,9 @@ def list_templates(templates_dir=TEMPLATES_DIR):
 
 def load_template(template_id, templates_dir=TEMPLATES_DIR):
     """Load and validate one template by id (filename stem)."""
+    # the id must be a bare filename stem — no separators or traversal
+    if Path(template_id).name != template_id:
+        raise ValueError(f"no such template: {template_id}")
     path = Path(templates_dir) / f"{template_id}.json"
     if not path.is_file():
         raise ValueError(f"no such template: {template_id}")

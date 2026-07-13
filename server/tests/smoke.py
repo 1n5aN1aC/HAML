@@ -205,6 +205,21 @@ def main():
                                headers=ADMIN, body=scratch)
         check(status == 400, "template save rejects an unsafe id")
 
+        print("template fetch (editor round trip):")
+        status, _ = request("GET", "/api/admin/templates/smoke-scratch")
+        check(status == 401, "template fetch rejects a missing password")
+        status, body = request("GET", "/api/admin/templates/smoke-scratch",
+                               headers=ADMIN)
+        check(status == 200
+              and body == dict(scratch, name="Smoke Scratch v2"),
+              "saved template round-trips through GET unchanged")
+        status, _ = request("GET", "/api/admin/templates/no-such",
+                            headers=ADMIN)
+        check(status == 404, "fetching an unknown template is a 404")
+        status, _ = request("GET", "/api/admin/templates/..%2Fevil",
+                            headers=ADMIN)
+        check(status == 404, "template fetch rejects an unsafe id")
+
         no_message = json.loads(json.dumps(scratch))
         del no_message["fields"][0]["validation"]["message"]
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
@@ -228,6 +243,18 @@ def main():
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_list)
         check(status == 400, "contact_list naming an unknown field is rejected")
+        no_order = json.loads(json.dumps(scratch))
+        del no_order["fields"][0]["order"]
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=no_order)
+        check(status == 400 and "order" in body["error"],
+              "field without an order is rejected")
+        bad_default = json.loads(json.dumps(scratch))
+        bad_default["fields"][0]["default"] = 59
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=bad_default)
+        check(status == 400 and "default" in body["error"],
+              "non-string field default is rejected")
 
         status, _ = request("DELETE", "/api/admin/templates/smoke-scratch")
         check(status == 401, "template delete rejects a missing password")

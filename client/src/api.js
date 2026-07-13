@@ -54,6 +54,22 @@ export function adminListTemplates(password) {
   return request('/api/admin/templates', { headers: adminHeaders(password) })
 }
 
+// Fetch one template's full JSON, for the template editor.
+export function adminGetTemplate(password, id) {
+  return request(`/api/admin/templates/${encodeURIComponent(id)}`, {
+    headers: adminHeaders(password),
+  })
+}
+
+// Create or overwrite a template file by id.
+export function adminSaveTemplate(password, id, template) {
+  return request(`/api/admin/templates/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...adminHeaders(password) },
+    body: JSON.stringify(template),
+  })
+}
+
 export function adminDeleteTemplate(password, id) {
   return request(`/api/admin/templates/${encodeURIComponent(id)}`, {
     method: 'DELETE',

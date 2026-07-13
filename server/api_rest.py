@@ -123,6 +123,16 @@ async def admin_list_templates(request):
     return web.json_response({"templates": templates.list_templates()})
 
 
+# Return one template's full JSON, for the admin template editor.
+async def admin_get_template(request):
+    require_admin(request)
+    try:
+        template = templates.load_template(request.match_info["template_id"])
+    except (ValueError, json.JSONDecodeError) as exc:
+        return json_error(404, str(exc))
+    return web.json_response(template)
+
+
 # Create or overwrite an event template file on disk.
 async def admin_save_template(request):
     require_admin(request)
@@ -231,6 +241,8 @@ def setup_routes(app):
     app.router.add_get("/api/contacts", get_contacts)
     app.router.add_get("/api/chat", get_chat)
     app.router.add_get("/api/admin/templates", admin_list_templates)
+    app.router.add_get("/api/admin/templates/{template_id}",
+                       admin_get_template)
     app.router.add_put("/api/admin/templates/{template_id}",
                        admin_save_template)
     app.router.add_delete("/api/admin/templates/{template_id}",
