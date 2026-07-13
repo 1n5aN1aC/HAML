@@ -5,7 +5,7 @@
     "  fields         (required) Extra per-contact entry fields, may be empty [].",
     "  bands          (required) Band choices for the status bar, non-empty.",
     "  modes          (required) Mode choices for the status bar, non-empty.",
-    "  duplicate_type (optional) How the client warns about dupes, see below.",
+    "  duplicate_type (required) How the client warns about dupes, see below.",
     "  contact_list   (optional) Which fields the contact list shows, see below.",
     "  export         (reserved) Export mapping slot, unused in v1 — leave null."
   ],
@@ -75,7 +75,7 @@
 
   "_comment_duplicate_type": [
     "When entering a callsign already in the log, warn (never block) if it was",
-    "worked on... 'band-mode': the same band and mode (the default when absent);",
+    "worked on... 'band-mode': the same band and mode;",
     "'band-mode-day': the same band and mode during the current UTC day;",
     "'any': any band or mode; 'none': never warn."
   ],

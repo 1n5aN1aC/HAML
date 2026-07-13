@@ -61,7 +61,7 @@ export function templateToForm(template, id) {
     name: template.name,
     bands: template.bands.join(', '),
     modes: template.modes.join(', '),
-    duplicate_type: template.duplicate_type ?? 'band-mode',
+    duplicate_type: template.duplicate_type,
     export: template.export == null ? '' : JSON.stringify(template.export, null, 2),
     fields: [...template.fields]
       .sort((a, b) => a.order - b.order)

@@ -13,7 +13,6 @@ TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 FIELD_TYPES = {"text", "number", "choice"}
 
 # How the client decides a Contact is a dupe (advisory only, ADR-0003).
-# Absent means "band-mode" — the default is applied at Event creation.
 DUPLICATE_TYPES = {"band-mode", "any", "band-mode-day", "none"}
 
 TEMPLATE_ID_RE = re.compile(r"^[a-z0-9_-]+$")
@@ -30,10 +29,9 @@ def validate_template(template):
         if (not isinstance(values, list) or not values
                 or not all(isinstance(v, str) for v in values)):
             raise ValueError(f"template needs a non-empty string list '{key}'")
-    duplicate_type = template.get("duplicate_type")
-    if duplicate_type is not None and duplicate_type not in DUPLICATE_TYPES:
+    if template.get("duplicate_type") not in DUPLICATE_TYPES:
         raise ValueError(
-            f"'duplicate_type' must be one of {sorted(DUPLICATE_TYPES)}")
+            f"template needs a 'duplicate_type', one of {sorted(DUPLICATE_TYPES)}")
     fields = template.get("fields")
     if not isinstance(fields, list):
         raise ValueError("template needs a list 'fields' (may be empty)")
