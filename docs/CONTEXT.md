@@ -50,9 +50,11 @@ An Event's field set is frozen at creation.
 _Avoid_: column, attribute, custom field
 
 **Dupe**:
-A Contact whose Template-defined dupe key (e.g. callsign + band + mode) matches an
-existing Contact in the Event. Dupes are warned about at entry time by the client, never
-blocked, and never rejected by the server.
+A Contact that matches an existing Contact in the Event under the Template's duplicate
+type: `band-mode` (same callsign, band, and mode; the default), `any` (same callsign),
+`band-mode-day` (band-mode within the current UTC day), or `none` (checking off). Dupes
+are warned about at entry time by the client, never blocked, and never rejected by the
+server.
 _Avoid_: duplicate contact, collision
 
 **Event UUID**:

@@ -180,7 +180,7 @@ def main():
                  "validation": {"pattern": "[A-R]{2}\\d{2}",
                                 "message": "Grid must look like CN85"}},
             ],
-            "bands": ["20m"], "modes": ["SSB"], "dupe_key": [],
+            "bands": ["20m"], "modes": ["SSB"], "duplicate_type": "none",
             "contact_list": ["grid"], "export": None,
         }
         status, _ = request("PUT", "/api/admin/templates/smoke-scratch",
@@ -220,6 +220,10 @@ def main():
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=no_length)
         check(status == 400, "text field without max_length is rejected")
+        bad_dupe = dict(scratch, duplicate_type="callsign-prefix")
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=bad_dupe)
+        check(status == 400, "unknown duplicate_type is rejected")
         bad_list = dict(scratch, contact_list=["nope"])
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_list)

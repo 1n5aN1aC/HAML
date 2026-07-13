@@ -3,6 +3,7 @@
 // page, so failures are swallowed.
 import chatUrl from './sounds/chat.mp3'
 import submitUrl from './sounds/submit.mp3'
+import duplicateUrl from './sounds/Duplicate.wav'
 
 function player(url) {
   const audio = new Audio(url)
@@ -14,3 +15,4 @@ function player(url) {
 
 export const playChat = player(chatUrl)
 export const playSubmit = player(submitUrl)
+export const playDuplicate = player(duplicateUrl)

@@ -7,15 +7,15 @@ an identical schema, which keeps server code, sync, and the back/save/load logic
 
 Templates are JSON files in a `templates/` directory on the server (with built-ins such
 as Field Day and POTA). Creating an Event copies the template's configuration — field
-definitions, band/mode lists, and dupe key — into the Event database, making the Event
+definitions, band/mode lists, and duplicate type — into the Event database, making the Event
 self-contained: later edits to template files cannot affect a live Event.
 
 An Event's configuration is **frozen at creation**. Forgetting a field means creating a
 new Event. Consequence: clients can fetch the event config once per Event UUID and cache
 it indefinitely; there is no config-change sync path at all.
 
-Dupe checking is client-side advisory only: the Template defines a dupe key (a set of
-dimensions unique together, e.g. callsign+band+mode); the client warns at entry time but
+Dupe checking is client-side advisory only: the Template defines a duplicate type
+(`band-mode`, `any`, `band-mode-day`, or `none`); the client warns at entry time but
 never blocks, and the server never enforces uniqueness.
 
 ## Considered options

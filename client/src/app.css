@@ -420,6 +420,16 @@ body {
 
 .entry-error { min-height: 1em; margin-top: 6px; color: var(--theme-danger); }
 
+/* advisory duplicate banner — shares the .entry-error slot, loud on purpose */
+.entry-dupe {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: var(--theme-danger);
+  color: #fff;
+  font-weight: 700;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

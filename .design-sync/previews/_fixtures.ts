@@ -7,7 +7,7 @@ export const config = {
   name: 'ARRL Field Day',
   bands: ['160m', '80m', '40m', '20m', '15m', '10m', '6m', '2m'],
   modes: ['Phone', 'CW', 'Digital'],
-  dupe_key: ['remote_callsign', 'band', 'mode'],
+  duplicate_type: 'band-mode',
   contact_list: ['class', 'section'],
   fields: [
     {

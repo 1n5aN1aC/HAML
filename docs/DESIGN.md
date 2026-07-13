@@ -29,7 +29,7 @@ all Template-defined field values. [ADR-0003](./adr/0003-json-field-storage-froz
 
 **Template** (JSON file in `templates/`, built-ins shipped) defines per-contest: extra
 Contact fields (`text` / `number` / `choice`; name, label, required, default, order),
-band/mode lists, a dupe key, and a reserved export-mapping slot (empty in v1). Creating
+band/mode lists, a duplicate type, and a reserved export-mapping slot (empty in v1). Creating
 an Event copies the template config into the Event database; the Event's configuration is
 **frozen at creation** — clients cache it per Event UUID forever.
 

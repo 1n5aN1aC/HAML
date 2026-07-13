@@ -52,7 +52,7 @@ def create_event(data_dir, template, name, station_callsign):
         "fields": template["fields"],
         "bands": template["bands"],
         "modes": template["modes"],
-        "dupe_key": template["dupe_key"],
+        "duplicate_type": template.get("duplicate_type", "band-mode"),
         "contact_list": template.get("contact_list"),
         "export": template.get("export"),
     }

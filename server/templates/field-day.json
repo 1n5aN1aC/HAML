@@ -30,7 +30,7 @@
   ],
   "bands": ["160m", "80m", "40m", "20m", "15m", "10m", "6m", "2m", "1.25m", "70cm", "33cm", "23cm", "13cm", "Other"],
   "modes": ["Phone", "CW", "Digital"],
-  "dupe_key": ["remote_callsign", "band", "mode"],
+  "duplicate_type": "band-mode",
   "contact_list": ["class", "section"],
   "export": null
 }

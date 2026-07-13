@@ -31,7 +31,7 @@ const FieldInput = forwardRef(function FieldInput(
     onBlur: () => setFocused(false),
   }
   // Sized so both the longest value (max_length + 2) and the label shown as the placeholder (+ 2) fit.
-  // Events created before max_length existed have frozen configs without it — those fall back to label-based width, unclamped.
+  // Choice fields have no max_length; their width is label-based.
   const label = placeholder ?? field.label
   const width = `${Math.max((field.max_length ?? 0) + 2, label.length + 2)}ch`
   if (field.type === 'choice') {

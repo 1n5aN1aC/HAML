@@ -6,7 +6,8 @@ import { pushNow } from '../sync.js'
 import { newUuid } from '../uuid.js'
 import { validateContact } from '../contact-validation.js'
 import { alphanumeric } from '../text-input.js'
-import { playSubmit } from '../sounds.js'
+import { playSubmit, playDuplicate } from '../sounds.js'
+import { findDuplicate } from '../dupes.js'
 import FieldInput from './FieldInput.jsx'
 
 // UTC + local wall clock, corrected by the same server clock offset used for
@@ -33,6 +34,13 @@ function defaultValues(fields) {
   return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
 }
 
+// same style as the entry clock's local half ("11:42 AM")
+function formatLocalTime(iso) {
+  const d = new Date(iso)
+  if (isNaN(d)) return iso
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
 export default function ContactEntryForm({ config, session, clientUuid, disabled }) {
   const fields = useMemo(
     () => [...config.fields].sort((a, b) => a.order - b.order),
@@ -41,6 +49,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   const [callsign, setCallsign] = useState('')
   const [values, setValues] = useState(() => defaultValues(fields))
   const [error, setError] = useState('')
+  const [dupe, setDupe] = useState(null)
   const callsignRef = useRef(null)
   const fieldRefs = useRef([])
   fieldRefs.current = fields.map((_, i) => fieldRefs.current[i] ?? null)
@@ -60,6 +69,23 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
         order[order.length - 1]?.focus()
       }
     }
+  }
+
+  // Advisory dupe check, fired when the callsign box loses focus (Tab, Space
+  // navigation, or a click elsewhere). Warns but never blocks logging
+  // (ADR-0003). The banner clears when the callsign text changes or on log.
+  async function checkDuplicate() {
+    if (!callsign) return
+    const offset = (await kvGet('clock_offset')) ?? 0
+    const match = await findDuplicate({
+      callsign,
+      band: session.band,
+      mode: session.mode,
+      duplicateType: config.duplicate_type,
+      nowMs: Date.now() + offset,
+    })
+    setDupe(match)
+    if (match) playDuplicate()
   }
 
   async function logContact(e) {
@@ -96,6 +122,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setCallsign('')
     setValues(defaultValues(fields))
     setError('')
+    setDupe(null)
     callsignRef.current?.focus()
   }
 
@@ -108,7 +135,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             className="cs"
             placeholder="Callsign"
             value={callsign}
-            onChange={(e) => setCallsign(alphanumeric(e.target.value).toUpperCase())}
+            onChange={(e) => {
+              setCallsign(alphanumeric(e.target.value).toUpperCase())
+              setDupe(null)
+            }}
+            onBlur={checkDuplicate}
             onKeyDown={(e) =>
               handleFieldNav(e, 0, [callsignRef.current, ...fieldRefs.current])
             }
@@ -132,7 +163,15 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
           <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
           <EntryClock />
         </div>
-        {!disabled && <div className="entry-error">{error}</div>}
+        {/* a submit error takes the slot over the dupe banner while shown */}
+        {!disabled && (dupe && !error ? (
+          <div className="entry-dupe">
+            ⚠ DUPLICATE — {dupe.remote_callsign} logged on {dupe.band} {dupe.mode} at{' '}
+            {formatLocalTime(dupe.qso_at)}
+          </div>
+        ) : (
+          <div className="entry-error">{error}</div>
+        ))}
       </fieldset>
       {/* outside the fieldset so it isn't dimmed by fieldset:disabled */}
       {disabled && (
