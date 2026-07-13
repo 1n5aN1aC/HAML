@@ -15,7 +15,7 @@
     },
     {
       "name": "section",
-      "label": "ARRL Section",
+      "label": "Section",
       "type": "text",
       "required": true,
       "default": "",

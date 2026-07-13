@@ -78,7 +78,8 @@ body {
 
 .top-bar .tab {
   padding: 6px 20px;
-  border: 0;
+  border: 1px solid var(--theme-topbar-hover);
+  border-bottom: 0;
   border-radius: 8px 8px 0 0;
   background: var(--theme-statusbar);
   color: var(--theme-topbar-text);

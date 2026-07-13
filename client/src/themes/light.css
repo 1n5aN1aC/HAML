@@ -4,7 +4,7 @@
 
 :root[data-theme="light"] {
   /* Main Theme Colors */
-  --theme-surface: #f9fafb;          /* Box Background */
+  --theme-surface: #eef0f3;          /* Box Background */
   --theme-page: #ffffff;             /* Page Background */
   --theme-border: #d1d5db;           /* Box Borders */
   --theme-text: #1a1d21;             /* Text */

@@ -13,13 +13,13 @@
   /* Signal Colors */
   --theme-success: #4bb80c;          /* Success / fresh / validation-ok */
   --theme-danger: #b91c1c;           /* Danger / conn-down / validation-bad */
-  --theme-warning: #b45309;          /* Warning / gate / stale */
+  --theme-warning: #e0940f;          /* Warning / gate / stale */
   --theme-danger-bg: #fbe9e6;        /* Danger-button hover tint */
 
   /* Chrome (top bar / status bar) */
-  --theme-topbar: #494949;           /* TopBar background */
+  --theme-topbar: #74553a;           /* TopBar background */
   --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
-  --theme-statusbar: #494949;        /* StatusBar + unselected tab background */
+  --theme-statusbar: #5d4229;        /* StatusBar + unselected tab background */
 
   /* Derived Theme Colors */
   --theme-halfway: color-mix(in srgb, var(--theme-surface) 20%, var(--theme-page));
