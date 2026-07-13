@@ -3,6 +3,8 @@
 // admin call sends it as X-Admin-Password; the server is the real gate.
 import { useState } from 'react'
 import {
+  getEvent,
+  postContact,
   adminListTemplates,
   adminGetTemplate,
   adminDeleteTemplate,
@@ -13,7 +15,8 @@ import {
   adminBackup,
   adminClearChat,
 } from '../api.js'
-import TemplateEditor from './TemplateEditor.jsx'
+import { generateTestContacts } from '../admin-test-data.js'
+import AdminTemplateEditor from './AdminTemplateEditor.jsx'
 
 const EMPTY_FORM = { name: '', station_callsign: '', template: '' }
 
@@ -138,6 +141,20 @@ export default function AdminTab() {
     })
   }
 
+  // Generates fake contacts client-side from the active event's config and
+  // pushes them through the normal contact endpoint, so they sync to every
+  // operator like real traffic. Marked TEST/TT so they're easy to spot.
+  function addTestContacts() {
+    if (!window.confirm("Add 25 random test contacts to the active event's log?"))
+      return
+    run(async () => {
+      const { config, name } = await getEvent()
+      const contacts = generateTestContacts(config, 25)
+      for (const contact of contacts) await postContact(contact)
+      setNotice(`Added ${contacts.length} test contacts to "${name}".`)
+    })
+  }
+
   function clearAllChat() {
     run(async () => {
       await adminClearChat(password)
@@ -167,7 +184,7 @@ export default function AdminTab() {
 
   if (editing) {
     return (
-      <TemplateEditor
+      <AdminTemplateEditor
         password={password}
         templateId={editing.id}
         initial={editing.template}
@@ -289,6 +306,7 @@ export default function AdminTab() {
       <section className="admin-section">
         <h2>Maintenance</h2>
         <div className="admin-maintenance">
+          <button onClick={addTestContacts}>Add 25 test contacts</button>
           <button className="btn-danger" onClick={clearAllChat}>
             Delete all chat
           </button>

@@ -1,7 +1,7 @@
 // Inline template editor: replaces the admin sections while creating a new
 // template or editing an existing one. All JSON <-> form conversion lives in
-// templateForm.js; validation beyond the save gate is the server's job — its
-// 400 messages surface in the error line.
+// admin-template-form.js; validation beyond the save gate is the server's
+// job — its 400 messages surface in the error line.
 import { useState } from 'react'
 import { adminSaveTemplate } from '../api.js'
 import {
@@ -13,9 +13,9 @@ import {
   formToTemplate,
   slugify,
   templateToForm,
-} from '../templateForm.js'
+} from '../admin-template-form.js'
 
-export default function TemplateEditor({
+export default function AdminTemplateEditor({
   password,
   templateId, // null = creating a new template
   initial, // loaded template JSON, or null when creating

@@ -1,6 +1,6 @@
 // Template editor form logic: converting between the template JSON schema
 // (server/templates/example.json documents it) and the flat form state the
-// TemplateEditor component renders. Kept out of the component so the tricky
+// AdminTemplateEditor component renders. Kept out of the component so the tricky
 // round-trip rules stay pure and testable.
 
 export const FIELD_TYPES = ['text', 'number', 'choice']
