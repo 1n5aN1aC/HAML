@@ -7,6 +7,7 @@
       "type": "text",
       "required": true,
       "default": "",
+      "max_length": 3,
       "order": 1,
       "validation": {
         "pattern": "\\d{1,2}[A-F]",
@@ -19,6 +20,7 @@
       "type": "text",
       "required": true,
       "default": "",
+      "max_length": 3,
       "order": 2,
       "validation": {
         "pattern": "[A-Z]{2,3}",

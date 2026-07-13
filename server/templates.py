@@ -46,6 +46,11 @@ def validate_template(template):
             raise ValueError(f"field '{name}' has bad type (want {sorted(FIELD_TYPES)})")
         if not isinstance(field.get("required", False), bool):
             raise ValueError(f"field '{name}': 'required' must be a boolean")
+        if field["type"] in ("text", "number"):
+            max_length = field.get("max_length")
+            if (not isinstance(max_length, int) or isinstance(max_length, bool)
+                    or max_length < 1):
+                raise ValueError(f"field '{name}' needs a positive integer 'max_length'")
         if field["type"] == "choice":
             options = field.get("options")
             if (not isinstance(options, list) or not options

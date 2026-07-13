@@ -7,6 +7,7 @@
       "type": "text",
       "required": true,
       "default": "59",
+      "max_length": 3,
       "order": 1,
       "validation": {
         "pattern": "[1-5][1-9]\\d?",
@@ -19,6 +20,7 @@
       "type": "text",
       "required": true,
       "default": "59",
+      "max_length": 3,
       "order": 2,
       "validation": {
         "pattern": "[1-5][1-9]\\d?",
@@ -31,6 +33,7 @@
       "type": "text",
       "required": false,
       "default": "",
+      "max_length": 8,
       "order": 3,
       "validation": {
         "pattern": "[A-Z]{1,2}-\\d{4,5}",

@@ -176,7 +176,7 @@ def main():
             "name": "Smoke Scratch",
             "fields": [
                 {"name": "grid", "label": "Grid", "type": "text",
-                 "required": True, "default": "", "order": 1,
+                 "required": True, "default": "", "max_length": 4, "order": 1,
                  "validation": {"pattern": "[A-R]{2}\\d{2}",
                                 "message": "Grid must look like CN85"}},
             ],
@@ -215,6 +215,11 @@ def main():
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_pattern)
         check(status == 400, "non-compiling validation pattern is rejected")
+        no_length = json.loads(json.dumps(scratch))
+        del no_length["fields"][0]["max_length"]
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=no_length)
+        check(status == 400, "text field without max_length is rejected")
         bad_list = dict(scratch, contact_list=["nope"])
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_list)

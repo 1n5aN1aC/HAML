@@ -30,9 +30,13 @@ const FieldInput = forwardRef(function FieldInput(
     onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
   }
+  // Sized so both the longest value (max_length + 2) and the label shown as the placeholder (+ 2) fit.
+  // Events created before max_length existed have frozen configs without it — those fall back to label-based width, unclamped.
+  const label = placeholder ?? field.label
+  const width = `${Math.max((field.max_length ?? 0) + 2, label.length + 2)}ch`
   if (field.type === 'choice') {
     return (
-      <select ref={ref} className="field-input" value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} {...feedback}>
+      <select ref={ref} className="field-input" style={{ width }} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} {...feedback}>
         <option value="">{placeholder}</option>
         {(field.options ?? []).map((o) => (
           <option key={o} value={o}>{o}</option>
@@ -45,8 +49,10 @@ const FieldInput = forwardRef(function FieldInput(
       className="field-input"
       ref={ref}
       type={field.type === 'number' ? 'number' : 'text'}
+      style={{ width }}
       value={value}
       placeholder={placeholder}
+      maxLength={field.max_length}
       onChange={(e) =>
         onChange(field.type === 'number' ? e.target.value : alphanumeric(e.target.value).toUpperCase())
       }
