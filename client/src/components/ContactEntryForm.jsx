@@ -5,9 +5,9 @@ import { db, kvGet } from '../db.js'
 import { pushNow } from '../sync.js'
 import { newUuid } from '../uuid.js'
 import { validateContact } from '../contact-validation.js'
-import { alphanumeric } from '../text-input.js'
+import { sanitizeText } from '../text-input.js'
 import { playSubmit, playDuplicate } from '../sounds.js'
-import { findDuplicate } from '../dupes.js'
+import { findDuplicate, findLatestContact } from '../dupes.js'
 import FieldInput from './FieldInput.jsx'
 
 // UTC + local wall clock, corrected by the same server clock offset used for
@@ -88,6 +88,23 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     if (match) playDuplicate()
   }
 
+  // "remember" autofill, fired on the same blur: copy the most recent
+  // contact's values into remember-enabled fields, overwriting what's there.
+  // No match leaves the fields alone; empty source values are skipped.
+  async function autofillRemembered() {
+    if (!callsign) return
+    const latest = await findLatestContact(callsign)
+    if (!latest) return
+    setValues((prev) => {
+      const next = { ...prev }
+      for (const f of fields) {
+        const v = latest.fields?.[f.name]
+        if (f.remember && v != null && String(v).trim()) next[f.name] = v
+      }
+      return next
+    })
+  }
+
   async function logContact(e) {
     e.preventDefault()
     const problem = validateContact(
@@ -136,10 +153,13 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             placeholder="Callsign"
             value={callsign}
             onChange={(e) => {
-              setCallsign(alphanumeric(e.target.value).toUpperCase())
+              setCallsign(sanitizeText(e.target.value).toUpperCase())
               setDupe(null)
             }}
-            onBlur={checkDuplicate}
+            onBlur={() => {
+              checkDuplicate()
+              autofillRemembered()
+            }}
             onKeyDown={(e) =>
               handleFieldNav(e, 0, [callsignRef.current, ...fieldRefs.current])
             }

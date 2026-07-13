@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { db, kvGet } from '../db.js'
 import { pushNow } from '../sync.js'
 import { validateContact } from '../contact-validation.js'
-import { alphanumeric } from '../text-input.js'
+import { sanitizeText } from '../text-input.js'
 import FieldInput from './FieldInput.jsx'
 
 // ISO ↔ datetime-local strings. UTC variant treats the input as UTC; local
@@ -70,7 +70,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value })
   const setUpper = (key) => (e) =>
-    setForm({ ...form, [key]: alphanumeric(e.target.value).toUpperCase() })
+    setForm({ ...form, [key]: sanitizeText(e.target.value).toUpperCase() })
 
   async function write(changes) {
     const offset = (await kvGet('clock_offset')) ?? 0

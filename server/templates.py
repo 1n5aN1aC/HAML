@@ -51,6 +51,10 @@ def validate_template(template):
             raise ValueError(f"field '{name}' has bad type (want {sorted(FIELD_TYPES)})")
         if not isinstance(field.get("required", False), bool):
             raise ValueError(f"field '{name}': 'required' must be a boolean")
+        # remember: entry form re-fills this field from the most recent
+        # contact with the same callsign (autofill on callsign blur)
+        if not isinstance(field.get("remember", False), bool):
+            raise ValueError(f"field '{name}': 'remember' must be a boolean")
         if field["type"] in ("text", "number"):
             max_length = field.get("max_length")
             if (not isinstance(max_length, int) or isinstance(max_length, bool)

@@ -22,3 +22,10 @@ export async function findDuplicate({ callsign, band, mode, duplicateType, nowMs
   if (matches.length === 0) return null
   return matches.reduce((a, b) => (a.qso_at >= b.qso_at ? a : b))
 }
+
+// Most recent non-deleted contact for a callsign on any band/mode, or null —
+// feeds the entry form's "remember" autofill. nowMs is unused on the 'any'
+// path but findDuplicate derives its day scope from it unconditionally.
+export function findLatestContact(callsign) {
+  return findDuplicate({ callsign, duplicateType: 'any', nowMs: Date.now() })
+}

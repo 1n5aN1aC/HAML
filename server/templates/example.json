@@ -1,0 +1,91 @@
+{
+  "_comment": [
+    "Top-level keys:",
+    "  name           (required) Display name shown in the admin tab and event list.",
+    "  fields         (required) Extra per-contact entry fields, may be empty [].",
+    "  bands          (required) Band choices for the status bar, non-empty.",
+    "  modes          (required) Mode choices for the status bar, non-empty.",
+    "  duplicate_type (optional) How the client warns about dupes, see below.",
+    "  contact_list   (optional) Which fields the contact list shows, see below.",
+    "  export         (reserved) Export mapping slot, unused in v1 — leave null."
+  ],
+  "name": "Example (documentation)",
+
+  "_comment_fields": [
+    "Each field object takes:",
+    "  name       (required) Internal key, unique within the template.",
+    "  label      (required) Shown as the input's placeholder text.",
+    "  type       (required) One of: 'text', 'number', 'choice'.",
+    "  required   (optional, default false) Blocks logging while blank.",
+    "  default    (optional) Initial value; the form resets to it after each log.",
+    "  max_length (required for text/number) Max characters; also sets input width.",
+    "  order      (required) Ascending sort position in the entry form.",
+    "  options    (required for choice) The dropdown's string choices.",
+    "  remember   (optional, default false) On leaving the callsign box, re-fill",
+    "             this field from the most recent contact with the same callsign.",
+    "             Enable for exchange data that is fixed per station (Field Day",
+    "             class/section); leave off for per-QSO data like signal reports.",
+    "  validation (optional) {pattern, message}: 'pattern' is a JS regex the",
+    "             whole value must match (green border on match, red on blur",
+    "             otherwise — advisory only, never blocks logging); 'message'",
+    "             is the tooltip explaining the expected format. No other keys",
+    "             are allowed inside 'validation'."
+  ],
+  "fields": [
+    {
+      "_comment": "A text field using every optional parameter.",
+      "name": "exchange",
+      "label": "Exchange",
+      "type": "text",
+      "required": true,
+      "default": "",
+      "max_length": 6,
+      "order": 1,
+      "remember": true,
+      "validation": {
+        "pattern": "\\d{1,2}[A-Z]{1,4}",
+        "message": "Exchange must be a number then letters, like 3AOR"
+      }
+    },
+    {
+      "_comment": "A number field. Text and number both need max_length.",
+      "name": "serial",
+      "label": "Serial #",
+      "type": "number",
+      "required": false,
+      "default": "",
+      "max_length": 4,
+      "order": 2
+    },
+    {
+      "_comment": "A choice field renders as a dropdown; no max_length, needs options.",
+      "name": "power",
+      "label": "Power",
+      "type": "choice",
+      "required": false,
+      "default": "LOW",
+      "order": 3,
+      "options": ["QRP", "LOW", "HIGH"]
+    }
+  ],
+
+  "_comment_bands_modes": "Any non-empty string lists; shown in the status bar pickers.",
+  "bands": ["80m", "40m", "20m", "15m", "10m", "Other"],
+  "modes": ["SSB", "CW", "Digital"],
+
+  "_comment_duplicate_type": [
+    "When entering a callsign already in the log, warn (never block) if it was",
+    "worked on... 'band-mode': the same band and mode (the default when absent);",
+    "'band-mode-day': the same band and mode during the current UTC day;",
+    "'any': any band or mode; 'none': never warn."
+  ],
+  "duplicate_type": "band-mode",
+
+  "_comment_contact_list": [
+    "Field names (subset of fields[].name) shown as columns in the contact",
+    "list, in this order. Absent means: show every field, in field order."
+  ],
+  "contact_list": ["exchange", "power"],
+
+  "export": null
+}
