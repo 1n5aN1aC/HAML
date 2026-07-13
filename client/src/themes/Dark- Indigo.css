@@ -1,0 +1,33 @@
+/* Indigo theme — deep-space blue-violet dark, periwinkle accent. */
+
+:root[data-theme="dark-indigo"] {
+  /* Main Theme Colors */
+  --theme-surface: #1a2138;          /* Box Background */
+  --theme-page: #0b0e1a;             /* Page Background */
+  --theme-border: #3d4a75;           /* Box Borders */
+  --theme-text: #ccd4ec;             /* Text */
+
+  --theme-accent: #6478e8;           /* Accent / primary action */
+  --theme-accent-text: #fff;         /* Text on accent */
+
+  /* Signal Colors */
+  --theme-success: #3ec97a;          /* Success / fresh / validation-ok */
+  --theme-danger: #f26177;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #e8b031;          /* Warning / gate / stale */
+  --theme-danger-bg: #351523;        /* Danger-button hover tint */
+
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #232c4e;           /* TopBar background */
+  --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #141b36;        /* StatusBar + unselected tab background */
+
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
+}

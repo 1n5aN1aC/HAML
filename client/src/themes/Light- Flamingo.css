@@ -1,0 +1,35 @@
+/* Flamingo theme — rose light theme: blush surfaces, dusty-mauve chrome,
+   raspberry accent. Accent leans magenta and danger leans orange-crimson so
+   the two stay distinguishable. */
+
+:root[data-theme="light-flamingo"] {
+  /* Main Theme Colors */
+  --theme-surface: #fbe9ee;          /* Box Background */
+  --theme-page: #fffafb;             /* Page Background */
+  --theme-border: #e6bfcc;           /* Box Borders */
+  --theme-text: #46232f;             /* Text */
+
+  --theme-accent: #c2417f;           /* Accent / primary action (raspberry) */
+  --theme-accent-text: #fff;         /* Text on accent */
+
+  /* Signal Colors */
+  --theme-success: #33a05a;          /* Success / fresh / validation-ok */
+  --theme-danger: #cc2b1d;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #d98a12;          /* Warning / gate / stale */
+  --theme-danger-bg: #f8dee2;        /* Danger-button hover tint */
+
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #8c4a5e;           /* TopBar background */
+  --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #6e3548;        /* StatusBar + unselected tab background */
+
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
+}

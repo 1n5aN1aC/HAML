@@ -1,0 +1,35 @@
+/* Blueprint theme — cyanotype drafting paper: cobalt page, lighter cobalt
+   panels, blueprint-line borders, cyan accent. Signal colors brightened to
+   read against the saturated blue ground. */
+
+:root[data-theme="dark-blueprint"] {
+  /* Main Theme Colors */
+  --theme-surface: #16407c;          /* Box Background */
+  --theme-page: #0c2d57;             /* Page Background */
+  --theme-border: #4d79b8;           /* Box Borders */
+  --theme-text: #dbe8fa;             /* Text */
+
+  --theme-accent: #4dd8ff;           /* Accent / primary action (cyan) */
+  --theme-accent-text: #04263a;      /* Text on accent */
+
+  /* Signal Colors */
+  --theme-success: #4ade80;          /* Success / fresh / validation-ok */
+  --theme-danger: #ff6b6b;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #ffc53d;          /* Warning / gate / stale */
+  --theme-danger-bg: #4a2530;        /* Danger-button hover tint */
+
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #0a2444;           /* TopBar background */
+  --theme-topbar-text: #eaf2ff;      /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #071a33;        /* StatusBar + unselected tab background */
+
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
+}

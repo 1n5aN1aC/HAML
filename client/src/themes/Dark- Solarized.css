@@ -1,0 +1,34 @@
+/* Solarized theme — true Solarized dark: base03 page, base02 surfaces,
+   the canonical solarized signal hues. */
+
+:root[data-theme="dark-solarized"] {
+  /* Main Theme Colors */
+  --theme-surface: #073642;          /* Box Background (base02) */
+  --theme-page: #002b36;             /* Page Background (base03) */
+  --theme-border: #3e5c64;           /* Box Borders */
+  --theme-text: #93a1a1;             /* Text (base1) */
+
+  --theme-accent: #268bd2;           /* Accent / primary action (solarized blue) */
+  --theme-accent-text: #fff;         /* Text on accent */
+
+  /* Signal Colors */
+  --theme-success: #859900;          /* Success / fresh / validation-ok */
+  --theme-danger: #dc322f;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #b58900;          /* Warning / gate / stale */
+  --theme-danger-bg: #3a1717;        /* Danger-button hover tint */
+
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #094959;           /* TopBar background */
+  --theme-topbar-text: #eee8d5;      /* TopBar / StatusBar / tab text (base2) */
+  --theme-statusbar: #06323d;        /* StatusBar + unselected tab background */
+
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
+}

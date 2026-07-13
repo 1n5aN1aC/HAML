@@ -1,0 +1,39 @@
+/* Neon-pink theme — the neon theme with full-strength vivid pink borders,
+   a neon green active tab, and electric blue unselected tabs. The accent
+   flips to electric blue so it stays distinct from the borders. */
+
+:root[data-theme="neon-pink"] {
+  /* Main Theme Colors */
+  --theme-surface: #191919;          /* Box Background */
+  --theme-page: #0d0d0d;             /* Page Background */
+  --theme-border: #ff0099;           /* Box Borders (vivid pink) */
+  --theme-text: #ffffff;             /* Text */
+
+  --theme-accent: #1e90ff;           /* Accent / primary action (electric blue) */
+  --theme-accent-text: #fff;         /* Text on accent */
+
+  /* Signal Colors */
+  --theme-success: #00ff85;          /* Success / fresh / validation-ok */
+  --theme-danger: #ff3344;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #ffd60a;          /* Warning / gate / stale */
+  --theme-danger-bg: #33000f;        /* Danger-button hover tint */
+
+  /* Chrome (top bar / status bar) */
+  --theme-topbar: #1a1a1a;           /* TopBar background */
+  --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #0d0d0d;        /* StatusBar + unselected tab background */
+
+  /* Tab overrides (optional tokens; see app.css .top-bar .tab) */
+  --theme-tab-active: #00ff85;       /* Selected tab fill (neon green) */
+  --theme-tab-inactive: #1e90ff;     /* Unselected tab border + text (blue) */
+
+  /* Derived Theme Colors */
+  --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
+  --theme-text-subtle: color-mix(in srgb, var(--theme-text) 70%, var(--theme-surface));
+  --theme-text-faint: color-mix(in srgb, var(--theme-text) 50%, var(--theme-surface));
+  --theme-border-subtle: color-mix(in srgb, var(--theme-border) 70%, var(--theme-surface));
+  --theme-topbar-hover: color-mix(in srgb, var(--theme-topbar) 70%, var(--theme-topbar-text));
+  --theme-raised: color-mix(in srgb, var(--theme-surface) 88%, var(--theme-text));
+  --theme-hover: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text));
+  --theme-conflict-bg: color-mix(in srgb, var(--theme-warning) 45%, var(--theme-surface));
+}

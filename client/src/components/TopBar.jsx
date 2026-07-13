@@ -29,25 +29,27 @@ export default function TopBar({ eventName, connected, activeTab, onTab, theme, 
       </nav>
       <span className="spacer" />
       <span className="event-name">{eventName}</span>
-      <select
-        className="theme-picker"
-        value={theme}
-        title="Theme"
-        aria-label="Theme"
-        onChange={(e) => onTheme(e.target.value)}
-      >
-        {THEMES.map(({ id, label }) => (
-          <option key={id} value={id}>
-            {label}
-          </option>
-        ))}
-      </select>
       <span
         className={connected ? 'conn conn-ok' : 'conn conn-down'}
         title={connected ? 'Connected to server' : 'Not connected — logging locally'}
       >
         ● {connected ? 'Connected' : 'Offline'}
       </span>
+      <label
+        className="theme-picker"
+        title={`Theme: ${THEMES.find((t) => t.id === theme)?.label ?? theme}`}
+      >
+        <span className="theme-picker-icon" aria-hidden="true">
+          🎨
+        </span>
+        <select value={theme} aria-label="Theme" onChange={(e) => onTheme(e.target.value)}>
+          {THEMES.map(({ id, label }) => (
+            <option key={id} value={id}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
     </header>
   )
 }

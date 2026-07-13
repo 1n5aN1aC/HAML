@@ -66,34 +66,54 @@ body {
   align-items: flex-end;
 }
 
+/* Tabs derive their colors from the chrome tokens, but a theme may override
+   them with two optional tokens: --theme-tab-inactive colors the unselected
+   tab border + text, --theme-tab-active fills the selected tab. Themes that
+   don't set them fall back to the classic derivation. */
 .top-bar .tab {
   padding: 6px 20px;
-  border: 1px solid var(--theme-topbar-hover);
+  border: 1px solid var(--theme-tab-inactive, var(--theme-topbar-hover));
   border-bottom: 0;
   border-radius: 8px 8px 0 0;
   background: var(--theme-statusbar);
-  color: var(--theme-topbar-text);
+  color: var(--theme-tab-inactive, var(--theme-topbar-text));
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .top-bar .tab:hover { background: var(--theme-topbar-hover); color: var(--theme-topbar-text); }
-.top-bar .tab.active { background: var(--theme-topbar-text); color: var(--theme-topbar); }
+.top-bar .tab.active {
+  background: var(--theme-tab-active, var(--theme-topbar-text));
+  border-color: var(--theme-tab-active, var(--theme-topbar-hover));
+  color: var(--theme-topbar);
+}
 
-/* theme picker: native select drawn with the chrome tokens so it sits quietly
-   in the top bar on any palette; the open list inherits the same colors */
+/* theme picker: only the 🎨 icon shows; the real select is stretched over it
+   at opacity 0, so clicking the pill still opens the native option list
+   (native popups ignore the element's opacity). Chrome tokens keep it and the
+   list matching the top bar on any palette. */
 .theme-picker {
-  padding: 3px 6px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 3px 7px;
   border: 1px solid var(--theme-topbar-hover);
   border-radius: 6px;
   background: var(--theme-statusbar);
-  color: var(--theme-topbar-text);
-  font: inherit;
-  font-size: 13px;
   cursor: pointer;
 }
 .theme-picker:hover { background: var(--theme-topbar-hover); }
+.theme-picker:focus-within { outline: 2px solid var(--theme-topbar-text); }
+.theme-picker-icon { font-size: 15px; line-height: 1; }
+.theme-picker select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
 .theme-picker option {
   background: var(--theme-statusbar);
   color: var(--theme-topbar-text);
@@ -232,7 +252,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-width: 250px;
+  min-width: 260px;
   max-width: 400px;
   gap: var(--panel-gap);
 }
@@ -273,7 +293,15 @@ body {
 .stations td:first-child { border-radius: 6px 0 0 6px; padding-left: 8px; border-left: 1px solid var(--theme-border); }
 .stations td:last-child { border-radius: 0 6px 6px 0; padding-right: 8px; border-right: 1px solid var(--theme-border); }
 .stations tr.conflict td { background: var(--theme-conflict-bg); }
-.stations .cs { font-weight: 600; }
+/* Callsign column soaks up spare width; max-width:0 lets it shrink below its
+   content so it truncates with an ellipsis instead of pushing the row wider. */
+.stations .cs {
+  font-weight: 600;
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .stations .initials { font-weight: 400; color: var(--theme-text-faint); }
 .stations .you { font-weight: 400; color: var(--theme-accent); }
 .stations .last-seen { text-align: right; color: var(--theme-text-faint); font-size: 12px; }

@@ -1,25 +1,25 @@
-/* Blue theme — not completed yet. */
+/* Graphite theme — soft neutral dark (no pure black), teal accent. */
 
-:root[data-theme="blue"] {
+:root[data-theme="dark-graphite"] {
   /* Main Theme Colors */
-  --theme-surface: #010081;          /* Box Background (deep navy) */
-  --theme-page: #000000;             /* Page Background */
-  --theme-border: #818181;           /* Box Borders */
-  --theme-text: #c3c3c3;             /* Text */
+  --theme-surface: #232323;          /* Box Background */
+  --theme-page: #121212;             /* Page Background */
+  --theme-border: #454545;           /* Box Borders */
+  --theme-text: #e2e2e2;             /* Text */
 
-  --theme-accent: #ff0081;           /* Accent / primary action (vibrant pink) */
-  --theme-accent-text: #fdfffd;      /* Text on accent */
+  --theme-accent: #14b8a6;           /* Accent / primary action */
+  --theme-accent-text: #fff;         /* Text on accent */
 
   /* Signal Colors */
-  --theme-success: #859900;          /* Success / fresh / validation-ok */
-  --theme-danger: #dc322f;           /* Danger / conn-down / validation-bad */
-  --theme-warning: #b58900;          /* Warning / gate / stale */
+  --theme-success: #2fbf63;          /* Success / fresh / validation-ok */
+  --theme-danger: #f26d6d;           /* Danger / conn-down / validation-bad */
+  --theme-warning: #f0b429;          /* Warning / gate / stale */
   --theme-danger-bg: #3a1a1a;        /* Danger-button hover tint */
 
   /* Chrome (top bar / status bar) */
-  --theme-topbar: #010081;           /* TopBar background */
-  --theme-topbar-text: #fdfffd;      /* TopBar / StatusBar / tab text */
-  --theme-statusbar: #010081;        /* StatusBar + unselected tab background */
+  --theme-topbar: #2f2f2f;           /* TopBar background */
+  --theme-topbar-text: #fff;         /* TopBar / StatusBar / tab text */
+  --theme-statusbar: #1a1a1a;        /* StatusBar + unselected tab background */
 
   /* Derived Theme Colors */
   --theme-halfway: color-mix(in srgb, var(--theme-surface) 50%, var(--theme-page));
