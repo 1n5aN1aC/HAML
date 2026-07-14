@@ -1,7 +1,7 @@
 // Top status bar: operator identity, band/mode, connection indicator.
 // Logging stays disabled until every session value is set (App enforces it).
 import { useEffect } from 'react'
-import { sanitizeText } from '../text-input.js'
+import { sanitizeText } from '../../text-input.js'
 
 const DEFAULT_MODE = (modes) =>
   modes.includes('Phone') ? 'Phone' : (modes[0] || '')

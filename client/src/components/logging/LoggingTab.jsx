@@ -3,13 +3,13 @@
 // modal's open/close state lives here, so switching tabs closes it.
 
 import { useEffect, useState } from 'react'
-import { kvGet } from '../db.js'
+import { kvGet } from '../../db.js'
 import StatusBar from './StatusBar.jsx'
 import ContactList from './ContactList.jsx'
 import ContactEntryForm from './ContactEntryForm.jsx'
 import StationsPanel from './StationsPanel.jsx'
 import ChatPanel from './ChatPanel.jsx'
-import MapPanel from './MapPanel.jsx'
+import MapStatsPanel from './MapStatsPanel.jsx'
 import ContactModal from './ContactModal.jsx'
 
 export default function LoggingTab({
@@ -81,7 +81,7 @@ export default function LoggingTab({
             onResend={onChatResend}
             disabled={!session.callsign.trim() || !session.initials.trim()}
           />
-          <MapPanel />
+          <MapStatsPanel />
         </aside>
       </main>
       {editing && (

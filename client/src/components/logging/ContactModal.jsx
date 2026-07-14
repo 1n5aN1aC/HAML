@@ -2,10 +2,10 @@
 // writes (ADR-0001): bump last_edited, mark pending, stamp this machine's
 // Client UUID as last editor (ADR-0004), and let the push/pull loops converge.
 import { useEffect, useState } from 'react'
-import { db, kvGet } from '../db.js'
-import { pushNow } from '../sync.js'
-import { validateContact } from '../contact-validation.js'
-import { sanitizeText } from '../text-input.js'
+import { db, kvGet } from '../../db.js'
+import { pushNow } from '../../sync.js'
+import { validateContact } from '../../contact-validation.js'
+import { sanitizeText } from '../../text-input.js'
 import FieldInput from './FieldInput.jsx'
 
 // ISO ↔ datetime-local strings. UTC variant treats the input as UTC; local

@@ -11,10 +11,10 @@ import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage, 
 import { validTheme } from './themes.js'
 import { playChat } from './sounds.js'
 import TopBar from './components/TopBar.jsx'
-import LoggingTab from './components/LoggingTab.jsx'
-import RadioTab from './components/RadioTab.jsx'
-import StatisticsTab from './components/StatisticsTab.jsx'
-import AdminTab from './components/AdminTab.jsx'
+import LoggingTab from './components/logging/LoggingTab.jsx'
+import RadioTab from './components/radio/RadioTab.jsx'
+import StatisticsTab from './components/statistics/StatisticsTab.jsx'
+import AdminTab from './components/admin/AdminTab.jsx'
 
 const OFF_AIR = 'Off-Air'
 

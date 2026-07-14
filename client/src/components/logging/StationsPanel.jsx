@@ -4,7 +4,7 @@
 // so this client agrees with the server even if its wall clock is skewed.
 
 import { useEffect, useState } from 'react'
-import { kvGet } from '../db.js'
+import { kvGet } from '../../db.js'
 
 function ageBand(age) {
   if (age < 15) return 'fresh'

@@ -3,7 +3,7 @@
 // admin-template-form.js; validation beyond the save gate is the server's
 // job — its 400 messages surface in the error line.
 import { useState } from 'react'
-import { adminSaveTemplate } from '../api.js'
+import { adminSaveTemplate } from '../../api.js'
 import {
   DUPLICATE_TYPES,
   FIELD_TYPES,
@@ -13,7 +13,7 @@ import {
   formToTemplate,
   slugify,
   templateToForm,
-} from '../admin-template-form.js'
+} from '../../admin-template-form.js'
 
 export default function AdminTemplateEditor({
   password,

@@ -1,13 +1,13 @@
 // Entry form: remote callsign + the Event's template fields. Writes straight
 // to Dexie as `pending` (ADR-0001 — local first, sync engine pushes later).
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { db, kvGet } from '../db.js'
-import { pushNow } from '../sync.js'
-import { newUuid } from '../uuid.js'
-import { validateContact } from '../contact-validation.js'
-import { sanitizeText } from '../text-input.js'
-import { playSubmit, playDuplicate, playDx } from '../sounds.js'
-import { findDuplicate, findLatestContact } from '../dupes.js'
+import { db, kvGet } from '../../db.js'
+import { pushNow } from '../../sync.js'
+import { newUuid } from '../../uuid.js'
+import { validateContact } from '../../contact-validation.js'
+import { sanitizeText } from '../../text-input.js'
+import { playSubmit, playDuplicate, playDx } from '../../sounds.js'
+import { findDuplicate, findLatestContact } from '../../dupes.js'
 import FieldInput from './FieldInput.jsx'
 
 // UTC + local wall clock, corrected by the same server clock offset used for

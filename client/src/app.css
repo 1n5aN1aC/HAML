@@ -309,15 +309,16 @@ body {
 .future-panel-left,
 .stations-panel,
 .chat-panel,
-.map-panel {
+.map-stats-panel {
   border: 1px solid var(--theme-border);
   border-radius: var(--panel-radius);
 }
 
 .right-pane > div { padding: 6px 10px; }
-/* map fills its card edge-to-edge; height follows pane width at the SVG's
-   native ratio (no letterboxing), and the chat panel absorbs the leftover */
-.right-pane > .map-panel { padding: 0; aspect-ratio: 958 / 592; }
+/* map/stats pane: content fills the card edge-to-edge; height follows pane
+   width at the SVG's native ratio (no letterboxing on the map side), and the
+   chat panel absorbs the leftover */
+.right-pane > .map-stats-panel { padding: 0; aspect-ratio: 958 / 592; }
 .right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px; color: var(--theme-text-faint); }
 .right-pane .placeholder { color: var(--theme-text-faint); font-style: italic; }
 .stations-panel {
@@ -326,13 +327,49 @@ body {
   background: var(--theme-surface);
 }
 .chat-panel { flex: 1; overflow: hidden; background: var(--theme-surface); }
-/* appearance only — sizing belongs to the usage site (see .right-pane rule above) */
+/* wrapper that swaps between the map and stats views; carries the card frame
+   (see group above) and anchors the toggle button */
+.map-stats-panel {
+  position: relative;
+  overflow: hidden;       /* clips content to the rounded card */
+}
+.map-stats-panel > .map-panel,
+.map-stats-panel > .stats-panel { height: 100%; }
+
+/* appearance only — sizing belongs to the usage site */
 .map-panel {
   position: relative;     /* anchors the counter/popup overlay */
   overflow: hidden;
   background: #9ec7f3;    /* ocean blue behind the section map */
 }
 .map-panel object { width: 100%; height: 100%; display: block; }
+
+.stats-panel {
+  padding: 6px 10px;
+  overflow-y: auto;
+  background: var(--theme-surface);
+}
+.stats-panel h3 { margin: 0 0 8px; color: var(--theme-accent); }
+.stats-panel p { margin: 0 0 8px; }
+.stats-panel .indent { margin-left: 1em; }
+
+/* map ⇄ stats toggle, bottom-right of the pane (bottom-left is the counter's).
+   Themed and em-sized to match .map-counter. */
+.panel-toggle-btn {
+  position: absolute;
+  bottom: 0.6em;
+  right: 0.6em;
+  padding: 0.4em 0.9em;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.3em;
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  font-size: 1em;
+  font-weight: 600;
+  z-index: 10;
+  cursor: pointer;
+}
+.panel-toggle-btn:hover { background: var(--theme-hover); }
 
 /* Counter + missing-sections popup overlay, bottom-left of the map. All em,
    so a usage site can scale it wholesale: .stats-map .map-panel { font-size: 18px } */
@@ -692,3 +729,39 @@ input.v-bad, select.v-bad {
 .status-bar-separator {
   border-bottom: 1px solid var(--theme-border);
 }
+
+/* --- statistics tab ----------------------------------------------------------
+   A separate page from the logging tab; it reuses .panes for the flex row,
+   gap, and padding, and reuses the StatsPanel / MapPanel components.
+   Three cards: contact stats fill the left half; the right half splits into
+   top and bottom panels, with the section map in the bottom one. */
+
+.stats-page .stats-left {
+  flex: 1;
+  display: flex;          /* stretches the inner stats card to full height */
+  min-width: 0;
+}
+.stats-page .stats-left .stats-panel {
+  flex: 1;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--panel-radius);
+}
+.stats-page .stats-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--panel-gap);
+}
+.stats-page .stats-right > div {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--panel-radius);
+  background: var(--theme-surface);
+  overflow: hidden;
+}
+/* map fills its card edge-to-edge (outweighs the shared > div padding rule) */
+.stats-page .stats-right > .stats-bottom { padding: 0; }
+.stats-page .stats-bottom .map-panel { height: 100%; }
+.stats-page .placeholder { color: var(--theme-text-faint); font-style: italic; }

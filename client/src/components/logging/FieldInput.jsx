@@ -6,7 +6,7 @@
 // mid-typing is never punished. Empty values stay uncolored (emptiness is
 // the 'required' flag's job, enforced at submit).
 import { forwardRef, useState } from 'react'
-import { sanitizeText } from '../text-input.js'
+import { sanitizeText } from '../../text-input.js'
 
 // full-match semantics, same as contact-validation.js
 function matches(pattern, value) {

@@ -1,7 +1,7 @@
 // Event-wide contact list: most recent ~50, newest first, with per-row
 // sync-state dot. Live view over Dexie — new logs appear as they're written.
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db.js'
+import { db } from '../../db.js'
 
 const DISPLAY_LIMIT = 50
 

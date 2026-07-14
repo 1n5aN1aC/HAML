@@ -14,8 +14,8 @@ import {
   adminDeleteEvent,
   adminBackup,
   adminClearChat,
-} from '../api.js'
-import { generateTestContacts } from '../admin-test-data.js'
+} from '../../api.js'
+import { generateTestContacts } from '../../admin-test-data.js'
 import AdminTemplateEditor from './AdminTemplateEditor.jsx'
 
 const EMPTY_FORM = { name: '', station_callsign: '', template: '' }
