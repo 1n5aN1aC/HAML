@@ -44,8 +44,8 @@ export default function StatsPanel() {
     <div className="stats-panel">
       <h3>Contact Stats</h3>
       <p><strong>Total Contacts:</strong> {contacts.length}</p>
-      <p><strong>Contacts last hour:</strong> {inLastMinutes(60)}</p>
-      <p><strong>Contact rate (last 15 minutes):</strong> {inLastMinutes(15) * 4}/h</p>
+      <p><strong>QSO/h (Last 60 mins):</strong> {inLastMinutes(60)}</p>
+      <p><strong>QSO/h (Last 15 mins):</strong> {inLastMinutes(15) * 4}</p>
       {byMode.length === 0 ? (
         <p className="indent">No contacts yet</p>
       ) : (

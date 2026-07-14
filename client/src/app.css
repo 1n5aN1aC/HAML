@@ -797,9 +797,26 @@ input.v-bad, select.v-bad {
 }
 .stats-page .stats-left .stats-panel {
   flex: 1;
+  min-width: 0;          /* let the card shrink; content scrolls instead */
+  overflow-y: auto;      /* scrollbar when stats outgrow the pane */
   border: 1px solid var(--theme-border);
   border-radius: var(--panel-radius);
 }
+
+/* band × mode matrix on the statistics page */
+.stats-matrix {
+  border-collapse: collapse;
+  margin: 0 0 8px 1em;   /* indented under its heading, like .indent */
+}
+.stats-matrix th,
+.stats-matrix td {
+  border: 1px solid var(--theme-border-subtle);
+  padding: 3px 10px;
+  text-align: right;
+}
+.stats-matrix th { text-align: left; }
+.stats-matrix thead th { text-align: right; }
+.stats-matrix .matrix-total { font-weight: 600; }
 .stats-page .stats-right {
   flex: 1;
   display: flex;
