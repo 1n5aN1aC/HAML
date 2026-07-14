@@ -36,11 +36,23 @@
         "pattern": "[A-Z]{1,2}-\\d{4,5}",
         "message": "Their Park must be a park reference like US-1234"
       }
+    },
+    {
+      "name": "state",
+      "label": "State",
+      "required": false,
+      "default": "",
+      "max_length": 2,
+      "order": 4,
+      "validation": {
+        "pattern": "AK|AL|AR|AZ|CA|CO|CT|DC|DE|DX|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY",
+        "message": "State must be a 2-letter state abbreviation like OR, or DX"
+      }
     }
   ],
   "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm", "Other"],
   "modes": ["SSB", "CW", "FT8", "FT4", "FM", "AM"],
   "duplicate_type": "band-mode-day",
-  "contact_list": ["rst_sent", "rst_received", "their_park"],
+  "contact_list": ["rst_sent", "rst_received", "their_park", "state"],
   "export": null
 }
