@@ -57,7 +57,8 @@ def validate_location(location):
     return location
 
 
-def create_event(data_dir, template, name, station_callsign, location=None):
+def create_event(data_dir, template, name, station_callsign, location=None,
+                 local_exchange=None):
     """Create a new Event database from a validated template and make it active.
     Returns the new Event's meta dict."""
     event_uuid = str(uuidlib.uuid4())
@@ -79,6 +80,8 @@ def create_event(data_dir, template, name, station_callsign, location=None):
     db.meta_set(conn, "event_uuid", event_uuid)
     db.meta_set(conn, "event_name", name)
     db.meta_set(conn, "station_callsign", station_callsign)
+    if local_exchange:
+        db.meta_set(conn, "local_exchange", local_exchange)
     db.meta_set(conn, "template_name", template["name"])
     db.meta_set(conn, "created_at", db.now_iso())
     db.meta_set(conn, "config", json.dumps(config))
@@ -96,6 +99,7 @@ def event_meta(db_path):
             "event_uuid": db.meta_get(conn, "event_uuid"),
             "name": db.meta_get(conn, "event_name"),
             "station_callsign": db.meta_get(conn, "station_callsign"),
+            "local_exchange": db.meta_get(conn, "local_exchange"),
             "template_name": db.meta_get(conn, "template_name"),
             "created_at": db.meta_get(conn, "created_at"),
         }

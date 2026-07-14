@@ -402,6 +402,7 @@ def main():
                                   body={"template": "field-day",
                                         "name": "Field Day 2026",
                                         "station_callsign": "w7xyz",
+                                        "local_exchange": "w7xyz 6a or",
                                         "location": {"latitude": 45.5,
                                                      "longitude": -122.6}})
         check(status == 201 and created["event_uuid"], "event created from template")
@@ -409,6 +410,8 @@ def main():
         check(status == 200 and event["event_uuid"] == created["event_uuid"],
               "GET /api/event returns the new event")
         check(event["station_callsign"] == "W7XYZ", "station callsign uppercased")
+        check(event["local_exchange"] == "W7XYZ 6A OR",
+              "local_exchange round-trips uppercased")
         field_names = [f["name"] for f in event["config"]["fields"]]
         check(field_names == ["class", "section"], "frozen config has template fields")
         check(event["config"]["contact_list"] is None,
@@ -451,6 +454,8 @@ def main():
               "frozen config mirrors the saved template")
         check(config["location"] is None,
               "event created without a location has none in its config")
+        check(event["local_exchange"] is None,
+              "event created without a local_exchange has none")
         status, _ = request("DELETE", "/api/admin/templates/smoke-scratch")
         check(status == 401, "template delete rejects a missing password")
         status, body = request("DELETE", "/api/admin/templates/smoke-scratch",

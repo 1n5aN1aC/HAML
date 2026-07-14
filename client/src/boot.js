@@ -31,6 +31,7 @@ export async function boot({ acceptNewEvent = false } = {}) {
     event_uuid: event.event_uuid,
     name: event.name,
     station_callsign: event.station_callsign,
+    local_exchange: event.local_exchange,
     config: event.config,
   })
   return { status: 'ready', event, clientUuid, connected: true }

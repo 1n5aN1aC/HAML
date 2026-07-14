@@ -6,7 +6,7 @@ import { sanitizeText } from '../../text-input.js'
 const DEFAULT_MODE = (modes) =>
   modes.includes('Phone') ? 'Phone' : (modes[0] || '')
 
-export default function StatusBar({ session, onSession, config, stationCallsign, conflicts = [] }) {
+export default function StatusBar({ session, onSession, config, exchange, conflicts = [] }) {
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
   const setAlphanumeric = (key) => (e) =>
     onSession({ ...session, [key]: sanitizeText(e.target.value) })
@@ -72,7 +72,7 @@ export default function StatusBar({ session, onSession, config, stationCallsign,
       )}
       <span className="spacer" />
       <span className="exchange-label">Exchange:</span>
-      <span className="event-exchange">{[stationCallsign, '6A OR'].filter(Boolean).join(' ')}</span>
+      <span className="event-exchange">{exchange}</span>
     </header>
   )
 }

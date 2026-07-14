@@ -87,9 +87,10 @@ export function adminListEvents(password) {
 // or non-numeric input surfaces as the server's 400 message.
 export function adminCreateEvent(
   password,
-  { name, station_callsign, template, latitude = '', longitude = '' },
+  { name, station_callsign, template, local_exchange = '', latitude = '', longitude = '' },
 ) {
   const body = { name, station_callsign, template }
+  if (local_exchange.trim()) body.local_exchange = local_exchange
   if (latitude.trim() || longitude.trim()) {
     body.location = {
       latitude: parseFloat(latitude),

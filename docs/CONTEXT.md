@@ -38,6 +38,14 @@ position (e.g. "Radio 1's laptop"). Contacts stamp the Client UUID, Operator cal
 and initials of whoever **last edited** them.
 _Avoid_: computer name, hostname, station ID
 
+**Local exchange**:
+The full exchange string this station sends on the air (e.g. "W7XYZ 6A OR"), set
+once at Event creation and shown verbatim in the client's status bar. Optional and
+display-only for now; when unset the status bar falls back to the Station callsign.
+Distinct from any per-contact `exchange` **Field**, which is what you *receive* from
+the other station.
+_Avoid_: my exchange, sent exchange
+
 **Admin page**:
 A page in the web client for administrative actions (create/load/backup Events),
 protected by a simple shared password — a tripwire against accidental misuse, not a

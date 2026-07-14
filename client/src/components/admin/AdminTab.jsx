@@ -22,6 +22,7 @@ const EMPTY_FORM = {
   name: '',
   station_callsign: '',
   template: '',
+  local_exchange: '',
   latitude: '',
   longitude: '',
 }
@@ -275,6 +276,16 @@ export default function AdminTab() {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Exchange
+            <input
+              value={form.local_exchange}
+              placeholder="W7XYZ 6A OR"
+              onChange={(e) =>
+                setForm({ ...form, local_exchange: e.target.value })
+              }
+            />
           </label>
           <label>
             Latitude

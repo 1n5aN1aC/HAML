@@ -59,6 +59,7 @@ def set_active_connection(app, db_path):
         "event_uuid": db.meta_get(conn, "event_uuid"),
         "name": db.meta_get(conn, "event_name"),
         "station_callsign": db.meta_get(conn, "station_callsign"),
+        "local_exchange": db.meta_get(conn, "local_exchange"),
         "config": json.loads(db.meta_get(conn, "config", "{}")),
     }
 
@@ -178,6 +179,11 @@ async def admin_create_event(request):
         return json_error(400, "event needs a name")
     if not isinstance(station_callsign, str) or not station_callsign.strip():
         return json_error(400, "event needs a station_callsign")
+    # Optional display-only exchange shown in the client's status bar.
+    local_exchange = body.get("local_exchange")
+    if local_exchange is not None and not isinstance(local_exchange, str):
+        return json_error(400, "local_exchange must be a string")
+    local_exchange = (local_exchange or "").strip().upper() or None
     try:
         location = events.validate_location(body.get("location"))
     except ValueError as exc:
@@ -189,7 +195,8 @@ async def admin_create_event(request):
 
     data_dir = request.app["cfg"]["data_dir"]
     meta = events.create_event(data_dir, template, name.strip(),
-                               station_callsign.strip().upper(), location)
+                               station_callsign.strip().upper(), location,
+                               local_exchange)
     set_active_connection(request.app, events.get_active_path(data_dir))
     await request.app["notify_event"]()
     return web.json_response(meta, status=201)

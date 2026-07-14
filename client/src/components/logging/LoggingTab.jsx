@@ -16,7 +16,7 @@ export default function LoggingTab({
   session,
   onSession,
   config,
-  stationCallsign,
+  exchange,
   clientUuid,
   sessionComplete,
   stations,
@@ -53,7 +53,7 @@ export default function LoggingTab({
         session={session}
         onSession={onSession}
         config={config}
-        stationCallsign={stationCallsign}
+        exchange={exchange}
         conflicts={conflicts}
       />
       <div className="status-bar-separator" />
