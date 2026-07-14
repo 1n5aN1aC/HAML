@@ -82,11 +82,24 @@ export function adminListEvents(password) {
 }
 
 // Create a new event from a template; the server activates it immediately.
-export function adminCreateEvent(password, { name, station_callsign, template }) {
+// The operating position is optional: both coordinate boxes blank means no
+// location (no distance readout); anything else is sent as-is and half-filled
+// or non-numeric input surfaces as the server's 400 message.
+export function adminCreateEvent(
+  password,
+  { name, station_callsign, template, latitude = '', longitude = '' },
+) {
+  const body = { name, station_callsign, template }
+  if (latitude.trim() || longitude.trim()) {
+    body.location = {
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+    }
+  }
   return request('/api/admin/events', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...adminHeaders(password) },
-    body: JSON.stringify({ name, station_callsign, template }),
+    body: JSON.stringify(body),
   })
 }
 

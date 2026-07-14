@@ -8,6 +8,7 @@ import { validateContact } from '../../contact-validation.js'
 import { sanitizeText } from '../../text-input.js'
 import { playSubmit, playDuplicate, playDx } from '../../sounds.js'
 import { findDuplicate, findLatestContact } from '../../dupes.js'
+import { init as initCallParser, isLoaded, lookup, distanceMiles } from '../../callparser.js'
 import FieldInput from './FieldInput.jsx'
 
 // UTC + local wall clock, corrected by the same server clock offset used for
@@ -53,6 +54,31 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   const callsignRef = useRef(null)
   const fieldRefs = useRef([])
   fieldRefs.current = fields.map((_, i) => fieldRefs.current[i] ?? null)
+
+  // DXCC prefix database, loaded once in the background; until it arrives
+  // the country label just stays empty.
+  const [parserReady, setParserReady] = useState(isLoaded)
+  useEffect(() => {
+    initCallParser()
+      .then(() => setParserReady(true))
+      .catch((err) => console.warn('CallParser init failed:', err))
+  }, [])
+
+  // Country + distance label, recomputed per keystroke (the lookup is a
+  // synchronous in-memory index walk). Distance needs the event's operator
+  // location (config.location) and is suppressed for US contacts (ADIF 291),
+  // matching the old app.
+  const callStatus = useMemo(() => {
+    if (!parserReady || callsign.length < 2) return ''
+    const hit = lookup(callsign)
+    if (!hit) return ''
+    const loc = config.location
+    const miles =
+      loc && hit.adif !== '291'
+        ? distanceMiles(hit, loc.latitude, loc.longitude)
+        : null
+    return miles != null ? `${hit.territory} (${miles.toLocaleString()} mi)` : hit.territory
+  }, [callsign, parserReady, config])
 
   // Fields never contain spaces, so Space doubles as "next field" (wrapping,
   // like Tab) instead of typing a literal space.
@@ -180,6 +206,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               }
             />
           ))}
+          {callStatus && <span className="call-country">{callStatus}</span>}
           {/* invisible: keeps Enter-to-submit working without multiple
               fields blocking implicit submission (no visible button) */}
           <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />

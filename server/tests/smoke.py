@@ -310,6 +310,20 @@ def main():
                                body=dict(good, template="no-such-template"))
         check(status == 400 and body["error"].startswith("bad template"),
               "event creation with an unknown template is rejected")
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=dict(good, location={"latitude": 45.5}))
+        check(status == 400 and "location" in body["error"],
+              "event location without a longitude is rejected")
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=dict(good, location={"latitude": "45.5",
+                                                         "longitude": -122.6}))
+        check(status == 400 and "latitude" in body["error"],
+              "non-numeric event latitude is rejected")
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=dict(good, location={"latitude": 91,
+                                                         "longitude": -122.6}))
+        check(status == 400 and "latitude" in body["error"],
+              "out-of-range event latitude is rejected")
         without_template = {k: v for k, v in good.items() if k != "template"}
         status, body = request("POST", "/api/admin/events", headers=ADMIN,
                                body=without_template)
@@ -335,7 +349,9 @@ def main():
         status, created = request("POST", "/api/admin/events", headers=ADMIN,
                                   body={"template": "field-day",
                                         "name": "Field Day 2026",
-                                        "station_callsign": "w7xyz"})
+                                        "station_callsign": "w7xyz",
+                                        "location": {"latitude": 45.5,
+                                                     "longitude": -122.6}})
         check(status == 201 and created["event_uuid"], "event created from template")
         status, event = request("GET", "/api/event")
         check(status == 200 and event["event_uuid"] == created["event_uuid"],
@@ -351,6 +367,9 @@ def main():
               "frozen config carries duplicate_type")
         check(event["config"]["fields"][0]["remember"] is True,
               "frozen config carries the remember flag")
+        check(event["config"]["location"] == {"latitude": 45.5,
+                                              "longitude": -122.6},
+              "frozen config carries the creation-time location")
 
         print("event listing:")
         status, body = request("GET", "/api/admin/events", headers=ADMIN)
@@ -378,6 +397,8 @@ def main():
               and config["duplicate_type"] == "none"
               and config["contact_list"] == ["grid"],
               "frozen config mirrors the saved template")
+        check(config["location"] is None,
+              "event created without a location has none in its config")
         status, _ = request("DELETE", "/api/admin/templates/smoke-scratch")
         check(status == 401, "template delete rejects a missing password")
         status, body = request("DELETE", "/api/admin/templates/smoke-scratch",

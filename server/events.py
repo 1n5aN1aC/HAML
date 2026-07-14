@@ -39,7 +39,25 @@ def _set_active(data_dir, db_path):
     )
 
 
-def create_event(data_dir, template, name, station_callsign):
+def validate_location(location):
+    """Validate an optional operating position, raising ValueError when bad.
+    The client uses it as the reference point for the live distance readout
+    next to the callsign box; None means no distances are shown."""
+    if location is None:
+        return None
+    if not isinstance(location, dict) or set(location) != {"latitude", "longitude"}:
+        raise ValueError(
+            "'location' must be an object with exactly 'latitude' and 'longitude'")
+    for key, bound in (("latitude", 90), ("longitude", 180)):
+        value = location[key]
+        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not -bound <= value <= bound):
+            raise ValueError(
+                f"location '{key}' must be a number between -{bound} and {bound}")
+    return location
+
+
+def create_event(data_dir, template, name, station_callsign, location=None):
     """Create a new Event database from a validated template and make it active.
     Returns the new Event's meta dict."""
     event_uuid = str(uuidlib.uuid4())
@@ -54,6 +72,7 @@ def create_event(data_dir, template, name, station_callsign):
         "modes": template["modes"],
         "duplicate_type": template["duplicate_type"],
         "contact_list": template.get("contact_list"),
+        "location": location,
         "export": template.get("export"),
     }
     conn = db.open_db(path)

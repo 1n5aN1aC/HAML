@@ -18,7 +18,13 @@ import {
 import { generateTestContacts } from '../../admin-test-data.js'
 import AdminTemplateEditor from './AdminTemplateEditor.jsx'
 
-const EMPTY_FORM = { name: '', station_callsign: '', template: '' }
+const EMPTY_FORM = {
+  name: '',
+  station_callsign: '',
+  template: '',
+  latitude: '',
+  longitude: '',
+}
 
 export default function AdminTab() {
   const [password, setPassword] = useState('')
@@ -269,6 +275,24 @@ export default function AdminTab() {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Latitude
+            <input
+              className="admin-coord"
+              value={form.latitude}
+              placeholder="45.0"
+              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+            />
+          </label>
+          <label>
+            Longitude
+            <input
+              className="admin-coord"
+              value={form.longitude}
+              placeholder="-123.0"
+              onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+            />
           </label>
           <button type="submit" disabled={!formComplete}>
             Create &amp; activate

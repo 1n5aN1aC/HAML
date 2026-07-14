@@ -179,13 +179,17 @@ async def admin_create_event(request):
     if not isinstance(station_callsign, str) or not station_callsign.strip():
         return json_error(400, "event needs a station_callsign")
     try:
+        location = events.validate_location(body.get("location"))
+    except ValueError as exc:
+        return json_error(400, str(exc))
+    try:
         template = templates.load_template(body.get("template", ""))
     except (ValueError, json.JSONDecodeError) as exc:
         return json_error(400, f"bad template: {exc}")
 
     data_dir = request.app["cfg"]["data_dir"]
     meta = events.create_event(data_dir, template, name.strip(),
-                               station_callsign.strip().upper())
+                               station_callsign.strip().upper(), location)
     set_active_connection(request.app, events.get_active_path(data_dir))
     await request.app["notify_event"]()
     return web.json_response(meta, status=201)
