@@ -3,7 +3,6 @@
 // AdminTemplateEditor component renders. Kept out of the component so the tricky
 // round-trip rules stay pure and testable.
 
-export const FIELD_TYPES = ['text', 'number', 'choice']
 export const DUPLICATE_TYPES = ['any', 'band-mode', 'band-mode-day', 'none']
 
 const ID_RE = /^[a-z0-9_-]+$/
@@ -28,13 +27,11 @@ export function emptyField() {
   return {
     name: '',
     label: '',
-    type: 'text',
     required: true,
     remember: true,
     inContactList: true,
     default: '',
     max_length: '',
-    options: '',
     pattern: '',
     message: '',
   }
@@ -68,13 +65,11 @@ export function templateToForm(template, id) {
       .map((f) => ({
         name: f.name,
         label: f.label,
-        type: f.type,
         required: f.required ?? false,
         remember: f.remember ?? false,
         inContactList: shown ? shown.has(f.name) : true,
         default: f.default ?? '',
         max_length: f.max_length != null ? String(f.max_length) : '',
-        options: (f.options ?? []).join(', '),
         pattern: f.validation?.pattern ?? '',
         message: f.validation?.message ?? '',
       })),
@@ -90,14 +85,12 @@ export function formToTemplate(form) {
     const out = {
       name: f.name.trim(),
       label: f.label.trim(),
-      type: f.type,
       required: f.required,
       remember: f.remember,
       default: f.default,
       order: i + 1,
+      max_length: parseInt(f.max_length, 10),
     }
-    if (f.type !== 'choice') out.max_length = parseInt(f.max_length, 10)
-    if (f.type === 'choice') out.options = splitList(f.options)
     if (f.pattern.trim() || f.message.trim()) {
       out.validation = { pattern: f.pattern.trim(), message: f.message.trim() }
     }

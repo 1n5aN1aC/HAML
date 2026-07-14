@@ -53,7 +53,7 @@ security mechanism.
 
 **Field**:
 A Template-defined input on a Contact (e.g. "ARRL Section"). Has a machine name, label,
-type (`text`, `number`, or `choice`), required flag, default value, and display order.
+required flag, default value, and display order.
 An Event's field set is frozen at creation.
 _Avoid_: column, attribute, custom field
 

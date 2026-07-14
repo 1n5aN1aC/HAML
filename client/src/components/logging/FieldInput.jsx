@@ -1,4 +1,4 @@
-// One template-defined field input (ADR-0003 types: text, number, choice).
+// One template-defined field input (ADR-0003).
 // Shared by the entry form and the edit modal so fields render identically.
 //
 // Live validation feedback:
@@ -38,31 +38,18 @@ const FieldInput = forwardRef(function FieldInput(
     },
   }
   // Sized so both the longest value (max_length + 2) and the label shown as the placeholder (+ 2) fit.
-  // Choice fields have no max_length; their width is label-based.
   const label = placeholder ?? field.label
   const width = `${Math.max((field.max_length ?? 0) + 2, label.length + 2)}ch`
-  if (field.type === 'choice') {
-    return (
-      <select ref={ref} className="field-input" style={{ width }} value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} {...feedback}>
-        <option value="">{placeholder}</option>
-        {(field.options ?? []).map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
-      </select>
-    )
-  }
   return (
     <input
       className="field-input"
       ref={ref}
-      type={field.type === 'number' ? 'number' : 'text'}
+      type="text"
       style={{ width }}
       value={value}
       placeholder={placeholder}
       maxLength={field.max_length}
-      onChange={(e) =>
-        onChange(field.type === 'number' ? e.target.value : sanitizeText(e.target.value).toUpperCase())
-      }
+      onChange={(e) => onChange(sanitizeText(e.target.value).toUpperCase())}
       onKeyDown={onKeyDown}
       {...feedback}
     />

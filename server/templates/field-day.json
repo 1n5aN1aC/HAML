@@ -4,7 +4,6 @@
     {
       "name": "class",
       "label": "Class",
-      "type": "text",
       "required": true,
       "remember": true,
       "default": "",
@@ -18,7 +17,6 @@
     {
       "name": "section",
       "label": "Section",
-      "type": "text",
       "required": true,
       "remember": true,
       "default": "",
@@ -43,7 +41,6 @@
     "70cm",
     "33cm",
     "23cm",
-    "13cm",
     "Other"
   ],
   "modes": [

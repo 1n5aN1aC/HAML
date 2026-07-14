@@ -28,7 +28,7 @@ Client UUID of the **last editor**, band, mode, `deleted` flag — plus one JSON
 all Template-defined field values. [ADR-0003](./adr/0003-json-field-storage-frozen-event-config.md)
 
 **Template** (JSON file in `templates/`, built-ins shipped) defines per-contest: extra
-Contact fields (`text` / `number` / `choice`; name, label, required, default, order;
+Contact fields (name, label, required, default, order;
 optional `remember` — the entry form re-fills the field from the operator's most recent
 contact with the same callsign when the callsign box loses focus),
 band/mode lists, a duplicate type, and a reserved export-mapping slot (empty in v1). Creating

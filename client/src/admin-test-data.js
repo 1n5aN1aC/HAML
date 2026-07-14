@@ -170,13 +170,11 @@ export function matchingString(pattern, maxLength = 12) {
 }
 
 function fieldValue(field) {
-  if (field.type === 'choice') return pick(field.options)
   const max = field.max_length ?? 8
   if (field.validation) {
     const s = matchingString(field.validation.pattern, max)
     if (s !== null) return s
   }
-  if (field.type === 'number') return randomChars(DIGITS, randInt(1, Math.min(max, 4)))
   return randomChars(UPPER, randInt(2, Math.min(max, 6)))
 }
 

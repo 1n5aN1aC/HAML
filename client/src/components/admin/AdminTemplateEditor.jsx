@@ -6,7 +6,6 @@ import { useState } from 'react'
 import { adminSaveTemplate } from '../../api.js'
 import {
   DUPLICATE_TYPES,
-  FIELD_TYPES,
   emptyField,
   emptyForm,
   formComplete,
@@ -171,19 +170,6 @@ export default function AdminTemplateEditor({
                   />
                 </label>
                 <label>
-                  Type
-                  <select
-                    value={field.type}
-                    onChange={(e) => updateField(i, { type: e.target.value })}
-                  >
-                    {FIELD_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
                   Default
                   <input
                     value={field.default}
@@ -191,27 +177,16 @@ export default function AdminTemplateEditor({
                     onChange={(e) => updateField(i, { default: e.target.value })}
                   />
                 </label>
-                {field.type === 'choice' ? (
-                  <label>
-                    Options (comma-separated)
-                    <input
-                      value={field.options}
-                      placeholder="QRP, LOW, HIGH"
-                      onChange={(e) => updateField(i, { options: e.target.value })}
-                    />
-                  </label>
-                ) : (
-                  <label>
-                    Max length
-                    <input
-                      type="number"
-                      min="1"
-                      className="template-num"
-                      value={field.max_length}
-                      onChange={(e) => updateField(i, { max_length: e.target.value })}
-                    />
-                  </label>
-                )}
+                <label>
+                  Max length
+                  <input
+                    type="number"
+                    min="1"
+                    className="template-num"
+                    value={field.max_length}
+                    onChange={(e) => updateField(i, { max_length: e.target.value })}
+                  />
+                </label>
                 <div className="template-field-actions">
                   <button type="button" disabled={i === 0} onClick={() => moveField(i, -1)}>
                     ▲

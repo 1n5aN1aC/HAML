@@ -15,12 +15,10 @@
     "Each field object takes:",
     "  name       (required) Internal key, unique within the template.",
     "  label      (required) Shown as the input's placeholder text.",
-    "  type       (required) One of: 'text', 'number', 'choice'.",
     "  required   (optional, default false) Blocks logging while blank.",
     "  default    (optional) Initial value; the form resets to it after each log.",
-    "  max_length (required for text/number) Max characters; also sets input width.",
+    "  max_length (required) Max characters; also sets input width.",
     "  order      (required) Ascending sort position in the entry form.",
-    "  options    (required for choice) The dropdown's string choices.",
     "  remember   (optional, default false) On leaving the callsign box, re-fill",
     "             this field from the most recent contact with the same callsign.",
     "             Enable for exchange data that is fixed per station (Field Day",
@@ -33,10 +31,9 @@
   ],
   "fields": [
     {
-      "_comment": "A text field using every optional parameter.",
+      "_comment": "A field using every optional parameter.",
       "name": "exchange",
       "label": "Exchange",
-      "type": "text",
       "required": true,
       "default": "",
       "max_length": 6,
@@ -48,24 +45,24 @@
       }
     },
     {
-      "_comment": "A number field. Text and number both need max_length.",
+      "_comment": "A minimal field: just the required keys.",
       "name": "serial",
       "label": "Serial #",
-      "type": "number",
-      "required": false,
-      "default": "",
       "max_length": 4,
       "order": 2
     },
     {
-      "_comment": "A choice field renders as a dropdown; no max_length, needs options.",
+      "_comment": "A digits-only field: plain text constrained by a validation pattern.",
       "name": "power",
       "label": "Power",
-      "type": "choice",
       "required": false,
-      "default": "LOW",
+      "default": "100",
+      "max_length": 4,
       "order": 3,
-      "options": ["QRP", "LOW", "HIGH"]
+      "validation": {
+        "pattern": "\\d{1,4}",
+        "message": "Power in watts, digits only"
+      }
     }
   ],
 

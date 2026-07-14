@@ -10,8 +10,6 @@ from pathlib import Path
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
-FIELD_TYPES = {"text", "number", "choice"}
-
 # How the client decides a Contact is a dupe (advisory only, ADR-0003).
 DUPLICATE_TYPES = {"band-mode", "any", "band-mode-day", "none"}
 
@@ -49,8 +47,6 @@ def validate_template(template):
         seen.add(name)
         if not isinstance(field.get("label"), str) or not field["label"]:
             raise ValueError(f"field '{name}' needs a label")
-        if field.get("type") not in FIELD_TYPES:
-            raise ValueError(f"field '{name}' has bad type (want {sorted(FIELD_TYPES)})")
         if not isinstance(field.get("required", False), bool):
             raise ValueError(f"field '{name}': 'required' must be a boolean")
         # remember: entry form re-fills this field from the most recent
@@ -64,16 +60,10 @@ def validate_template(template):
         default = field.get("default")
         if default is not None and not isinstance(default, str):
             raise ValueError(f"field '{name}': 'default' must be a string")
-        if field["type"] in ("text", "number"):
-            max_length = field.get("max_length")
-            if (not isinstance(max_length, int) or isinstance(max_length, bool)
-                    or max_length < 1):
-                raise ValueError(f"field '{name}' needs a positive integer 'max_length'")
-        if field["type"] == "choice":
-            options = field.get("options")
-            if (not isinstance(options, list) or not options
-                    or not all(isinstance(o, str) for o in options)):
-                raise ValueError(f"choice field '{name}' needs a string list 'options'")
+        max_length = field.get("max_length")
+        if (not isinstance(max_length, int) or isinstance(max_length, bool)
+                or max_length < 1):
+            raise ValueError(f"field '{name}' needs a positive integer 'max_length'")
         validation = field.get("validation")
         if validation is not None:
             if not isinstance(validation, dict) or set(validation) != {"pattern", "message"}:

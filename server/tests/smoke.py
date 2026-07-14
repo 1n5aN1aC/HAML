@@ -210,7 +210,7 @@ def main():
         scratch = {
             "name": "Smoke Scratch",
             "fields": [
-                {"name": "grid", "label": "Grid", "type": "text",
+                {"name": "grid", "label": "Grid",
                  "required": True, "remember": True, "default": "",
                  "max_length": 4, "order": 1,
                  "validation": {"pattern": "[A-R]{2}\\d{2}",
@@ -279,7 +279,7 @@ def main():
         del no_length["fields"][0]["max_length"]
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=no_length)
-        check(status == 400, "text field without max_length is rejected")
+        check(status == 400, "field without max_length is rejected")
         bad_dupe = dict(scratch, duplicate_type="callsign-prefix")
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_dupe)

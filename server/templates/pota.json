@@ -4,7 +4,6 @@
     {
       "name": "rst_sent",
       "label": "RST Sent",
-      "type": "text",
       "required": true,
       "default": "59",
       "max_length": 3,
@@ -17,7 +16,6 @@
     {
       "name": "rst_received",
       "label": "RST Received",
-      "type": "text",
       "required": true,
       "default": "59",
       "max_length": 3,
@@ -30,7 +28,6 @@
     {
       "name": "their_park",
       "label": "Their Park (P2P)",
-      "type": "text",
       "required": false,
       "default": "",
       "max_length": 8,
