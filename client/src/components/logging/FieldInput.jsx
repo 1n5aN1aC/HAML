@@ -1,10 +1,11 @@
 // One template-defined field input (ADR-0003 types: text, number, choice).
 // Shared by the entry form and the edit modal so fields render identically.
 //
-// Live validation feedback: green border as soon as the value matches the
-// field's pattern; red only latches on blur, and clears while editing —
-// mid-typing is never punished. Empty values stay uncolored (emptiness is
-// the 'required' flag's job, enforced at submit).
+// Live validation feedback:
+//    green underline as soon as the value matches the field's pattern
+//    red latches on blur and stays — even while editing — until the value is corrected or emptied.
+//    Fresh typing before the first blur is never punished.
+//    Empty values stay uncolored (emptiness is the 'required' flag's job, enforced at submit).
 import { forwardRef, useState } from 'react'
 import { sanitizeText } from '../../text-input.js'
 
@@ -14,21 +15,27 @@ function matches(pattern, value) {
 }
 
 const FieldInput = forwardRef(function FieldInput(
-  { field, value, onChange, placeholder, onKeyDown },
+  { field, value, onChange, placeholder, onKeyDown, onBlurValidity },
   ref,
 ) {
-  const [focused, setFocused] = useState(false)
+  const [latchedBad, setLatchedBad] = useState(false)
   const trimmed = String(value ?? '').trim()
+  const ok = field.validation && trimmed && matches(field.validation.pattern, trimmed)
+  // correcting or emptying the value releases the latch (render-time reset)
+  if (latchedBad && (ok || !trimmed)) setLatchedBad(false)
   let cls
-  if (field.validation && trimmed) {
-    if (matches(field.validation.pattern, trimmed)) cls = 'v-ok'
-    else if (!focused) cls = 'v-bad'
-  }
+  if (ok) cls = 'v-ok'
+  else if (latchedBad) cls = 'v-bad'
   const feedback = field.validation && {
     className: cls,
     title: field.validation.message,
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
+    // blur on an invalid value latches red (kept even while refocused and
+    // editing) and reports the field's message upward; valid/empty reports null
+    onBlur: () => {
+      const bad = trimmed && !ok
+      setLatchedBad(bad)
+      onBlurValidity?.(bad ? field.validation.message : null)
+    },
   }
   // Sized so both the longest value (max_length + 2) and the label shown as the placeholder (+ 2) fit.
   // Choice fields have no max_length; their width is label-based.

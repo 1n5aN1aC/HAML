@@ -217,6 +217,14 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               onKeyDown={(e) =>
                 handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current])
               }
+              // invalid on blur puts the rule's message in the error bar; a
+              // valid blur clears it only if this field's message is showing,
+              // so it never wipes another field's (or a submit) error
+              onBlurValidity={(msg) =>
+                setError((prev) =>
+                  msg ?? (prev === f.validation?.message ? '' : prev),
+                )
+              }
             />
           ))}
           {callStatus && <span className="call-country">{callStatus}</span>}

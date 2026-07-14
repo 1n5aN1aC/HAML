@@ -661,15 +661,16 @@ body {
 }
 
 /* live field validation: green tracks the pattern in real time; red latches
-   on blur only, slightly bolder. The inset shadow draws the color inside the
-   box so the focus outline can't cover it, without shifting layout. */
+   on blur only, slightly bolder. Underline only — the inset shadow draws it
+   along the bottom edge inside the box, so nothing shifts layout and the
+   focus outline can't cover it. */
 input.v-ok, select.v-ok {
-  border-color: var(--theme-success);
-  box-shadow: inset 0 0 0 2px var(--theme-success);
+  border-bottom-color: var(--theme-success);
+  box-shadow: inset 0 -3px 0 var(--theme-success);
 }
 input.v-bad, select.v-bad {
-  border-color: var(--theme-danger);
-  box-shadow: inset 0 0 0 3px var(--theme-danger);
+  border-bottom-color: var(--theme-danger);
+  box-shadow: inset 0 -4px 0 var(--theme-danger);
 }
 
 /* draw our own focus ring — native rings differ per browser and can cover
