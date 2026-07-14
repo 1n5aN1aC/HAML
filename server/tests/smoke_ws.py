@@ -79,14 +79,24 @@ def cleanup(data_dir):
 
 
 async def rest(session, method, path, body=None, headers=None):
-    """Returns (status, parsed json)."""
+    """Returns (status, parsed json), failing informatively on a non-JSON
+    body (e.g. the plain-text 404 aiohttp serves for an unmatched route)."""
     async with session.request(method, BASE + path, json=body,
                                headers=headers or {}) as resp:
-        return resp.status, json.loads(await resp.text())
+        text = await resp.text()
+        try:
+            return resp.status, json.loads(text)
+        except json.JSONDecodeError:
+            raise AssertionError(
+                f"FAIL: {method} {path} returned {resp.status} "
+                f"with a non-JSON body: {text[:200]!r}") from None
 
 
 async def next_message(ws, timeout=2):
     msg = await asyncio.wait_for(ws.receive(), timeout=timeout)
+    if msg.type != aiohttp.WSMsgType.TEXT:
+        raise AssertionError(
+            f"expected a TEXT frame, got {msg.type.name}: {msg.data!r}")
     return json.loads(msg.data)
 
 
@@ -96,10 +106,15 @@ async def no_more_messages(ws, timeout=2):
     window is generous so a slow machine can't false-pass by delaying
     a broadcast past it (at the cost of a slower run)."""
     try:
-        await asyncio.wait_for(ws.receive(), timeout=timeout)
-        return False
+        msg = await asyncio.wait_for(ws.receive(), timeout=timeout)
     except asyncio.TimeoutError:
         return True
+    if msg.type != aiohttp.WSMsgType.TEXT:
+        raise AssertionError(
+            f"socket closed/errored while expecting silence: "
+            f"{msg.type.name}: {msg.data!r}")
+    print(f"  unexpected broadcast: {msg.data}")
+    return False
 
 
 def presence(client_uuid, callsign, initials="JD", band="20m", mode="Phone"):
@@ -222,7 +237,7 @@ async def main():
             check(msg["type"] == "chat" and msg["message"]["text"] == "CQ CQ",
                   "duplicate uuid re-broadcasts the original message")
         status, body = await rest(session, "GET", "/api/chat")
-        check(len(body["messages"]) == 1
+        check(status == 200 and len(body["messages"]) == 1
               and body["messages"][0]["text"] == "CQ CQ",
               "chat history is unchanged after the duplicate send")
 
@@ -233,7 +248,7 @@ async def main():
         check(await no_more_messages(client_a),
               "chat missing operator_callsign produces no broadcast")
         status, body = await rest(session, "GET", "/api/chat")
-        check(len(body["messages"]) == 1,
+        check(status == 200 and len(body["messages"]) == 1,
               "chat history unchanged after the malformed send")
 
         print("poke on contact write:")
@@ -273,7 +288,8 @@ async def main():
         check(cleared_a == {"type": "chat_cleared"} == cleared_b,
               "both clients receive chat_cleared")
         status, body = await rest(session, "GET", "/api/chat")
-        check(body["messages"] == [], "REST chat history is empty after clearing")
+        check(status == 200 and body["messages"] == [],
+              "REST chat history is empty after clearing")
 
         print("event switch broadcast:")
         status, second = await rest(session, "POST", "/api/admin/events",
