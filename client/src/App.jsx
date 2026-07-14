@@ -96,20 +96,20 @@ export default function App() {
     }
   }, [state])
 
-  // Announce identity/band/mode as presence once the session is complete —
-  // immediately on change, then the socket heartbeats it every 5s.
+  // Announce presence whenever a callsign is entered — immediately on change, then the socket heartbeats it every 5s. 
+  // A blank callsign stops the heartbeat; the server ages the entry out via PRESENCE_TTL.
   useEffect(() => {
     if (state.status !== 'ready') return
-    const complete =
-      session.callsign.trim() && session.initials.trim() && session.band && session.mode
-    if (complete) {
+    if (session.callsign) {
       setPresence({
         client_uuid: state.clientUuid,
-        callsign: session.callsign.trim().toUpperCase(),
-        initials: session.initials.trim().toUpperCase(),
+        callsign: session.callsign.toUpperCase(),
+        initials: session.initials.toUpperCase() || '-', // server requires non-blank
         band: session.band,
         mode: session.mode,
       })
+    } else {
+      setPresence(null)
     }
   }, [state, session])
 
