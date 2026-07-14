@@ -127,7 +127,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
         </div>
         <div className="entry-fields">
           <label>
-            Time (UTC)
+            Time (UTC):
             <input
               type="datetime-local"
               value={form.qso_at_utc}
@@ -136,7 +136,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
             />
           </label>
           <label>
-            Time (local)
+            Time (local):
             <input
               type="datetime-local"
               value={form.qso_at_local}
@@ -144,12 +144,22 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
               onBlur={onLocalBlur}
             />
           </label>
+          <div className="entry-break" />
           <label>
-            Callsign
+            Operator:
+            <input value={form.operator_callsign} onChange={setUpper('operator_callsign')} maxLength={10} />
+          </label>
+          <label>
+            Initials:
+            <input value={form.operator_initials} onChange={setUpper('operator_initials')} maxLength={4} />
+          </label>
+          <div className="entry-break" />
+          <label>
+            Callsign:
             <input className="cs" value={form.remote_callsign} onChange={setUpper('remote_callsign')} />
           </label>
           <label>
-            Band
+            Band:
             <select value={form.band} onChange={set('band')}>
               {config.bands.map((b) => (
                 <option key={b} value={b}>{b}</option>
@@ -157,17 +167,18 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
             </select>
           </label>
           <label>
-            Mode
+            Mode:
             <select value={form.mode} onChange={set('mode')}>
               {config.modes.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </label>
+          <div className="entry-break" />
           {templateFields.map((f) => (
             <label key={f.name}>
-              {f.label}
-              {f.required && ' *'}
+              {f.label}:
+              {f.required && '*'}
               <FieldInput
                 field={f}
                 value={form.fields[f.name] ?? ''}
@@ -175,14 +186,6 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
               />
             </label>
           ))}
-          <label>
-            Operator
-            <input value={form.operator_callsign} onChange={setUpper('operator_callsign')} maxLength={10} />
-          </label>
-          <label>
-            Initials
-            <input value={form.operator_initials} onChange={setUpper('operator_initials')} maxLength={4} />
-          </label>
         </div>
         {error && <div className="entry-error">{error}</div>}
         <div className="modal-actions">
