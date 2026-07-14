@@ -1,7 +1,10 @@
-"""End-to-end smoke test for the WebSocket signal layer (presence, chat,
-pokes, event/chat_cleared broadcasts, event-switch broadcasts, and
-garbage-frame handling) plus the REST endpoints tied to it
-(GET /api/chat, DELETE /api/admin/chat).
+"""End-to-end smoke test for the WebSocket signal layer (presence heartbeats
+and in-place roster updates, chat — including verbatim text handling and
+blank-text rejection — pokes, event/chat_cleared broadcasts,
+event-switch broadcasts, and garbage-frame handling) plus the REST endpoints
+tied to it (GET /api/chat, DELETE /api/admin/chat). Also covers chat scoping
+across event switches and chat persistence across a server restart —
+presence, by contrast, is memory-only and empties on restart.
 
 Separate from smoke.py: this needs an async client that opens a socket and
 asserts on server-pushed broadcasts, a different shape than smoke.py's
@@ -65,6 +68,26 @@ def wait_for_server(proc):
         except (urllib.error.URLError, ConnectionError):
             continue
     raise AssertionError("server never came up")
+
+
+def start_server(config_path):
+    proc = subprocess.Popen([sys.executable, str(SERVER_DIR / "main.py"),
+                             str(config_path)])
+    try:
+        wait_for_server(proc)
+    except Exception:
+        stop_server(proc)
+        raise
+    return proc
+
+
+def stop_server(proc):
+    proc.terminate()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
 
 
 def cleanup(data_dir):
@@ -172,6 +195,23 @@ async def main():
               and {s["client_uuid"] for s in roster["stations"]} == {"client-A"},
               "roster reflects a single valid heartbeat")
 
+        print("presence update (same client, new identity):")
+        await client_a.send_str(json.dumps(presence(
+            " client-A ", "  W7XYZ  ", initials=" AB ",
+            band=" 40m ", mode=" CW ")))
+        roster = await next_message(client_a)
+        check(len(roster["stations"]) == 1,
+              "repeat heartbeat updates the entry in place, no duplicate")
+        station = roster["stations"][0]
+        check({k: station[k] for k in ("client_uuid", "callsign", "initials",
+                                       "band", "mode")}
+              == {"client_uuid": "client-A", "callsign": "W7XYZ",
+                  "initials": "AB", "band": "40m", "mode": "CW"},
+              "updated identity lands with whitespace stripped")
+        check(isinstance(station["last_seen_at"], (int, float))
+              and abs(time.time() - station["last_seen_at"]) < 10,
+              "roster entry carries a fresh last_seen_at")
+
         print("malformed presence is ignored:")
         bad = presence("client-A", "W7XYZ")
         del bad["band"]
@@ -251,6 +291,33 @@ async def main():
         check(status == 200 and len(body["messages"]) == 1,
               "chat history unchanged after the malformed send")
 
+        print("chat text handling:")
+        # text is kept verbatim (whitespace and all); identity keys are stripped
+        await client_a.send_str(json.dumps(
+            chat("client-A", "  padded text  ", callsign=" KJ7ABC ",
+                 msg_uuid="chat-3")))
+        pad_a = await next_message(client_a)
+        pad_b = await next_message(client_b)
+        for msg in (pad_a, pad_b):
+            check(msg["type"] == "chat"
+                  and msg["message"]["text"] == "  padded text  "
+                  and msg["message"]["operator_callsign"] == "KJ7ABC",
+                  "broadcast keeps text verbatim but strips identity fields")
+        status, body = await rest(session, "GET", "/api/chat")
+        stored = next((m for m in body["messages"] if m["uuid"] == "chat-3"),
+                      None)
+        check(status == 200 and len(body["messages"]) == 2
+              and stored is not None and stored["text"] == "  padded text  "
+              and stored["operator_callsign"] == "KJ7ABC",
+              "stored row keeps text verbatim but strips identity fields")
+        await client_a.send_str(json.dumps(
+            chat("client-A", "   ", msg_uuid="chat-4")))
+        check(await no_more_messages(client_a),
+              "whitespace-only chat text produces no broadcast")
+        status, body = await rest(session, "GET", "/api/chat")
+        check(status == 200 and len(body["messages"]) == 2,
+              "chat history unchanged after the blank-text send")
+
         print("poke on contact write:")
         contact = {
             "uuid": "11111111-1111-1111-1111-111111111111",
@@ -291,7 +358,16 @@ async def main():
         check(status == 200 and body["messages"] == [],
               "REST chat history is empty after clearing")
 
-        print("event switch broadcast:")
+        print("event switch broadcast + chat follows the active event:")
+        await client_a.send_str(json.dumps(
+            chat("client-A", "survives the switch", msg_uuid="chat-persist")))
+        await next_message(client_a)  # chat broadcast
+        await next_message(client_b)  # chat broadcast
+        status, body = await rest(session, "GET", "/api/chat")
+        check(status == 200
+              and [m["text"] for m in body["messages"]]
+              == ["survives the switch"],
+              "first event's chat history holds the pre-switch message")
         status, second = await rest(session, "POST", "/api/admin/events",
                                     headers=ADMIN,
                                     body={"template": "pota",
@@ -303,6 +379,17 @@ async def main():
         check(ev_a == {"type": "event",
                        "event_uuid": second["event_uuid"]} == ev_b,
               "both clients are notified when a new event is created")
+        status, body = await rest(session, "GET", "/api/chat")
+        check(status == 200 and body["messages"] == [],
+              "new event starts with an empty chat")
+        await client_a.send_str(json.dumps(
+            chat("client-A", "only in event 2", msg_uuid="chat-e2")))
+        await next_message(client_a)  # chat broadcast
+        await next_message(client_b)  # chat broadcast
+        status, body = await rest(session, "GET", "/api/chat")
+        check(status == 200
+              and [m["text"] for m in body["messages"]] == ["only in event 2"],
+              "chat sent in the new event lands in its own history")
         status, _ = await rest(
             session, "POST",
             f"/api/admin/events/{created['event_uuid']}/activate",
@@ -313,6 +400,11 @@ async def main():
         check(ev_a == {"type": "event",
                        "event_uuid": created["event_uuid"]} == ev_b,
               "both clients are notified when an existing event is activated")
+        status, body = await rest(session, "GET", "/api/chat")
+        check(status == 200
+              and [m["text"] for m in body["messages"]]
+              == ["survives the switch"],
+              "chat history follows the active event back")
 
         print("disconnect doesn't flicker the roster:")
         await client_b.close()
@@ -325,7 +417,27 @@ async def main():
         await client_a.close()
         await client_c.close()
 
-    print(f"\nPASS — {checks} checks")
+    return created["event_uuid"]
+
+
+async def post_restart(event_uuid):
+    """After a server restart: chat (in the event db) persists, presence
+    (in server memory) is gone."""
+    async with aiohttp.ClientSession() as session:
+        print("restart persistence:")
+        status, body = await rest(session, "GET", "/api/chat")
+        check(status == 200
+              and [m["text"] for m in body["messages"]]
+              == ["survives the switch"],
+              "chat history survives a server restart")
+        ws = await session.ws_connect(WS_URL)
+        first = await next_message(ws)
+        check(first == {"type": "event", "event_uuid": event_uuid},
+              "restarted server announces the same active event")
+        snapshot = await next_message(ws)
+        check(snapshot == {"type": "presence_list", "stations": []},
+              "presence roster is empty after a restart (memory-only)")
+        await ws.close()
 
 
 if __name__ == "__main__":
@@ -335,20 +447,17 @@ if __name__ == "__main__":
         "host": "127.0.0.1", "port": PORT,
         "data_dir": str(data_dir), "admin_password": "test-pw",
     }))
-    proc = subprocess.Popen([sys.executable, str(SERVER_DIR / "main.py"),
-                             str(config_path)])
+    proc = start_server(config_path)
     passed = False
     try:
-        wait_for_server(proc)
-        asyncio.run(main())
+        event_uuid = asyncio.run(main())
+        stop_server(proc)
+        proc = start_server(config_path)
+        asyncio.run(post_restart(event_uuid))
+        print(f"\nPASS — {checks} checks")
         passed = True
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=10)
+        stop_server(proc)
         if passed:
             cleanup(data_dir)
         else:

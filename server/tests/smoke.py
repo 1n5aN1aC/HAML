@@ -83,6 +83,18 @@ def request(method, path, body=None, headers=None):
         return exc.code, parse_json(method, path, exc.code, exc.read())
 
 
+def request_raw(method, path, data, headers=None):
+    """Like request(), but sends raw bytes (for non-JSON-body checks)."""
+    req = urllib.request.Request(BASE + path, method=method, data=data,
+                                 headers={"Content-Type": "application/json",
+                                          **(headers or {})})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return resp.status, parse_json(method, path, resp.status, resp.read())
+    except urllib.error.HTTPError as exc:
+        return exc.code, parse_json(method, path, exc.code, exc.read())
+
+
 def iso(offset_seconds=0):
     return (datetime.now(timezone.utc)
             + timedelta(seconds=offset_seconds)).isoformat(timespec="milliseconds")
@@ -229,6 +241,14 @@ def main():
         status, body = request("PUT", "/api/admin/templates/..%2Fevil",
                                headers=ADMIN, body=scratch)
         check(status == 400, "template save rejects an unsafe id")
+        status, body = request("PUT", "/api/admin/templates/My-Template",
+                               headers=ADMIN, body=scratch)
+        check(status == 400 and "template id" in body["error"],
+              "template save rejects a bad-charset id")
+        status, body = request_raw("PUT", "/api/admin/templates/smoke-bad",
+                                   b"not json", headers=ADMIN)
+        check(status == 400 and body["error"] == "body must be JSON",
+              "non-JSON template save body is rejected")
 
         print("template fetch (editor round trip):")
         status, _ = request("GET", "/api/admin/templates/smoke-scratch")
@@ -346,20 +366,29 @@ def main():
                                                          "longitude": -122.6}))
         check(status == 400 and "latitude" in body["error"],
               "out-of-range event latitude is rejected")
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=dict(good, location={"latitude": 45.5,
+                                                         "longitude": 181}))
+        check(status == 400 and "longitude" in body["error"],
+              "out-of-range event longitude is rejected")
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=dict(good, location={"latitude": True,
+                                                         "longitude": -122.6}))
+        check(status == 400 and "latitude" in body["error"],
+              "boolean event latitude is rejected")
+        status, body = request("POST", "/api/admin/events", headers=ADMIN,
+                               body=dict(good, location={"latitude": 45.5,
+                                                         "longitude": -122.6,
+                                                         "altitude": 30}))
+        check(status == 400 and "location" in body["error"],
+              "event location with an extra key is rejected")
         without_template = {k: v for k, v in good.items() if k != "template"}
         status, body = request("POST", "/api/admin/events", headers=ADMIN,
                                body=without_template)
         check(status == 400 and body["error"].startswith("bad template"),
               "event creation without a template is rejected")
-        raw_req = urllib.request.Request(
-            BASE + "/api/admin/events", method="POST", data=b"not json",
-            headers={"Content-Type": "application/json", **ADMIN})
-        try:
-            urllib.request.urlopen(raw_req, timeout=5)
-            raise AssertionError("FAIL: non-JSON event body did not raise")
-        except urllib.error.HTTPError as exc:
-            status, body = exc.code, parse_json("POST", "/api/admin/events",
-                                                exc.code, exc.read())
+        status, body = request_raw("POST", "/api/admin/events", b"not json",
+                                   headers=ADMIN)
         check(status == 400 and body["error"] == "body must be JSON",
               "non-JSON event creation body is rejected")
         status, body = request("GET", "/api/admin/events", headers=ADMIN)
@@ -544,15 +573,7 @@ def main():
         status, _ = request("POST", "/api/contacts",
                             body={"uuid": "x"})
         check(status == 400, "incomplete contact is rejected")
-        raw_req = urllib.request.Request(
-            BASE + "/api/contacts", method="POST", data=b"not json",
-            headers={"Content-Type": "application/json"})
-        try:
-            urllib.request.urlopen(raw_req, timeout=5)
-            raise AssertionError("FAIL: non-JSON body did not raise")
-        except urllib.error.HTTPError as exc:
-            status, body = exc.code, parse_json("POST", "/api/contacts",
-                                                exc.code, exc.read())
+        status, body = request_raw("POST", "/api/contacts", b"not json")
         check(status == 400 and body["error"] == "body must be JSON",
               "non-JSON contact body is rejected")
         bad = make_contact("client-A", "  ", iso())
