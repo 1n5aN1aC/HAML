@@ -9,7 +9,9 @@ Two clocks live side by side (ADR-0001 + plan note):
 """
 import json
 import sqlite3
+import urllib.parse
 from datetime import datetime, timezone
+from pathlib import Path
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -65,6 +67,14 @@ def open_db(path):
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    return conn
+
+
+def open_db_readonly(path):
+    """Open an existing database without touching it (no schema init)."""
+    uri = "file:" + urllib.parse.quote(Path(path).as_posix(), safe="/:") + "?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
     return conn
 
 

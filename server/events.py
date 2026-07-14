@@ -21,11 +21,21 @@ def _state_path(data_dir):
 
 
 def get_active_path(data_dir):
-    """Path of the active Event database, or None."""
+    """Path of the active Event database, or None. Raises ValueError when
+    state.json is corrupt — the operator must fix or delete the file."""
     state_file = _state_path(data_dir)
     if not state_file.exists():
         return None
-    active = json.loads(state_file.read_text(encoding="utf-8")).get("active")
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{state_file} is corrupt: {exc} — fix or delete it") from None
+    active = state.get("active") if isinstance(state, dict) else None
+    if not isinstance(state, dict) or not (active is None or isinstance(active, str)):
+        raise ValueError(
+            f"{state_file} is corrupt: expected a JSON object with a string"
+            " 'active' — fix or delete it")
     if not active:
         return None
     path = Path(data_dir) / active
@@ -91,20 +101,31 @@ def create_event(data_dir, template, name, station_callsign, location=None,
     return event_meta(path)
 
 
+# meta dict key -> meta table key
+EVENT_META_KEYS = {
+    "event_uuid": "event_uuid",
+    "name": "event_name",
+    "station_callsign": "station_callsign",
+    "local_exchange": "local_exchange",
+    "template_name": "template_name",
+    "created_at": "created_at",
+}
+
+
 def event_meta(db_path):
-    """Read identifying meta from an Event database file."""
-    conn = db.open_db(db_path)
+    """Read identifying meta from an Event database file. A file that isn't
+    a readable Event database yields all-None meta (callers skip on the
+    missing event_uuid) rather than an error."""
     try:
-        return {
-            "event_uuid": db.meta_get(conn, "event_uuid"),
-            "name": db.meta_get(conn, "event_name"),
-            "station_callsign": db.meta_get(conn, "station_callsign"),
-            "local_exchange": db.meta_get(conn, "local_exchange"),
-            "template_name": db.meta_get(conn, "template_name"),
-            "created_at": db.meta_get(conn, "created_at"),
-        }
-    finally:
-        conn.close()
+        conn = db.open_db_readonly(db_path)
+        try:
+            return {key: db.meta_get(conn, meta_key)
+                    for key, meta_key in EVENT_META_KEYS.items()}
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        print(f"warning: skipping unreadable event db {db_path}: {exc}")
+        return {key: None for key in EVENT_META_KEYS}
 
 
 def list_events(data_dir):

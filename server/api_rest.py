@@ -4,6 +4,7 @@
 # Admin endpoints are gated by the shared password header (ADR-0004).
 #
 import json
+import sqlite3
 
 from aiohttp import web
 
@@ -45,6 +46,8 @@ def require_admin(request):
         )
 
 # Close any current Event connection and open the one at db_path.
+# A db_path that isn't a readable Event database (e.g. state.json pointing at
+# a corrupt file at boot) falls back to no active event rather than crashing.
 def set_active_connection(app, db_path):
     old = app.get("conn")
     if old is not None:
@@ -53,15 +56,23 @@ def set_active_connection(app, db_path):
         app["conn"] = None
         app["event"] = None
         return
-    conn = db.open_db(db_path)
+    try:
+        conn = db.open_db(db_path)
+        event = {
+            "event_uuid": db.meta_get(conn, "event_uuid"),
+            "name": db.meta_get(conn, "event_name"),
+            "station_callsign": db.meta_get(conn, "station_callsign"),
+            "local_exchange": db.meta_get(conn, "local_exchange"),
+            "config": json.loads(db.meta_get(conn, "config", "{}")),
+        }
+    except sqlite3.Error as exc:
+        print(f"warning: cannot open active event db {db_path}: {exc} — "
+              "starting with no active event")
+        app["conn"] = None
+        app["event"] = None
+        return
     app["conn"] = conn
-    app["event"] = {
-        "event_uuid": db.meta_get(conn, "event_uuid"),
-        "name": db.meta_get(conn, "event_name"),
-        "station_callsign": db.meta_get(conn, "station_callsign"),
-        "local_exchange": db.meta_get(conn, "local_exchange"),
-        "config": json.loads(db.meta_get(conn, "config", "{}")),
-    }
+    app["event"] = event
 
 
 # --- data endpoints ---------------------------------------------------------

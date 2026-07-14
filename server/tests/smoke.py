@@ -6,7 +6,8 @@ LWW conflict rule, tombstone sync, the cursor, backup, event switching, the
 admin event listing, event-creation validation, the template editor (save,
 fetch, delete, and an event created from a saved template), persistence
 across a server restart, event deletion, and disk edge cases (broken
-template files, stray dbs, a dangling state.json).
+template files, stray and garbage dbs, a dangling state.json, state.json
+pointing at a garbage db, and a corrupt state.json failing the boot).
 
 Run: python server/tests/smoke.py   (uses sys.executable for the subprocess)
 """
@@ -143,6 +144,21 @@ def stop_server(proc):
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait(timeout=10)
+
+
+def expect_boot_failure(config_path, needle, label):
+    """Start the server expecting it to die during boot; check that it exits
+    nonzero and that its output mentions `needle` (so a crash for some other
+    reason — port in use, import error — can't false-pass)."""
+    proc = subprocess.Popen([sys.executable, str(SERVER_DIR / "main.py"),
+                             str(config_path)],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        out, _ = proc.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        stop_server(proc)
+        raise AssertionError(f"FAIL: {label} — server did not exit")
+    check(proc.returncode != 0 and needle in out, label)
 
 
 def main():
@@ -754,6 +770,32 @@ def main():
               and [e["event_uuid"] for e in body["events"]]
               == [created["event_uuid"]],
               "stray db file without event meta is skipped by the listing")
+        # a garbage (non-SQLite) db must not break the listing or activation
+        (data_dir / "events" / "garbage.db").write_bytes(
+            b"\x00\x01 not a sqlite database, just junk bytes on disk \xff")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check(status == 200
+              and [e["event_uuid"] for e in body["events"]]
+              == [created["event_uuid"]],
+              "garbage db file is skipped by the listing")
+        status, _ = request("POST",
+                            f"/api/admin/events/{created['event_uuid']}/activate",
+                            headers=ADMIN, body={})
+        check(status == 200, "activation still works with a garbage db on disk")
+        # state.json pointing at a garbage db must not crash the boot
+        stop_server(proc)
+        (data_dir / "state.json").write_text(
+            json.dumps({"active": "events/garbage.db"}))
+        proc = start_server(config_path)
+        status, body = request("GET", "/api/event")
+        check(status == 404 and body["error"] == "no active event",
+              "server boots with no active event when state.json points at"
+              " a garbage db")
+        status, body = request("GET", "/api/admin/events", headers=ADMIN)
+        check(status == 200
+              and [e["event_uuid"] for e in body["events"]]
+              == [created["event_uuid"]],
+              "event listing still works with a garbage active db")
         # state.json pointing at a missing db file must not crash the boot
         stop_server(proc)
         (data_dir / "state.json").write_text(
@@ -767,6 +809,15 @@ def main():
               and [e["event_uuid"] for e in body["events"]]
               == [created["event_uuid"]],
               "event listing still works with a dangling state.json")
+        # a corrupt state.json is the operator's to fix: boot must fail
+        # loudly, naming the file, rather than quietly dropping the event
+        stop_server(proc)
+        (data_dir / "state.json").write_text("{not json")
+        expect_boot_failure(config_path, b"state.json",
+                            "boot fails loudly on unparseable state.json")
+        (data_dir / "state.json").write_text("[]")
+        expect_boot_failure(config_path, b"state.json",
+                            "boot fails loudly on wrong-shape state.json")
 
         print(f"\nPASS — {checks} checks")
         passed = True
