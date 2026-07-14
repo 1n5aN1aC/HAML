@@ -156,7 +156,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
           <div className="entry-break" />
           <label>
             Callsign:
-            <input className="cs" value={form.remote_callsign} onChange={setUpper('remote_callsign')} />
+            <input className="cs" value={form.remote_callsign} onChange={setUpper('remote_callsign')} maxLength={10} />
           </label>
           <label>
             Band:

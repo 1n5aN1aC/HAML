@@ -179,6 +179,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             ref={callsignRef}
             className="cs"
             placeholder="Callsign"
+            maxLength={10}
             value={callsign}
             onChange={(e) => {
               setCallsign(sanitizeText(e.target.value).toUpperCase())

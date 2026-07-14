@@ -10,12 +10,21 @@ export default function StatusBar({ session, onSession, config, stationCallsign,
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
   const setAlphanumeric = (key) => (e) =>
     onSession({ ...session, [key]: sanitizeText(e.target.value) })
-  const mode = session.mode || DEFAULT_MODE(config.modes)
+  // The saved session survives event switches (db.js wipeEventData), so its band/mode may not exist in this Event's config
+  // A select whose value matches no option silently *displays* the first option while logging the stale value.
+  // Treat anything not in the config as unset.
+  const mode = config.modes.includes(session.mode)
+    ? session.mode
+    : DEFAULT_MODE(config.modes)
+  const band = ['Off-Air', ...config.bands].includes(session.band)
+    ? session.band
+    : 'Off-Air'
   const setMode = (e) => onSession({ ...session, mode: e.target.value })
 
-  // Seed the default mode into session so App's gate opens immediately.
+  // Seed the corrected values back into session
   useEffect(() => {
-    if (!session.mode && mode) onSession({ ...session, mode })
+    if (session.mode !== mode || session.band !== band)
+      onSession({ ...session, mode, band })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -48,7 +57,7 @@ export default function StatusBar({ session, onSession, config, stationCallsign,
         Band:&nbsp;
         <select
           className={conflicts.length ? 'band-conflict' : ''}
-          value={session.band}
+          value={band}
           onChange={set('band')}
         >
           {['Off-Air', ...config.bands].map((b) => (

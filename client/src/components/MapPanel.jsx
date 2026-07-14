@@ -72,7 +72,11 @@ export default function MapPanel() {
     // object's position to place the (position:fixed) tooltip on the page.
     const setup = () => {
       const svgDoc = obj.contentDocument
-      if (attached || !svgDoc?.documentElement) return
+      // Before the SVG loads, contentDocument is an about:blank placeholder
+      // whose readyState is already "complete" — attaching to it would strand
+      // the listeners (and svgReady) on a document that's about to be swapped
+      // out. Only proceed once the document is really the SVG.
+      if (attached || svgDoc?.documentElement?.nodeName !== 'svg') return
       attached = true
       setSvgReady(true)  // lets the coloring effect (re-)apply fills
       const tip = tooltipRef.current
