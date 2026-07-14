@@ -836,3 +836,26 @@ input.v-bad, select.v-bad {
 .stats-page .stats-right > .stats-bottom { padding: 0; }
 .stats-page .stats-bottom .map-panel { height: 100%; }
 .stats-page .placeholder { color: var(--theme-text-faint); font-style: italic; }
+
+/* rate graph fills the top-right card; legend below the plot. min-height: 0
+   down the flex chain stops the measured SVG height from feeding back into
+   layout (resize loop). */
+.stats-page .stats-top { display: flex; flex-direction: column; min-height: 0; }
+.rate-graph { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.rate-graph h3 { margin: 0 0 4px; color: var(--theme-accent); }
+.rate-graph-plot { flex: 1; min-height: 0; }   /* the measured chart area */
+.rate-graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 12px;
+  padding: 4px 0 2px;
+}
+.rate-graph-legend .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 5px;
+  border: 1px solid var(--theme-border-subtle);
+}

@@ -1,6 +1,7 @@
 // Statistics tab: contact stats fill the left half; the right half is split
-// into two panels — a future display on top, the section map below.
+// into two panels — the QSO rate graph on top, the section map below.
 import StatisticsPanel from './StatisticsPanel.jsx'
+import RateGraph from './RateGraph.jsx'
 import MapPanel from '../MapPanel.jsx'
 
 export default function StatisticsTab() {
@@ -11,7 +12,7 @@ export default function StatisticsTab() {
       </section>
       <aside className="stats-right">
         <div className="stats-top">
-          <p className="placeholder">Coming soon</p>
+          <RateGraph />
         </div>
         <div className="stats-bottom">
           <MapPanel />
