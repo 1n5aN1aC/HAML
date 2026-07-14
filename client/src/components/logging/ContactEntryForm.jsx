@@ -182,7 +182,19 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             maxLength={10}
             value={callsign}
             onChange={(e) => {
-              setCallsign(sanitizeText(e.target.value).toUpperCase())
+              const next = sanitizeText(e.target.value).toUpperCase()
+              // Emptying the callsign undoes any "remember" autofill so the stale values don't carry over to the next contact.
+              if (callsign && !next) {
+                setValues((prev) => {
+                  const cleared = { ...prev }
+                  for (const f of fields) {
+                    if (f.remember) cleared[f.name] = f.default ?? ''
+                  }
+                  return cleared
+                })
+                setError('')
+              }
+              setCallsign(next)
               setDupe(null)
             }}
             onBlur={() => {
