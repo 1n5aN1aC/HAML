@@ -13,7 +13,7 @@ import { playSubmit, playDuplicate, playDx } from '../../sounds.js'
 import { findDuplicate, findLatestContact } from '../../dupes.js'
 import { init as initCallParser, isLoaded, lookup, distanceMiles } from '../../callparser.js'
 import {
-  AUTO_FIELDS, BUILTINS, isBuiltin, resolveEntryFields,
+  AUTO_FIELDS, BUILTINS, BUILTIN_ORDER, isBuiltin, resolveEntryFields,
 } from '../../builtin-fields.js'
 import FieldInput from './FieldInput.jsx'
 
@@ -37,18 +37,49 @@ function EntryClock() {
   return <span className="entry-clock">{utc} / {local}</span>
 }
 
+// The full in-memory contact state: the event's entry fields at their defaults,
+// plus every built-in the entry fields don't already cover, defaulted to ''.
+// Every built-in living in state (visible or hidden) lets background fills —
+// the CallParser lookup, remember, and a future async enrichment fetcher —
+// write it before submit saves the state verbatim.
 function defaultValues(fields) {
-  return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
+  const base = Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
+  for (const name of BUILTIN_ORDER) {
+    if (!(name in base)) base[name] = ''
+  }
+  return base
+}
+
+// Apply patches (name -> value maps) over a values map in order, last writer
+// winning, but never overwriting a name the operator has touched. The shared
+// merge step for both the blur fills and the submit-time final values.
+function mergeUntouched(values, touched, ...patches) {
+  const next = { ...values }
+  for (const patch of patches) {
+    for (const [name, v] of Object.entries(patch)) {
+      if (touched.has(name)) continue
+      next[name] = v
+    }
+  }
+  return next
 }
 
 // Zone fields whose CallParser source is zero-padded in the data file ('06'),
 // Must strip the padding, or the bare-number validation pattern will reject it.
 const ZERO_PADDED = new Set(['itu_zone', 'cq_zone'])
 
-// The auto-filled value for a built-in from a CallParser hit (or '' when no hit / no loaded database).
+// Auto fields whose CallParser source lists every value for entities that span
+// several zones/continents ('03;04', '01-05', 'EU;AF'). There's no single right
+// answer for those, so we fill nothing rather than a wrong guess. Country is
+// excluded — its names legitimately carry '-' and ';' (e.g. 'Guinea-Bissau').
+const MULTI_VALUE = new Set(['itu_zone', 'cq_zone', 'continent'])
+
+// The auto-filled value for a built-in from a CallParser hit (or '' when no hit,
+// no loaded database, or the entity spans multiple zones/continents).
 function autoValue(hit, name) {
   if (!hit) return ''
   const raw = String(hit[BUILTINS[name].autofill] ?? '')
+  if (MULTI_VALUE.has(name) && /[;,-]/.test(raw)) return ''
   return ZERO_PADDED.has(name) ? raw.replace(/^0+(?=\d)/, '') : raw
 }
 
@@ -61,11 +92,12 @@ function formatLocalTime(iso) {
 
 export default function ContactEntryForm({ config, session, clientUuid, disabled }) {
   const fields = useMemo(() => resolveEntryFields(config), [config])
-  // which auto-fill built-ins have a visible input (live-filled on blur)
-  const visibleAutos = useMemo(
-    () => fields.filter((f) => AUTO_FIELDS.includes(f.name)).map((f) => f.name),
-    [fields],
-  )
+  // built-ins with no entry input of their own, reset alongside the entry
+  // fields when the callsign is cleared so hidden fills can't leak forward
+  const hiddenBuiltins = useMemo(() => {
+    const entryNames = new Set(fields.map((f) => f.name))
+    return BUILTIN_ORDER.filter((name) => !entryNames.has(name))
+  }, [fields])
   const [callsign, setCallsign] = useState('')
   const [values, setValues] = useState(() => defaultValues(fields))
   // names the operator typed into by hand — at submit, a touched auto field's
@@ -136,61 +168,73 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     if (match) playDuplicate()
   }
 
-  // "remember" autofill, fired on the same blur: copy the most recent
-  // contact's values into remember-enabled fields, overwriting what's there.
-  // Built-ins read from the contact's top-level columns, customs from its
-  // `fields` blob. No match leaves the fields alone; empty sources are skipped.
-  async function autofillRemembered() {
-    if (!callsign) return
-    const latest = await findLatestContact(callsign)
-    if (!latest) return
-    setValues((prev) => {
-      const next = { ...prev }
-      for (const f of fields) {
-        if (!f.remember) continue
-        const v = isBuiltin(f.name) ? latest[f.name] : latest.fields?.[f.name]
-        if (v != null && String(v).trim()) next[f.name] = v
-      }
-      return next
-    })
+  // CallParser fill: the auto built-ins (country/zones/continent) for a
+  // callsign, as a name -> value patch. Covers *all* AUTO_FIELDS now that
+  // every built-in lives in state, not just the ones with a visible input.
+  // Synchronous (an in-memory index walk), so submit can use it without a
+  // setValues round-trip. No hit (or no loaded database) fills each with ''.
+  function lookupPatch(call) {
+    if (!call) return {}
+    const hit = parserReady ? lookup(call) : null
+    const patch = {}
+    for (const name of AUTO_FIELDS) patch[name] = autoValue(hit, name)
+    return patch
   }
 
-  // Live-fill visible auto built-ins (country/zones/continent) from the
-  // callsign lookup on the same blur, overwriting — parallel to remember.
-  function autofillLookup() {
-    if (!callsign || !parserReady || visibleAutos.length === 0) return
-    const hit = lookup(callsign)
-    setValues((prev) => {
-      const next = { ...prev }
-      for (const name of visibleAutos) next[name] = autoValue(hit, name)
-      return next
+  // "remember" fill: the most recent contact's values for the remember-enabled
+  // fields, as a name -> value patch. Built-ins read from the contact's
+  // top-level columns, customs from its `fields` blob; empty sources and a
+  // no-match callsign yield an empty patch (nothing to remember).
+  async function rememberPatch(call) {
+    if (!call) return {}
+    const latest = await findLatestContact(call)
+    if (!latest) return {}
+    const patch = {}
+    for (const f of fields) {
+      if (!f.remember) continue
+      const v = isBuiltin(f.name) ? latest[f.name] : latest.fields?.[f.name]
+      if (v != null && String(v).trim()) patch[f.name] = v
+    }
+    return patch
+  }
+
+  // Blur fills: apply the lookup patch (visible autos fill instantly) then the
+  // remember patch when its lookup resolves — the fixed lookup-then-remember
+  // order, so remembered values win any overlap. Touched fields are left alone.
+  function applyBlurFills() {
+    if (!callsign) return
+    setValues((prev) => mergeUntouched(prev, touched, lookupPatch(callsign)))
+    rememberPatch(callsign).then((remember) => {
+      setValues((prev) => mergeUntouched(prev, touched, remember))
     })
   }
 
   async function logContact(e) {
     e.preventDefault()
+    // Run the full blur pipeline over the current state so an edit-then-Enter
+    // with no blur still logs the right values: dupe check (sounds and all —
+    // the banner it sets is wiped by the reset below), then the lookup and
+    // remember fills over untouched fields. The merged map is saved verbatim.
+    await checkDuplicate()
+    const finalValues = mergeUntouched(
+      values, touched, lookupPatch(callsign), await rememberPatch(callsign),
+    )
     const problem = validateContact(
-      { remote_callsign: callsign, values },
+      { remote_callsign: callsign, values: finalValues },
       fields,
     )
     if (problem) {
       setError(problem)
       return
     }
-    // Split the entry values into built-in columns and the custom `fields` blob.
+    // Split the merged values into built-in columns and the custom `fields`
+    // blob: every built-in key (entry field or hidden) becomes a top-level
+    // column, and the remaining entry fields are customs.
     const builtins = {}
     const customFields = {}
-    for (const f of fields) {
-      if (isBuiltin(f.name)) builtins[f.name] = values[f.name]
-      else customFields[f.name] = values[f.name]
-    }
-    // Recompute the four autos from the final callsign: a value the operator
-    // visibly typed (touched) wins; otherwise the lookup value is authoritative
-    // (this also fills the hidden autos, which have no input at all).
-    const hit = parserReady ? lookup(callsign) : null
-    for (const name of AUTO_FIELDS) {
-      if (visibleAutos.includes(name) && touched.has(name)) continue
-      builtins[name] = autoValue(hit, name)
+    for (const [name, v] of Object.entries(finalValues)) {
+      if (isBuiltin(name)) builtins[name] = v
+      else customFields[name] = v
     }
     // QSO time defaults from server-corrected time (clock offset, plan §3.3);
     // the offset is written by the sync engine and is absent until first sync.
@@ -214,8 +258,8 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     })
     pushNow()
     // DX contacts get their own submit sound!
-    const isDx = String(builtins.section ?? '').trim() === 'DX'
-      || String(builtins.state ?? '').trim() === 'DX'
+    const isDx = String(finalValues.section ?? '').trim() === 'DX'
+      || String(finalValues.state ?? '').trim() === 'DX'
     if (isDx) playDx()
     else playSubmit()
     setCallsign('')
@@ -248,6 +292,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
                       cleared[f.name] = f.default ?? ''
                     }
                   }
+                  // hidden built-ins have no entry field but can hold fills
+                  // (auto lookup, and later async enrichment) — clear them too
+                  for (const name of hiddenBuiltins) cleared[name] = ''
                   return cleared
                 })
                 setTouched(new Set())
@@ -258,8 +305,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             }}
             onBlur={() => {
               checkDuplicate()
-              autofillRemembered()
-              autofillLookup()
+              applyBlurFills()
             }}
             onKeyDown={(e) =>
               handleFieldNav(e, 0, [callsignRef.current, ...fieldRefs.current])
