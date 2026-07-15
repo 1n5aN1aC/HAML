@@ -272,7 +272,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               ref={(el) => (fieldRefs.current[i] = el)}
               field={f}
               value={values[f.name]}
-              placeholder={f.label + (f.required ? ' *' : '')}
+              placeholder={f.label}
               onChange={(v) => {
                 setValues((prev) => ({ ...prev, [f.name]: v }))
                 setTouched((prev) =>
