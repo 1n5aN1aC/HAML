@@ -28,7 +28,8 @@ from pathlib import Path
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SERVER_DIR))
-import db          # noqa: E402  (server modules, exercised without the HTTP layer)
+import api_rest    # noqa: E402  (server modules, exercised without the HTTP layer)
+import db          # noqa: E402
 import templates   # noqa: E402
 # template ids this test may write into the live server/templates dir
 TEST_TEMPLATE_IDS = ("smoke-scratch", "smoke-bad", "smoke-broken")
@@ -117,7 +118,8 @@ def make_contact(client_uuid, remote, edited_at, **overrides):
         "band": "20m",
         "mode": "Phone",
         "deleted": False,
-        "fields": {"class": "3A", "section": "OR"},
+        "section": "OR",  # built-in: top-level column, not a blob key
+        "fields": {"class": "3A"},
     }
     contact.update(overrides)
     return contact
@@ -236,6 +238,33 @@ def unit_checks():
         check(names, "client registry parses (BUILTINS literal found)")
         check(sorted(names) == sorted(db.BUILTIN_FIELDS),
               "client BUILTINS names mirror server BUILTIN_FIELDS")
+
+        # missing_required_fields mirrors the client's resolution semantics
+        # (builtin-fields.js resolveItem): entry_list overrides win — even an
+        # explicit false — and only entry_list can make a built-in required.
+        cfg = {
+            "fields": [{"name": "class", "required": True}],
+            "entry_list": ["class", {"name": "section", "required": True},
+                           {"name": "their_park"}],
+            "contact_list": [{"name": "state", "required": True}],
+        }
+        ok_body = {"fields": {"class": "3A"}, "section": "OR"}
+        check(api_rest.missing_required_fields(cfg, ok_body) == [],
+              "required check passes with custom and built-in values present")
+        check(api_rest.missing_required_fields(cfg, {"fields": {}})
+              == ["class", "section"],
+              "required check reports blank custom (blob) and built-in"
+              " (top-level) — and ignores contact_list overrides")
+        cfg_off = {
+            "fields": [{"name": "class", "required": True}],
+            "entry_list": [{"name": "class", "required": False}],
+        }
+        check(api_rest.missing_required_fields(cfg_off, {"fields": {}}) == [],
+              "an entry_list override can disable a field def's required flag")
+        cfg_old = {"fields": [{"name": "class", "required": True}]}
+        check(api_rest.missing_required_fields(cfg_old, {"fields": {}})
+              == ["class"],
+              "a frozen config without entry_list keeps the old behavior")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -620,9 +649,10 @@ def main():
         status, body = request("GET", "/api/contacts")
         check(status == 200 and len(body["contacts"]) == 1
               and body["contacts"][0]["uuid"] == contact_a["uuid"]
-              and body["contacts"][0]["fields"]["section"] == "OR",
+              and body["contacts"][0]["fields"]["class"] == "3A",
               "full pull returns the contact with its JSON fields")
-        check(body["contacts"][0]["country"] == "United States"
+        check(body["contacts"][0]["section"] == "OR"
+              and body["contacts"][0]["country"] == "United States"
               and body["contacts"][0]["cq_zone"] == "3"
               and body["contacts"][0]["continent"] == "NA",
               "built-in fields pull back as top-level columns")
@@ -728,16 +758,24 @@ def main():
         check(status == 400 and "fields" in body["error"],
               "non-object fields value is rejected")
         empty_fields = make_contact("client-A", "K7AAA", iso(), fields={})
+        del empty_fields["section"]  # built-in absent entirely, not just blank
         status, body = request("POST", "/api/contacts", body=empty_fields)
-        check(status == 400 and "class" in body["error"],
-              "missing required custom field is rejected")
+        check(status == 400 and "class" in body["error"]
+              and "section" in body["error"],
+              "missing required fields (custom and built-in) are rejected")
+        blank_builtin = make_contact("client-A", "K7AAA", iso(), section="  ")
+        status, body = request("POST", "/api/contacts", body=blank_builtin)
+        check(status == 400 and "section" in body["error"]
+              and "class" not in body["error"],
+              "blank required built-in field is rejected")
         blank_field = make_contact("client-A", "K7AAA", iso(),
                                    fields={"class": "  "})
         status, body = request("POST", "/api/contacts", body=blank_field)
-        check(status == 400 and "class" in body["error"],
+        check(status == 400 and "class" in body["error"]
+              and "section" not in body["error"],
               "blank required custom field is rejected")
         bare_tombstone = make_contact("client-A", "K7AAA", iso(),
-                                      fields={}, deleted=True)
+                                      fields={}, section="", deleted=True)
         status, body = request("POST", "/api/contacts", body=bare_tombstone)
         check(status == 200 and body["stored"],
               "tombstone with empty fields still syncs")

@@ -31,10 +31,28 @@ def require_event(request):
         )
     return conn
 
-# Names of required template fields that are absent or blank.
-def missing_required_fields(config, fields):
-    return [f["name"] for f in config.get("fields", [])
-            if f.get("required") and not str(fields.get(f["name"], "")).strip()]
+# Names of required entry fields that are absent or blank on a contact body.
+# Mirrors the client's resolution (builtin-fields.js resolveItem): an
+# entry_list object override's 'required' wins over the field def's own flag —
+# including an explicit false. Only entry_list can make a built-in required
+# (contact_list is columns-only: no input, so never enforced). Built-in values
+# live top-level on the body; custom values live in the 'fields' blob.
+def missing_required_fields(config, body):
+    overrides = {item["name"]: item
+                 for item in config.get("entry_list") or []
+                 if isinstance(item, dict)}
+    fields = body.get("fields") or {}
+    missing = []
+    for f in config.get("fields") or []:
+        name = f["name"]
+        required = overrides.get(name, {}).get("required", f.get("required"))
+        if required and not str(fields.get(name, "")).strip():
+            missing.append(name)
+    for name, item in overrides.items():
+        if (name in db.BUILTIN_FIELDS and item.get("required")
+                and not str(body.get(name, "")).strip()):
+            missing.append(name)
+    return missing
 
 # Check the X-Admin-Password header against the configured password, raising 401 if it doesn't match.
 def require_admin(request):
@@ -97,8 +115,7 @@ async def post_contact(request):
         return json_error(400, str(exc))
     # tombstones are exempt: a deletion must always be able to sync
     if not contact["deleted"]:
-        missing = missing_required_fields(request.app["event"]["config"],
-                                          body["fields"])
+        missing = missing_required_fields(request.app["event"]["config"], body)
         if missing:
             return json_error(
                 400, "missing required fields: " + ", ".join(missing))
