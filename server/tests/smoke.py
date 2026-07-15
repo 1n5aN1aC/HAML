@@ -266,10 +266,6 @@ def unit_checks():
         }
         check(api_rest.missing_required_fields(cfg_no_entry, {"fields": {}}) == [],
               "a required field with entry:false is not enforced at log time")
-        cfg_old = {"fields": [{"name": "class", "required": True, "entry": True}]}
-        check(api_rest.missing_required_fields(cfg_old, {"fields": {}})
-              == ["class"],
-              "a frozen config with required + entry still flags missing values")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

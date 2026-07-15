@@ -326,7 +326,8 @@ async def main():
             "remote_callsign": "N0CALL", "operator_callsign": "W7XYZ",
             "operator_initials": "JD", "client_uuid": "client-A",
             "band": "20m", "mode": "Phone", "deleted": False,
-            "fields": {"class": "3A", "section": "OR"},
+            "section": "OR",  # built-in: top-level column, not a blob key
+            "fields": {"class": "3A"},
         }
         status, _ = await rest(session, "POST", "/api/contacts", body=contact)
         check(status == 200, "contact stored")
