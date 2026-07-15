@@ -39,8 +39,8 @@ export const BUILTINS = {
   state: {
     label: 'State', max_length: 2, autofill: null,
     validation: {
-      pattern: 'AK|AL|AR|AZ|CA|CO|CT|DC|DE|DX|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY',
-      message: 'State must be a 2-letter state abbreviation like OR, or DX',
+      pattern: 'AB|AK|AL|AR|AZ|BC|CA|CO|CT|DC|DE|DX|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MB|MD|ME|MI|MN|MO|MS|MT|NB|NC|ND|NE|NH|NJ|NL|NM|NS|NT|NU|NV|NY|OH|OK|ON|OR|PA|PE|QC|RI|SC|SD|SK|TN|TX|UT|VA|VT|WA|WI|WV|WY|YT',
+      message: 'State must be the 2-letter code',
     },
   },
   section: {
