@@ -213,8 +213,10 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       sync_state: 'pending',
     })
     pushNow()
-    // DX contacts get their own submit sound:
-    if (String(builtins.section ?? '').trim() === 'DX') playDx()
+    // DX contacts get their own submit sound!
+    const isDx = String(builtins.section ?? '').trim() === 'DX'
+      || String(builtins.state ?? '').trim() === 'DX'
+    if (isDx) playDx()
     else playSubmit()
     setCallsign('')
     setValues(defaultValues(fields))
