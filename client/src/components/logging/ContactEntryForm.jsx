@@ -41,10 +41,15 @@ function defaultValues(fields) {
   return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
 }
 
-// The auto-filled value for a built-in from a CallParser hit (or '' when no
-// hit / no loaded database).
+// Zone fields whose CallParser source is zero-padded in the data file ('06'),
+// Must strip the padding, or the bare-number validation pattern will reject it.
+const ZERO_PADDED = new Set(['itu_zone', 'cq_zone'])
+
+// The auto-filled value for a built-in from a CallParser hit (or '' when no hit / no loaded database).
 function autoValue(hit, name) {
-  return hit ? String(hit[BUILTINS[name].autofill] ?? '') : ''
+  if (!hit) return ''
+  const raw = String(hit[BUILTINS[name].autofill] ?? '')
+  return ZERO_PADDED.has(name) ? raw.replace(/^0+(?=\d)/, '') : raw
 }
 
 // same style as the entry clock's local half ("11:42 AM")
