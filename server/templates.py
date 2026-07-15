@@ -151,7 +151,7 @@ def save_template(template_id, template, templates_dir=TEMPLATES_DIR):
         raise ValueError("template id must match [a-z0-9_-]+")
     validate_template(template)
     path = Path(templates_dir) / f"{template_id}.json"
-    path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(template, indent=2), encoding="utf-8")
 
 
 def delete_template(template_id, templates_dir=TEMPLATES_DIR):

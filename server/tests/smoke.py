@@ -215,15 +215,14 @@ def unit_checks():
 
         # the stock templates only reference built-ins the server knows about —
         # keeps the server BUILTIN_FIELDS list honest against the templates.
-        # Each `fields` item is a custom definition or a built-in reference;
-        # a built-in name is anything in BUILTIN_FIELDS, otherwise it's a
-        # custom field and must be defined in `fields`.
+        # A `fields` item without a label is a built-in reference (a custom
+        # definition must carry one), so every label-less item must name a
+        # known built-in.
         for tid in ("field-day", "pota", "generic", "example"):
             t = templates.load_template(tid)
-            customs = {f["name"] for f in t["fields"]}
             unknown = [f["name"] for f in t["fields"]
-                       if f["name"] not in customs and f["name"] not in db.BUILTIN_FIELDS]
-            check(not unknown, f"{tid} fields are all known custom/built-in names")
+                       if "label" not in f and f["name"] not in db.BUILTIN_FIELDS]
+            check(not unknown, f"{tid} built-in references are all known built-ins")
 
         # the client's display registry mirrors the server's BUILTIN_FIELDS —
         # this is the promised honesty check both files' comments refer to. A

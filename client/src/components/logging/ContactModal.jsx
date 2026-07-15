@@ -215,11 +215,9 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
             </select>
           </label>
           <div className="entry-break" />
-          {entryFields.map(renderField)}
+          {templateFields.map(renderField)}
           {modalBuiltins.length > 0 && <div className="entry-break" />}
           {modalBuiltins.map(renderField)}
-          {modalCustoms.length > 0 && <div className="entry-break" />}
-          {modalCustoms.map(renderField)}
         </div>
         {error && <div className="entry-error">{error}</div>}
         <div className="modal-actions">

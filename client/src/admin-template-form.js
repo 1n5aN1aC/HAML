@@ -86,7 +86,6 @@ export function emptyForm() {
 // directly to a row in template order; built-in items vs custom items are
 // distinguished by the registry.
 export function templateToForm(template, id) {
-  const fieldByName = new Map((template.fields ?? []).map((f) => [f.name, f]))
   const rows = (template.fields ?? []).map((f) => {
     if (isBuiltin(f.name)) {
       return {
@@ -98,17 +97,16 @@ export function templateToForm(template, id) {
         inHistory: f.history ?? false,
       }
     }
-    const def = fieldByName.get(f.name) ?? {}
     return {
       kind: 'custom',
       name: f.name,
-      label: def.label ?? '',
-      required: def.required ?? false,
-      remember: def.remember ?? false,
-      default: def.default ?? '',
-      max_length: def.max_length != null ? String(def.max_length) : '',
-      pattern: def.validation?.pattern ?? '',
-      message: def.validation?.message ?? '',
+      label: f.label ?? '',
+      required: f.required ?? false,
+      remember: f.remember ?? false,
+      default: f.default ?? '',
+      max_length: f.max_length != null ? String(f.max_length) : '',
+      pattern: f.validation?.pattern ?? '',
+      message: f.validation?.message ?? '',
       inEntry: f.entry ?? false,
       inHistory: f.history ?? false,
     }
