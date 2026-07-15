@@ -155,6 +155,7 @@ def chat(client_uuid, text, callsign="KJ7ABC", initials="JD", msg_uuid="chat-1")
 async def main():
     async with aiohttp.ClientSession() as session:
         print("boot + connect before any event exists:")
+        # a fresh socket is greeted with the event (none active) and an empty roster
         client_a = await session.ws_connect(WS_URL)
         first = await next_message(client_a)
         check(first == {"type": "event", "event_uuid": None},
@@ -164,13 +165,13 @@ async def main():
               "initial 'presence_list' message is empty")
 
         print("chat with no active event is dropped:")
+        # chat sent before any event exists produces no broadcast (no db to store it)
         await client_a.send_str(json.dumps(chat("client-A", "hello early")))
         check(await no_more_messages(client_a),
               "chat before any event exists produces no broadcast")
 
         print("presence with no active event still works:")
-        # presence needs no db connection; same client_uuid as the later
-        # sections, so the global in-memory roster stays a single station
+        # presence needs no db; reusing client-A keeps the in-memory roster a single station
         await client_a.send_str(json.dumps(presence("client-A", "W7XYZ")))
         roster = await next_message(client_a)
         check(roster["type"] == "presence_list"
@@ -178,6 +179,7 @@ async def main():
               "heartbeat before any event exists still broadcasts the roster")
 
         print("create event:")
+        # creating an event notifies the already-connected client
         status, created = await rest(session, "POST", "/api/admin/events",
                                      headers=ADMIN,
                                      body={"template": "field-day",
@@ -189,6 +191,7 @@ async def main():
               "connected client is notified of the new event")
 
         print("presence heartbeat:")
+        # a valid heartbeat lands the station on the broadcast roster
         await client_a.send_str(json.dumps(presence("client-A", "W7XYZ")))
         roster = await next_message(client_a)
         check(roster["type"] == "presence_list"
@@ -196,6 +199,7 @@ async def main():
               "roster reflects a single valid heartbeat")
 
         print("presence update (same client, new identity):")
+        # a repeat heartbeat updates in place, strips whitespace, and stamps last_seen_at
         await client_a.send_str(json.dumps(presence(
             " client-A ", "  W7XYZ  ", initials=" AB ",
             band=" 40m ", mode=" CW ")))
@@ -213,6 +217,7 @@ async def main():
               "roster entry carries a fresh last_seen_at")
 
         print("malformed presence is ignored:")
+        # malformed heartbeats (missing key, blank field) broadcast nothing and leave the roster intact
         bad = presence("client-A", "W7XYZ")
         del bad["band"]
         await client_a.send_str(json.dumps(bad))
@@ -228,8 +233,7 @@ async def main():
               "roster still has exactly one station after the malformed sends")
 
         print("garbage frames are ignored:")
-        # batch the sends behind a single silence window: any erroneous
-        # broadcast from an earlier send would still arrive within it
+        # non-JSON/unknown-type/untyped/binary frames all sit behind one silence window
         await client_a.send_str("definitely not json")
         await client_a.send_str(json.dumps({"type": "bogus"}))
         await client_a.send_str(json.dumps({"hello": "no type"}))
@@ -243,6 +247,7 @@ async def main():
               "socket and dispatcher survive the garbage frames")
 
         print("second client:")
+        # a second client's heartbeat puts both stations on both clients' rosters
         client_b = await session.ws_connect(WS_URL)
         await next_message(client_b)  # event
         await next_message(client_b)  # presence_list snapshot
@@ -255,6 +260,7 @@ async def main():
                   "both clients see both stations (order not asserted)")
 
         print("chat round trip:")
+        # a chat message broadcasts to every client and lands in the REST history
         await client_a.send_str(json.dumps(chat("client-A", "CQ CQ")))
         chat_a = await next_message(client_a)
         chat_b = await next_message(client_b)
@@ -267,8 +273,7 @@ async def main():
               "REST chat history shows the message sent over WS")
 
         print("duplicate chat uuid is idempotent:")
-        # a resend (e.g. after a reconnect) re-broadcasts the stored row,
-        # so the original text wins even if the resend's text differs
+        # a resend (e.g. after a reconnect) re-broadcasts the stored row: original text wins
         await client_a.send_str(json.dumps(
             chat("client-A", "EDITED TEXT", msg_uuid="chat-1")))
         dup_a = await next_message(client_a)
@@ -282,6 +287,7 @@ async def main():
               "chat history is unchanged after the duplicate send")
 
         print("malformed chat is ignored:")
+        # chat missing a required key broadcasts nothing and stores nothing
         bad_chat = chat("client-A", "should not land", msg_uuid="chat-2")
         del bad_chat["operator_callsign"]
         await client_a.send_str(json.dumps(bad_chat))
@@ -292,7 +298,7 @@ async def main():
               "chat history unchanged after the malformed send")
 
         print("chat text handling:")
-        # text is kept verbatim (whitespace and all); identity keys are stripped
+        # text is kept verbatim (whitespace included); identity fields are stripped
         await client_a.send_str(json.dumps(
             chat("client-A", "  padded text  ", callsign=" KJ7ABC ",
                  msg_uuid="chat-3")))
@@ -310,6 +316,8 @@ async def main():
               and stored is not None and stored["text"] == "  padded text  "
               and stored["operator_callsign"] == "KJ7ABC",
               "stored row keeps text verbatim but strips identity fields")
+
+        # whitespace-only text broadcasts nothing and stores nothing
         await client_a.send_str(json.dumps(
             chat("client-A", "   ", msg_uuid="chat-4")))
         check(await no_more_messages(client_a),
@@ -319,6 +327,7 @@ async def main():
               "chat history unchanged after the blank-text send")
 
         print("poke on contact write:")
+        # a stored contact write pokes every connected client
         contact = {
             "uuid": "11111111-1111-1111-1111-111111111111",
             "qso_at": "2026-01-01T00:00:00.000Z",
@@ -337,6 +346,7 @@ async def main():
               "both clients are poked after a contact write")
 
         print("no poke on a losing LWW write:")
+        # a losing LWW write stores nothing and pokes nobody
         stale = dict(contact, operator_initials="ZZ",
                      last_edited="2025-12-31T00:00:00.000Z")
         status, body = await rest(session, "POST", "/api/contacts", body=stale)
@@ -346,8 +356,11 @@ async def main():
               "losing write produces no poke")
 
         print("chat clear (REST, admin-gated):")
+        # chat clear requires the password
         status, _ = await rest(session, "DELETE", "/api/admin/chat")
         check(status == 401, "chat clear rejects a missing password")
+
+        # clearing broadcasts chat_cleared to every client and empties the history
         status, body = await rest(session, "DELETE", "/api/admin/chat",
                                   headers=ADMIN)
         check(status == 200 and body["cleared"] is True, "chat cleared")
@@ -360,6 +373,7 @@ async def main():
               "REST chat history is empty after clearing")
 
         print("event switch broadcast + chat follows the active event:")
+        # a pre-switch message lands in the first event's history
         await client_a.send_str(json.dumps(
             chat("client-A", "survives the switch", msg_uuid="chat-persist")))
         await next_message(client_a)  # chat broadcast
@@ -369,6 +383,8 @@ async def main():
               and [m["text"] for m in body["messages"]]
               == ["survives the switch"],
               "first event's chat history holds the pre-switch message")
+
+        # creating a second event notifies both clients and starts an empty chat
         status, second = await rest(session, "POST", "/api/admin/events",
                                     headers=ADMIN,
                                     body={"template": "pota",
@@ -383,6 +399,8 @@ async def main():
         status, body = await rest(session, "GET", "/api/chat")
         check(status == 200 and body["messages"] == [],
               "new event starts with an empty chat")
+
+        # chat sent in the new event lands in its own history
         await client_a.send_str(json.dumps(
             chat("client-A", "only in event 2", msg_uuid="chat-e2")))
         await next_message(client_a)  # chat broadcast
@@ -391,6 +409,8 @@ async def main():
         check(status == 200
               and [m["text"] for m in body["messages"]] == ["only in event 2"],
               "chat sent in the new event lands in its own history")
+
+        # re-activating the first event notifies both clients and restores its chat
         status, _ = await rest(
             session, "POST",
             f"/api/admin/events/{created['event_uuid']}/activate",
@@ -408,6 +428,7 @@ async def main():
               "chat history follows the active event back")
 
         print("disconnect doesn't flicker the roster:")
+        # a closed client's station stays on the roster (TTL, not disconnect, expires it)
         await client_b.close()
         client_c = await session.ws_connect(WS_URL)
         await next_message(client_c)  # event
@@ -426,11 +447,14 @@ async def post_restart(event_uuid):
     (in server memory) is gone."""
     async with aiohttp.ClientSession() as session:
         print("restart persistence:")
+        # chat lives in the event db and survives the restart
         status, body = await rest(session, "GET", "/api/chat")
         check(status == 200
               and [m["text"] for m in body["messages"]]
               == ["survives the switch"],
               "chat history survives a server restart")
+
+        # the restarted server announces the same event; presence (memory-only) is empty
         ws = await session.ws_connect(WS_URL)
         first = await next_message(ws)
         check(first == {"type": "event", "event_uuid": event_uuid},
