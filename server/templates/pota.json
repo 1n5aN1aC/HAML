@@ -16,26 +16,49 @@
       "default": "59"
     },
     {
+      "name": "state",
+      "entry": true,
+      "history": true
+    },
+    {
       "name": "their_park",
       "label": "Their Park (P2P)",
-      "max_length": 8,
       "required": false,
+      "remember": false,
       "default": "",
+      "max_length": 8,
       "validation": {
         "pattern": "[A-Z]{1,2}-\\d{4,5}",
         "message": "Their Park must be a park reference like US-1234"
       },
       "entry": true,
       "history": true
-    },
-    {
-      "name": "state",
-      "entry": true,
-      "history": true
     }
   ],
-  "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm", "Other"],
-  "modes": ["SSB", "CW", "FT8", "FT4", "FM", "AM"],
+  "bands": [
+    "160m",
+    "80m",
+    "60m",
+    "40m",
+    "30m",
+    "20m",
+    "17m",
+    "15m",
+    "12m",
+    "10m",
+    "6m",
+    "2m",
+    "70cm",
+    "Other"
+  ],
+  "modes": [
+    "SSB",
+    "CW",
+    "FT8",
+    "FT4",
+    "FM",
+    "AM"
+  ],
   "duplicate_type": "band-mode-day",
   "export": null
 }
