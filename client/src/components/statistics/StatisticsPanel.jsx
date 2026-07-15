@@ -184,13 +184,15 @@ export default function StatisticsPanel() {
               <tr>
                 <th></th>
                 <th>Contacts</th>
+                <th style={{ textAlign: 'left' }}>Name</th>
               </tr>
             </thead>
             <tbody>
               {topSections.map(([section, count]) => (
                 <tr key={section}>
-                  <th title={SECTION_NAMES[section]}>{section}</th>
+                  <th>{section}</th>
                   <td>{count}</td>
+                  <td style={{ textAlign: 'left' }}>{SECTION_NAMES[section]}</td>
                 </tr>
               ))}
             </tbody>
