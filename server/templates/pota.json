@@ -18,7 +18,8 @@
     {
       "name": "state",
       "entry": true,
-      "history": true
+      "history": true,
+      "remember": true
     },
     {
       "name": "their_park",
