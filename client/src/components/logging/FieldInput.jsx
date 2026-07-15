@@ -15,7 +15,7 @@ function matches(pattern, value) {
 }
 
 const FieldInput = forwardRef(function FieldInput(
-  { field, value, onChange, placeholder, onKeyDown, onBlurValidity },
+  { field, value, onChange, placeholder, onKeyDown, onBlurValidity, onBlur },
   ref,
 ) {
   const [latchedBad, setLatchedBad] = useState(false)
@@ -29,13 +29,17 @@ const FieldInput = forwardRef(function FieldInput(
   const feedback = field.validation && {
     className: cls,
     title: field.validation.message,
-    // blur on an invalid value latches red (kept even while refocused and
-    // editing) and reports the field's message upward; valid/empty reports null
-    onBlur: () => {
+  }
+  // Single blur handler: latch red / report validity for validated fields
+  // (valid/empty reports null), then always fire the plain onBlur passthrough
+  // (used by the entry form to auto-derive state <-> section on field exit).
+  function handleBlur(e) {
+    if (field.validation) {
       const bad = trimmed && !ok
       setLatchedBad(bad)
       onBlurValidity?.(bad ? field.validation.message : null)
-    },
+    }
+    onBlur?.(e)
   }
   // Sized so both the longest value (max_length + 2) and the label shown as the placeholder (+ 2) fit.
   const label = placeholder ?? field.label
@@ -51,6 +55,7 @@ const FieldInput = forwardRef(function FieldInput(
       maxLength={field.max_length}
       onChange={(e) => onChange(sanitizeText(e.target.value).toUpperCase())}
       onKeyDown={onKeyDown}
+      onBlur={handleBlur}
       {...feedback}
     />
   )

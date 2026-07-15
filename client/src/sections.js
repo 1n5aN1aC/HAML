@@ -29,6 +29,7 @@ export const TRACKED_SECTIONS = [
   'DX', 'MX',
 ]
 
+// Section abbreviations → full names, used for map hover tooltips and such.
 export const SECTION_NAMES = {
   // New England
   CT: 'Connecticut',
@@ -140,4 +141,59 @@ export const SECTION_NAMES = {
   // DX and Mexico
   DX: 'DX (International)',
   MX: 'Mexico',
+}
+
+// Section abbreviation -> 2-letter state/province code:
+// Hand-maintained alongside STATE_TO_SECTION (its partial inverse).
+export const SECTION_TO_STATE = {
+  // New England:
+  CT: 'CT', RI: 'RI', EMA: 'MA', WMA: 'MA', ME: 'ME', VT: 'VT', NH: 'NH',
+  // New York / New Jersey
+  WNY: 'NY', NNY: 'NY', ENY: 'NY', NLI: 'NY', NNJ: 'NJ', SNJ: 'NJ',
+  // Mid-Atlantic
+  DE: 'DE', MDC: 'MD', WPA: 'PA', EPA: 'PA',
+  // Southeast
+  AL: 'AL', GA: 'GA', KY: 'KY', NFL: 'FL', WCF: 'FL', SFL: 'FL', TN: 'TN', NC: 'NC', SC: 'SC', VA: 'VA',
+  // South Central
+  AR: 'AR', LA: 'LA', MS: 'MS', NM: 'NM', OK: 'OK', NTX: 'TX', WTX: 'TX', STX: 'TX',
+  // Pacific / California
+  EB: 'CA', LAX: 'CA', ORG: 'CA', SB: 'CA', SCV: 'CA', SDG: 'CA', SF: 'CA', SJV: 'CA', SV: 'CA', AZ: 'AZ',
+  // Northwest / Mountain
+  EWA: 'WA', WWA: 'WA', ID: 'ID', MT: 'MT', NV: 'NV', OR: 'OR', UT: 'UT', WY: 'WY', AK: 'AK',
+  // Great Lakes
+  MI: 'MI', OH: 'OH', WV: 'WV',
+  // Central
+  IL: 'IL', IN: 'IN', WI: 'WI',
+  // Midwest
+  CO: 'CO', IA: 'IA', KS: 'KS', MN: 'MN', MO: 'MO', NE: 'NE', ND: 'ND', SD: 'SD',
+  // Canada
+  AB: 'AB', BC: 'BC', ONE: 'ON', ONN: 'ON', GH: 'ON', ONS: 'ON', MB: 'MB', PE: 'PE', NB: 'NB', QC: 'QC', NL: 'NL', SK: 'SK', NS: 'NS',
+  // DX and Mexico
+  DX: 'DX', MX: 'DX', TER: 'DX', PAC: 'DX', VI: 'DX', PR: 'DX',
+}
+
+// State/province code -> section.
+// Ambiguous entries are not included.  (States with multiple sections)
+// Hand-maintained alongside SECTION_TO_STATE (its more-complete inverse).
+export const STATE_TO_SECTION = {
+  // New England
+  CT: 'CT', RI: 'RI', ME: 'ME', VT: 'VT', NH: 'NH',
+  // Mid-Atlantic
+  DE: 'DE', MD: 'MDC',
+  // Southeast
+  AL: 'AL', GA: 'GA', KY: 'KY', TN: 'TN', NC: 'NC', SC: 'SC', VA: 'VA',
+  // South Central
+  AR: 'AR', LA: 'LA', MS: 'MS', NM: 'NM', OK: 'OK',
+  // Northwest / Mountain
+  AZ: 'AZ', ID: 'ID', MT: 'MT', NV: 'NV', OR: 'OR', UT: 'UT', WY: 'WY', AK: 'AK',
+  // Great Lakes
+  MI: 'MI', OH: 'OH', WV: 'WV',
+  // Central
+  IL: 'IL', IN: 'IN', WI: 'WI',
+  // Midwest
+  CO: 'CO', IA: 'IA', KS: 'KS', MN: 'MN', MO: 'MO', NE: 'NE', ND: 'ND', SD: 'SD',
+  // Canada
+  AB: 'AB', BC: 'BC', MB: 'MB', PE: 'PE', NB: 'NB', QC: 'QC', NL: 'NL', SK: 'SK', NS: 'NS',
+  // DX and Mexico
+  DX: 'DX',
 }

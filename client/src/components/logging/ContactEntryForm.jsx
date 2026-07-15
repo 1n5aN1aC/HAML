@@ -15,6 +15,7 @@ import { init as initCallParser, isLoaded, lookup, distanceMiles } from '../../c
 import {
   AUTO_FIELDS, BUILTINS, BUILTIN_ORDER, isBuiltin, resolveEntryFields,
 } from '../../builtin-fields.js'
+import { SECTION_TO_STATE, STATE_TO_SECTION } from '../../sections.js'
 import FieldInput from './FieldInput.jsx'
 
 // UTC + local wall clock, corrected by the same server clock offset used for
@@ -62,6 +63,21 @@ function mergeUntouched(values, touched, ...patches) {
     }
   }
   return next
+}
+
+// Cross-fill patch: derive state from section and/or section from state, as a
+// name -> value patch over the current values. section -> state is authoritative
+// (every mapped section has one state); state -> section only fires for states
+// owning a single section (SECTION_TO_STATE/STATE_TO_SECTION handle the omissions).
+// Emits nothing for unmapped/partial values. mergeUntouched applies it, so it
+// never overwrites a touched field and never marks the counterpart touched.
+function crossFillPatch(values) {
+  const patch = {}
+  const state = SECTION_TO_STATE[String(values.section ?? '').trim()]
+  if (state) patch.state = state
+  const section = STATE_TO_SECTION[String(values.state ?? '').trim()]
+  if (section) patch.section = section
+  return patch
 }
 
 // Zone fields whose CallParser source is zero-padded in the data file ('06'),
@@ -209,6 +225,14 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     })
   }
 
+  // Fired when a section/state entry field loses focus: derive the counterpart
+  // (state from section, or section from state) into an untouched field, so it
+  // populates visibly as soon as the operator leaves the box. Submit re-runs the
+  // same patch, so hidden counterparts and edit-then-Enter are covered there.
+  function applyCrossFill() {
+    setValues((prev) => mergeUntouched(prev, touched, crossFillPatch(prev)))
+  }
+
   async function logContact(e) {
     e.preventDefault()
     // Run the full blur pipeline over the current state so an edit-then-Enter
@@ -216,9 +240,14 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     // the banner it sets is wiped by the reset below), then the lookup and
     // remember fills over untouched fields. The merged map is saved verbatim.
     await checkDuplicate()
-    const finalValues = mergeUntouched(
+    // lookup + remember first, then cross-fill last over the merged interim so a
+    // section-derived state beats a remembered one and a remembered section can
+    // still derive state (last acting wins). Cross-fill also reaches hidden
+    // built-ins (e.g. hidden state from a visible section on section-only events).
+    const merged = mergeUntouched(
       values, touched, lookupPatch(callsign), await rememberPatch(callsign),
     )
+    const finalValues = mergeUntouched(merged, touched, crossFillPatch(merged))
     const problem = validateContact(
       { remote_callsign: callsign, values: finalValues },
       fields,
@@ -327,6 +356,10 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               }}
               onKeyDown={(e) =>
                 handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current])
+              }
+              // leaving section/state derives the counterpart (state <-> section)
+              onBlur={
+                f.name === 'section' || f.name === 'state' ? applyCrossFill : undefined
               }
               // invalid on blur puts the rule's message in the error bar; a
               // valid blur clears it only if this field's message is showing,
