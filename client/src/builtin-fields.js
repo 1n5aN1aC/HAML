@@ -1,10 +1,12 @@
 // Built-in contact fields: a fixed roster every contact can carry regardless
 // of the event's template (server/db.py BUILTIN_FIELDS mirrors this name list;
-// a smoke test keeps the two honest). Templates only decide *display* — which
-// built-ins (and custom fields) appear in the entry box (entry_list) and the
-// contact-log columns (contact_list). This module is the display registry:
-// labels, widths, validation patterns, and which built-ins auto-fill from the
-// CallParser lookup.
+// a smoke test keeps the two honest). Templates declare one ordered `fields`
+// list mixing custom field definitions and built-in references; each item
+// opts into the callsign entry box (`entry`) and/or the history list
+// (`history`) via two required booleans, and row/array order is the one order
+// shared by both. This module is the display registry: labels, widths,
+// validation patterns, and which built-ins auto-fill from the CallParser
+// lookup.
 
 // name -> { label, max_length, validation:{pattern,message}|null, autofill }
 // autofill is the CallParser hit key whose value pre-fills the field, or null.
@@ -97,29 +99,39 @@ export function readFieldValue(contact, name) {
   return isBuiltin(name) ? contact[name] : contact.fields?.[name]
 }
 
-// One entry_list/contact_list item -> a resolved field def. Object items carry
-// per-event overrides (required/remember/default) merged over the base def.
-function resolveItem(item, config) {
-  const name = typeof item === 'string' ? item : item.name
-  const base = isBuiltin(name)
-    ? builtinFieldDef(name)
-    : (config.fields ?? []).find((f) => f.name === name)
-  if (!base) return null
-  const override = item && typeof item === 'object' ? item : {}
+// One `fields` item -> a resolved field def. Built-in refs pull label /
+// max_length / validation from the registry; custom items already carry their
+// own def. Per-item required/remember/default overlay the registry baseline.
+export function resolveField(item) {
+  if (isBuiltin(item.name)) {
+    const base = builtinFieldDef(item.name)
+    return {
+      ...base,
+      required: item.required ?? base.required,
+      remember: item.remember ?? base.remember,
+      default: item.default ?? base.default,
+    }
+  }
   return {
-    ...base,
-    required: override.required ?? base.required ?? false,
-    remember: override.remember ?? base.remember ?? false,
-    default: override.default ?? base.default ?? '',
+    ...item,
+    required: item.required ?? false,
+    remember: item.remember ?? false,
+    default: item.default ?? '',
   }
 }
 
-// Ordered field defs for the callsign-entry box.
+// Ordered field defs for the callsign entry box: items with `entry: true`.
 export function resolveEntryFields(config) {
-  return config.entry_list.map((item) => resolveItem(item, config)).filter(Boolean)
+  return (config.fields ?? []).filter((f) => f.entry).map(resolveField)
 }
 
-// Ordered field defs for the contact-log columns.
-export function resolveColumnFields(config) {
-  return config.contact_list.map((item) => resolveItem(item, config)).filter(Boolean)
+// Ordered field defs for the history list: items with `history: true`.
+export function resolveHistoryFields(config) {
+  return (config.fields ?? []).filter((f) => f.history).map(resolveField)
+}
+
+// Every template field, in order, for the edit modal (which always shows
+// everything, plus any unreferenced built-ins afterwards).
+export function resolveAllFields(config) {
+  return (config.fields ?? []).map(resolveField)
 }

@@ -194,8 +194,8 @@ export function generateTestContacts(config, count = 25) {
   const entryFields = resolveEntryFields(config)
   return Array.from({ length: count }, () => {
     const iso = new Date(now - randInt(0, 7200) * 1000).toISOString()
-    // entry_list values land where they belong: built-ins as top-level columns,
-    // custom fields in the `fields` blob.
+    // entry-shown field values land where they belong: built-ins as top-level
+    // columns, custom fields in the `fields` blob.
     const builtins = {}
     const fields = {}
     for (const f of entryFields) {
@@ -215,7 +215,7 @@ export function generateTestContacts(config, count = 25) {
       mode: pick(config.modes),
       deleted: false,
       // plausible auto built-ins (test data has no callsign lookup); an
-      // entry_list built-in of the same name overrides these
+      // entry-shown built-in of the same name overrides these
       country: 'United States',
       itu_zone: '7',
       cq_zone: '5',

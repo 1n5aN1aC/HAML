@@ -82,8 +82,6 @@ def create_event(data_dir, template, name, station_callsign, location=None,
         "bands": template["bands"],
         "modes": template["modes"],
         "duplicate_type": template["duplicate_type"],
-        "entry_list": template["entry_list"],
-        "contact_list": template["contact_list"],
         "location": location,
         "export": template.get("export"),
     }

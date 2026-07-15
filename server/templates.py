@@ -22,6 +22,60 @@ TEMPLATE_ID_RE = re.compile(r"^[a-z0-9_-]+$")
 HIDDEN_TEMPLATE_IDS = {"example"}
 
 
+def _check_bool(field, name, key):
+    if key not in field:
+        return
+    if not isinstance(field[key], bool):
+        raise ValueError(f"field '{name}': '{key}' must be a boolean")
+
+
+def _validate_builtin_ref(name, field):
+    """A built-in reference: {name, entry, history, required?, remember?,
+    default?}. Label/max_length/validation come from the client registry and
+    may NOT be redefined here."""
+    for forbidden in ("label", "max_length", "validation"):
+        if forbidden in field:
+            raise ValueError(
+                f"field '{name}': built-in references cannot redefine"
+                f" '{forbidden}' (it comes from the client registry)")
+    _check_bool(field, name, "required")
+    _check_bool(field, name, "remember")
+    if "default" in field and not isinstance(field["default"], str):
+        raise ValueError(f"field '{name}': 'default' must be a string")
+
+
+def _validate_custom(name, field):
+    """A custom field definition: must carry label + max_length; optional
+    required/remember/default/validation."""
+    if not isinstance(field.get("label"), str) or not field["label"]:
+        raise ValueError(f"field '{name}' needs a label")
+    max_length = field.get("max_length")
+    if (not isinstance(max_length, int) or isinstance(max_length, bool)
+            or max_length < 1):
+        raise ValueError(f"field '{name}' needs a positive integer 'max_length'")
+    _check_bool(field, name, "required")
+    _check_bool(field, name, "remember")
+    if "default" in field and not isinstance(field["default"], str):
+        raise ValueError(f"field '{name}': 'default' must be a string")
+    validation = field.get("validation")
+    if validation is not None:
+        if not isinstance(validation, dict) or set(validation) != {"pattern", "message"}:
+            raise ValueError(
+                f"field '{name}': 'validation' must be an object with"
+                " exactly 'pattern' and 'message'")
+        pattern = validation["pattern"]
+        if not isinstance(pattern, str) or not pattern:
+            raise ValueError(f"field '{name}': validation 'pattern' must be a non-empty string")
+        try:
+            # sanity check only — the pattern actually runs in the client's
+            # JS regex engine, so stick to the common dialect subset
+            re.compile(pattern)
+        except re.error as exc:
+            raise ValueError(f"field '{name}': bad validation pattern: {exc}")
+        if not isinstance(validation["message"], str) or not validation["message"]:
+            raise ValueError(f"field '{name}': validation 'message' must be a non-empty string")
+
+
 def validate_template(template):
     """Raise ValueError if the template JSON is malformed."""
     if not isinstance(template, dict):
@@ -36,6 +90,10 @@ def validate_template(template):
     if template.get("duplicate_type") not in DUPLICATE_TYPES:
         raise ValueError(
             f"template needs a 'duplicate_type', one of {sorted(DUPLICATE_TYPES)}")
+    # A single ordered list of items — each is a custom field definition or a
+    # built-in reference (name in BUILTIN_FIELDS). Each item independently
+    # opts into the entry box (entry) and the history list (history) via two
+    # required booleans; row/array order is the one order shared by both.
     fields = template.get("fields")
     if not isinstance(fields, list):
         raise ValueError("template needs a list 'fields' (may be empty)")
@@ -44,91 +102,18 @@ def validate_template(template):
         if not isinstance(field, dict):
             raise ValueError("each field must be an object")
         name = field.get("name")
-        if not isinstance(name, str) or not name or name in seen:
-            raise ValueError(f"field has a missing or duplicate name: {name!r}")
-        # custom fields can't shadow a built-in — the name would be ambiguous
-        # between the blob and the column (entry_list references built-ins by
-        # their bare name)
-        if name in BUILTIN_FIELDS:
-            raise ValueError(f"field '{name}' collides with a built-in field name")
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"field has a missing name: {name!r}")
+        if name in seen:
+            raise ValueError(f"field has a duplicate name: {name!r}")
         seen.add(name)
-        if not isinstance(field.get("label"), str) or not field["label"]:
-            raise ValueError(f"field '{name}' needs a label")
-        if not isinstance(field.get("required", False), bool):
-            raise ValueError(f"field '{name}': 'required' must be a boolean")
-        # remember: entry form re-fills this field from the most recent
-        # contact with the same callsign (autofill on callsign blur)
-        if not isinstance(field.get("remember", False), bool):
-            raise ValueError(f"field '{name}': 'remember' must be a boolean")
-        default = field.get("default")
-        if default is not None and not isinstance(default, str):
-            raise ValueError(f"field '{name}': 'default' must be a string")
-        max_length = field.get("max_length")
-        if (not isinstance(max_length, int) or isinstance(max_length, bool)
-                or max_length < 1):
-            raise ValueError(f"field '{name}' needs a positive integer 'max_length'")
-        validation = field.get("validation")
-        if validation is not None:
-            if not isinstance(validation, dict) or set(validation) != {"pattern", "message"}:
-                raise ValueError(
-                    f"field '{name}': 'validation' must be an object with"
-                    " exactly 'pattern' and 'message'")
-            pattern = validation["pattern"]
-            if not isinstance(pattern, str) or not pattern:
-                raise ValueError(f"field '{name}': validation 'pattern' must be a non-empty string")
-            try:
-                # sanity check only — the pattern actually runs in the client's
-                # JS regex engine, so stick to the common dialect subset
-                re.compile(pattern)
-            except re.error as exc:
-                raise ValueError(f"field '{name}': bad validation pattern: {exc}")
-            if not isinstance(validation["message"], str) or not validation["message"]:
-                raise ValueError(f"field '{name}': validation 'message' must be a non-empty string")
-    # entry_list drives the callsign-entry inputs; contact_list drives the
-    # contact-log columns. Both are required and may name custom fields *or*
-    # built-ins (a column can exist without an entry input, e.g. Country).
-    known = seen | set(BUILTIN_FIELDS)
-    _validate_display_list(template, "entry_list", known)
-    _validate_display_list(template, "contact_list", known)
-
-
-# Keys allowed on an object-form display-list entry (a per-event override of the
-# field's registry/template defaults). A bare string is the no-override form.
-_DISPLAY_ENTRY_KEYS = {"name", "required", "remember", "default"}
-
-
-def _validate_display_list(template, key, known):
-    """Validate a required entry_list/contact_list: a list of bare names or
-    {name, required?, remember?, default?} objects; names unique and each a
-    known custom field or built-in. Empty lists are allowed."""
-    items = template.get(key)
-    if not isinstance(items, list):
-        raise ValueError(f"template needs a list '{key}'")
-    names = []
-    for item in items:
-        if isinstance(item, str):
-            name = item
-        elif isinstance(item, dict):
-            name = item.get("name")
-            if not isinstance(name, str) or not name:
-                raise ValueError(f"'{key}' entry needs a string 'name'")
-            extra = set(item) - _DISPLAY_ENTRY_KEYS
-            if extra:
-                raise ValueError(
-                    f"'{key}' entry '{name}' has unknown keys: {', '.join(sorted(extra))}")
-            for flag in ("required", "remember"):
-                if flag in item and not isinstance(item[flag], bool):
-                    raise ValueError(f"'{key}' entry '{name}': '{flag}' must be a boolean")
-            if "default" in item and not isinstance(item["default"], str):
-                raise ValueError(f"'{key}' entry '{name}': 'default' must be a string")
+        for key in ("entry", "history"):
+            if not isinstance(field.get(key), bool):
+                raise ValueError(f"field '{name}': '{key}' must be a boolean")
+        if name in BUILTIN_FIELDS:
+            _validate_builtin_ref(name, field)
         else:
-            raise ValueError(f"'{key}' entries must be strings or objects")
-        names.append(name)
-    if len(set(names)) != len(names):
-        raise ValueError(f"'{key}' has duplicate field names")
-    unknown = [n for n in names if n not in known]
-    if unknown:
-        raise ValueError(f"'{key}' names unknown fields: {', '.join(unknown)}")
+            _validate_custom(name, field)
 
 
 def list_templates(templates_dir=TEMPLATES_DIR):

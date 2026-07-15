@@ -4,14 +4,23 @@
     {
       "name": "class",
       "label": "Class",
+      "max_length": 3,
       "required": true,
       "remember": true,
       "default": "",
-      "max_length": 3,
       "validation": {
         "pattern": "\\d{1,2}[A-F]",
         "message": "Improper Field Day Class"
-      }
+      },
+      "entry": true,
+      "history": true
+    },
+    {
+      "name": "section",
+      "entry": true,
+      "history": true,
+      "required": true,
+      "remember": true
     }
   ],
   "bands": [
@@ -35,10 +44,5 @@
     "Digital"
   ],
   "duplicate_type": "band-mode",
-  "entry_list": [
-    "class",
-    { "name": "section", "required": true, "remember": true }
-  ],
-  "contact_list": ["class", "section"],
   "export": null
 }

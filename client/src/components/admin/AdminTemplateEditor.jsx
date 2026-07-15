@@ -4,8 +4,10 @@
 // job — its 400 messages surface in the error line.
 //
 // Fields are one unified, reorderable list. Each row is a custom field
-// definition or a built-in picked from a dropdown, with Entry (entry box) and
-// Column (contact log) checkboxes. Row order drives both emitted lists.
+// definition or a built-in picked from a dropdown, with "Show in Entry Box"
+// and "Show in History List" checkboxes. Row order drives the template's
+// single `fields` order; both the entry box and history list derive from it
+// via each item's `entry` / `history` booleans.
 import { useState } from 'react'
 import { adminSaveTemplate } from '../../api.js'
 import { BUILTINS } from '../../builtin-fields.js'
@@ -160,9 +162,10 @@ export default function AdminTemplateEditor({
         <section className="admin-section">
           <h2>Fields</h2>
           <p className="placeholder">
-            Add custom fields or pick built-ins. <strong>Entry</strong> shows the
-            field in the callsign entry box; <strong>Column</strong> shows it in
-            the contact log. Order here sets both.
+            Add custom fields or pick built-ins. <strong>Show in Entry Box</strong>{' '}
+            adds the field to the callsign entry form; <strong>Show in History
+            List</strong> adds it as a contact-log column. Order here is the
+            template's single field order and drives both lists.
           </p>
           {form.rows.length === 0 && (
             <p className="placeholder">No fields yet — contacts log with just the callsign.</p>
@@ -227,7 +230,7 @@ export default function AdminTemplateEditor({
     )
   }
 
-  // Entry / Column placement checkboxes, shared by both row kinds.
+  // Entry / History placement checkboxes, shared by both row kinds.
   function placementChecks(row, i) {
     return (
       <>
@@ -237,15 +240,15 @@ export default function AdminTemplateEditor({
             checked={row.inEntry}
             onChange={(e) => updateRow(i, { inEntry: e.target.checked })}
           />
-          Entry box
+          Show in Entry Box
         </label>
         <label className="template-check">
           <input
             type="checkbox"
-            checked={row.inColumn}
-            onChange={(e) => updateRow(i, { inColumn: e.target.checked })}
+            checked={row.inHistory}
+            onChange={(e) => updateRow(i, { inHistory: e.target.checked })}
           />
-          Show in history list
+          Show in History List
         </label>
       </>
     )

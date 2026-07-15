@@ -1,7 +1,8 @@
-// Entry form: remote callsign + the Event's entry_list fields (custom fields
-// and built-ins). Writes straight to Dexie as `pending` (ADR-0001 — local
-// first, sync engine pushes later). Built-ins are stored as top-level
-// properties on the contact; custom fields live in the `fields` blob.
+// Entry form: remote callsign + the Event's entry fields (custom fields
+// and built-ins, the template's `fields` items with `entry: true`). Writes
+// straight to Dexie as `pending` (ADR-0001 — local first, sync engine pushes
+// later). Built-ins are stored as top-level properties on the contact; custom
+// fields live in the `fields` blob.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'

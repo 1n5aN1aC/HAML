@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db.js'
-import { isBuiltin, readFieldValue, resolveColumnFields } from '../../builtin-fields.js'
+import { isBuiltin, readFieldValue, resolveHistoryFields } from '../../builtin-fields.js'
 
 const DISPLAY_LIMIT = 50
 
@@ -40,9 +40,9 @@ export default function ContactList({ config, onSelect }) {
   const needle = query.trim().toLowerCase()
   const tokens = needle ? needle.split(/\s+/) : []
 
-  // contact_list picks and orders the columns; each names a custom field or a
-  // built-in. Absent (old frozen configs) = every custom field, by order.
-  const fields = resolveColumnFields(config)
+  // The template's fields with `history: true` pick and order the columns;
+  // each names a custom field or a built-in.
+  const fields = resolveHistoryFields(config)
 
   const contacts = useLiveQuery(
     () =>

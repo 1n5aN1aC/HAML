@@ -31,26 +31,20 @@ def require_event(request):
         )
     return conn
 
-# Names of required entry fields that are absent or blank on a contact body.
-# Mirrors the client's resolution (builtin-fields.js resolveItem): an
-# entry_list object override's 'required' wins over the field def's own flag —
-# including an explicit false. Only entry_list can make a built-in required
-# (contact_list is columns-only: no input, so never enforced). Built-in values
-# live top-level on the body; custom values live in the 'fields' blob.
+# Names of required fields that are absent or blank on a contact body.
+# Mirrors the client's resolution (builtin-fields.js resolveField): a field's
+# 'required' flag is enforced only when the field is opted into the entry
+# box (a field hidden from entry can never be filled at log time). Built-in
+# values live top-level on the body; custom values live in the 'fields' blob.
 def missing_required_fields(config, body):
-    overrides = {item["name"]: item
-                 for item in config.get("entry_list") or []
-                 if isinstance(item, dict)}
     fields = body.get("fields") or {}
     missing = []
     for f in config.get("fields") or []:
+        if not (f.get("entry") and f.get("required")):
+            continue
         name = f["name"]
-        required = overrides.get(name, {}).get("required", f.get("required"))
-        if required and not str(fields.get(name, "")).strip():
-            missing.append(name)
-    for name, item in overrides.items():
-        if (name in db.BUILTIN_FIELDS and item.get("required")
-                and not str(body.get(name, "")).strip()):
+        value = body.get(name) if name in db.BUILTIN_FIELDS else fields.get(name)
+        if not str(value or "").strip():
             missing.append(name)
     return missing
 

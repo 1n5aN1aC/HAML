@@ -7,7 +7,7 @@ import { pushNow } from '../../sync.js'
 import { validateContact } from '../../contact-validation.js'
 import { sanitizeText } from '../../text-input.js'
 import {
-  BUILTIN_ORDER, builtinFieldDef, isBuiltin, resolveEntryFields,
+  BUILTIN_ORDER, builtinFieldDef, isBuiltin, resolveAllFields,
 } from '../../builtin-fields.js'
 import FieldInput from './FieldInput.jsx'
 
@@ -127,14 +127,16 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
     await write({ deleted: true })
   }
 
-  // The modal always shows everything: entry-box fields first (entry_list
-  // order), then a divider and the remaining built-ins (registry order), then
-  // any custom fields the template keeps out of the entry box.
-  const entryFields = resolveEntryFields(config)
-  const entryNames = new Set(entryFields.map((f) => f.name))
-  const modalBuiltins = BUILTIN_ORDER.filter((n) => !entryNames.has(n)).map(builtinFieldDef)
-  const modalCustoms = config.fields.filter((f) => !entryNames.has(f.name))
-  const allFields = [...entryFields, ...modalBuiltins, ...modalCustoms]
+  // The modal always shows everything: every template field in template order
+  // (custom definitions and built-in references alike), then a divider, then
+  // any built-ins the template doesn't reference (so every built-in can be
+  // edited on demand).
+  const templateFields = resolveAllFields(config)
+  const referenced = new Set(templateFields.map((f) => f.name))
+  const modalBuiltins = BUILTIN_ORDER
+    .filter((n) => !referenced.has(n))
+    .map(builtinFieldDef)
+  const allFields = [...templateFields, ...modalBuiltins]
 
   const renderField = (f) => {
     const builtin = isBuiltin(f.name)

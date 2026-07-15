@@ -5,8 +5,9 @@
 //
 // The editor is one unified, reorderable list of rows. Each row is either a
 // custom field definition or a built-in picked from the registry, with Entry
-// and Column checkboxes. Row order drives both emitted lists: rows with
-// `inEntry` become entry_list, rows with `inColumn` become contact_list.
+// and History checkboxes. The row order is the template's single `fields`
+// order; the entry box and history list both derive from it via each item's
+// `entry` / `history` booleans.
 
 import { BUILTINS, isBuiltin } from './builtin-fields.js'
 
@@ -33,8 +34,8 @@ function splitList(text) {
     .filter(Boolean)
 }
 
-// A blank custom-field row. Both display lists on by default (a new field is
-// usually wanted in the entry box and the log).
+// A blank custom-field row. Both lists on by default (a new field is usually
+// wanted in the entry box and the history list).
 export function emptyRow() {
   return {
     kind: 'custom',
@@ -47,7 +48,7 @@ export function emptyRow() {
     pattern: '',
     message: '',
     inEntry: true,
-    inColumn: true,
+    inHistory: true,
   }
 }
 
@@ -65,7 +66,7 @@ export function builtinRow(name) {
     pattern: '',
     message: '',
     inEntry: true,
-    inColumn: true,
+    inHistory: true,
   }
 }
 
@@ -81,68 +82,37 @@ export function emptyForm() {
   }
 }
 
-// A display-list item -> its field name (bare string or {name} object).
-function itemName(item) {
-  return typeof item === 'string' ? item : item.name
-}
-
-// name -> the override object item (or {} for a bare-string reference).
-function overrideMap(list) {
-  const map = new Map()
-  for (const item of list ?? []) {
-    map.set(itemName(item), typeof item === 'object' ? item : {})
-  }
-  return map
-}
-
-// Loaded template JSON -> unified row form state. Row order follows entry_list,
-// then any column-only references, then any custom fields referenced nowhere
-// (modal-only). Overrides on entry_list objects win over the field's own
-// defaults when reconstructing a row.
+// Loaded template JSON -> unified row form state. Each `fields` item maps
+// directly to a row in template order; built-in items vs custom items are
+// distinguished by the registry.
 export function templateToForm(template, id) {
   const fieldByName = new Map((template.fields ?? []).map((f) => [f.name, f]))
-  const entry = overrideMap(template.entry_list)
-  const columns = overrideMap(template.contact_list)
-
-  const ordered = [
-    ...(template.entry_list ?? []).map(itemName),
-    ...(template.contact_list ?? []).map(itemName),
-    ...(template.fields ?? []).map((f) => f.name),
-  ]
-  const seen = new Set()
-  const rows = []
-  for (const name of ordered) {
-    if (seen.has(name)) continue
-    seen.add(name)
-    const override = entry.get(name) ?? columns.get(name) ?? {}
-    const inEntry = entry.has(name)
-    const inColumn = columns.has(name)
-    if (isBuiltin(name)) {
-      rows.push({
-        ...builtinRow(name),
-        required: override.required ?? false,
-        remember: override.remember ?? false,
-        default: override.default ?? '',
-        inEntry,
-        inColumn,
-      })
-    } else {
-      const f = fieldByName.get(name) ?? {}
-      rows.push({
-        kind: 'custom',
-        name,
-        label: f.label ?? '',
-        required: override.required ?? f.required ?? false,
-        remember: override.remember ?? f.remember ?? false,
-        default: override.default ?? f.default ?? '',
-        max_length: f.max_length != null ? String(f.max_length) : '',
-        pattern: f.validation?.pattern ?? '',
-        message: f.validation?.message ?? '',
-        inEntry,
-        inColumn,
-      })
+  const rows = (template.fields ?? []).map((f) => {
+    if (isBuiltin(f.name)) {
+      return {
+        ...builtinRow(f.name),
+        required: f.required ?? false,
+        remember: f.remember ?? false,
+        default: f.default ?? '',
+        inEntry: f.entry ?? false,
+        inHistory: f.history ?? false,
+      }
     }
-  }
+    const def = fieldByName.get(f.name) ?? {}
+    return {
+      kind: 'custom',
+      name: f.name,
+      label: def.label ?? '',
+      required: def.required ?? false,
+      remember: def.remember ?? false,
+      default: def.default ?? '',
+      max_length: def.max_length != null ? String(def.max_length) : '',
+      pattern: def.validation?.pattern ?? '',
+      message: def.validation?.message ?? '',
+      inEntry: f.entry ?? false,
+      inHistory: f.history ?? false,
+    }
+  })
   return {
     id,
     name: template.name,
@@ -154,24 +124,11 @@ export function templateToForm(template, id) {
   }
 }
 
-// A built-in entry_list item: bare name unless an override differs from the
-// neutral registry baseline (all-optional, empty default).
-function builtinItem(name, row) {
-  const item = { name }
-  if (row.required) item.required = true
-  if (row.remember) item.remember = true
-  if ((row.default ?? '') !== '') item.default = row.default
-  return Object.keys(item).length === 1 ? name : item
-}
-
-// Form state -> fresh template JSON. Custom fields carry their own
-// required/remember/default/validation on the field def and are referenced by
-// bare name; built-ins live only in the lists, as objects when overridden.
-// contact_list is always bare names (columns have no inputs, so no overrides).
+// Form state -> fresh template JSON. A single ordered `fields` array carries
+// everything: custom definitions carry their full def plus entry/history;
+// built-in references carry their name plus entry/history and any overrides.
 export function formToTemplate(form) {
   const fields = []
-  const entry_list = []
-  const contact_list = []
   for (const row of form.rows) {
     const name = row.name.trim()
     if (row.kind === 'custom') {
@@ -186,24 +143,25 @@ export function formToTemplate(form) {
       if (row.pattern.trim() || row.message.trim()) {
         field.validation = { pattern: row.pattern.trim(), message: row.message.trim() }
       }
+      field.entry = !!row.inEntry
+      field.history = !!row.inHistory
       fields.push(field)
-      if (row.inEntry) entry_list.push(name)
-    } else if (row.inEntry) {
-      entry_list.push(builtinItem(name, row))
+    } else {
+      const item = { name, entry: !!row.inEntry, history: !!row.inHistory }
+      if (row.required) item.required = true
+      if (row.remember) item.remember = true
+      if ((row.default ?? '') !== '') item.default = row.default
+      fields.push(item)
     }
-    if (row.inColumn) contact_list.push(name)
   }
-  const template = {
+  return {
     name: form.name.trim(),
     fields,
     bands: splitList(form.bands),
     modes: splitList(form.modes),
     duplicate_type: form.duplicate_type,
-    entry_list,
-    contact_list,
     export: form.export.trim() ? JSON.parse(form.export) : null,
   }
-  return template
 }
 
 // Light save gate: just the pieces whose absence makes saving pointless.

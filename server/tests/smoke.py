@@ -214,15 +214,16 @@ def unit_checks():
             check(True, "validate_contact rejects a non-string built-in")
 
         # the stock templates only reference built-ins the server knows about —
-        # keeps the server BUILTIN_FIELDS list honest against the templates
+        # keeps the server BUILTIN_FIELDS list honest against the templates.
+        # Each `fields` item is a custom definition or a built-in reference;
+        # a built-in name is anything in BUILTIN_FIELDS, otherwise it's a
+        # custom field and must be defined in `fields`.
         for tid in ("field-day", "pota", "generic", "example"):
             t = templates.load_template(tid)
-            refs = [i if isinstance(i, str) else i["name"]
-                    for i in t["entry_list"] + t["contact_list"]]
             customs = {f["name"] for f in t["fields"]}
-            unknown = [n for n in refs
-                       if n not in customs and n not in db.BUILTIN_FIELDS]
-            check(not unknown, f"{tid} references only known custom/built-in fields")
+            unknown = [f["name"] for f in t["fields"]
+                       if f["name"] not in customs and f["name"] not in db.BUILTIN_FIELDS]
+            check(not unknown, f"{tid} fields are all known custom/built-in names")
 
         # the client's display registry mirrors the server's BUILTIN_FIELDS —
         # this is the promised honesty check both files' comments refer to. A
@@ -240,31 +241,36 @@ def unit_checks():
               "client BUILTINS names mirror server BUILTIN_FIELDS")
 
         # missing_required_fields mirrors the client's resolution semantics
-        # (builtin-fields.js resolveItem): entry_list overrides win — even an
-        # explicit false — and only entry_list can make a built-in required.
+        # (builtin-fields.js resolveField): a field's `required` flag is
+        # enforced only when its `entry` flag is also true (a field hidden
+        # from the entry box can't be filled at log time). Built-in values
+        # live top-level on the body; custom values live in the `fields` blob.
         cfg = {
-            "fields": [{"name": "class", "required": True}],
-            "entry_list": ["class", {"name": "section", "required": True},
-                           {"name": "their_park"}],
-            "contact_list": [{"name": "state", "required": True}],
+            "fields": [
+                {"name": "class", "required": True, "entry": True},
+                {"name": "section", "required": True, "entry": True},
+                {"name": "their_park", "entry": True},
+                {"name": "state", "required": True, "history": True},
+            ],
         }
-        ok_body = {"fields": {"class": "3A"}, "section": "OR"}
+        ok_body = {"fields": {"class": "3A", "their_park": ""}, "section": "OR"}
         check(api_rest.missing_required_fields(cfg, ok_body) == [],
               "required check passes with custom and built-in values present")
         check(api_rest.missing_required_fields(cfg, {"fields": {}})
               == ["class", "section"],
               "required check reports blank custom (blob) and built-in"
-              " (top-level) — and ignores contact_list overrides")
-        cfg_off = {
-            "fields": [{"name": "class", "required": True}],
-            "entry_list": [{"name": "class", "required": False}],
+              " (top-level) — and ignores history-only fields")
+        cfg_no_entry = {
+            "fields": [
+                {"name": "class", "required": True, "entry": False},
+            ],
         }
-        check(api_rest.missing_required_fields(cfg_off, {"fields": {}}) == [],
-              "an entry_list override can disable a field def's required flag")
-        cfg_old = {"fields": [{"name": "class", "required": True}]}
+        check(api_rest.missing_required_fields(cfg_no_entry, {"fields": {}}) == [],
+              "a required field with entry:false is not enforced at log time")
+        cfg_old = {"fields": [{"name": "class", "required": True, "entry": True}]}
         check(api_rest.missing_required_fields(cfg_old, {"fields": {}})
               == ["class"],
-              "a frozen config without entry_list keeps the old behavior")
+              "a frozen config with required + entry still flags missing values")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -339,10 +345,11 @@ def main():
                  "required": True, "remember": True, "default": "",
                  "max_length": 4,
                  "validation": {"pattern": "[A-R]{2}\\d{2}",
-                                "message": "Grid must look like CN85"}},
+                                "message": "Grid must look like CN85"},
+                 "entry": True, "history": True},
             ],
             "bands": ["20m"], "modes": ["SSB"], "duplicate_type": "none",
-            "entry_list": ["grid"], "contact_list": ["grid"], "export": None,
+            "export": None,
         }
         status, _ = request("PUT", "/api/admin/templates/smoke-scratch",
                             body=scratch)
@@ -414,39 +421,67 @@ def main():
                                headers=ADMIN, body=no_dupe)
         check(status == 400 and "duplicate_type" in body["error"],
               "template without a duplicate_type is rejected")
-        bad_list = dict(scratch, contact_list=["nope"])
+        bad_list = json.loads(json.dumps(scratch))
+        # An unknown name with only entry/history (no label/max_length) is
+        # treated as a custom field def, which must carry both. Without them
+        # the validator rejects the template.
+        bad_list["fields"] = [
+            {"name": "nope", "entry": True, "history": True},
+        ]
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_list)
-        check(status == 400, "contact_list naming an unknown field is rejected")
-        builtin_name = json.loads(json.dumps(scratch))
-        builtin_name["fields"][0]["name"] = "state"
+        check(status == 400 and "label" in body["error"],
+              "custom field without label/max_length is rejected (unknown name"
+              " with no def is just a custom field missing its keys)")
+        builtin_with_label = json.loads(json.dumps(scratch))
+        builtin_with_label["fields"] = [
+            {"name": "section", "label": "Section", "entry": True, "history": True},
+        ]
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
-                               headers=ADMIN, body=builtin_name)
-        check(status == 400 and "built-in" in body["error"],
-              "custom field named after a built-in is rejected")
-        no_entry = {k: v for k, v in scratch.items() if k != "entry_list"}
+                               headers=ADMIN, body=builtin_with_label)
+        check(status == 400 and "label" in body["error"],
+              "built-in reference carrying 'label' is rejected")
+        builtin_with_max = json.loads(json.dumps(scratch))
+        builtin_with_max["fields"] = [
+            {"name": "section", "max_length": 3, "entry": True, "history": True},
+        ]
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
-                               headers=ADMIN, body=no_entry)
-        check(status == 400 and "entry_list" in body["error"],
-              "template without an entry_list is rejected")
-        no_columns = {k: v for k, v in scratch.items() if k != "contact_list"}
+                               headers=ADMIN, body=builtin_with_max)
+        check(status == 400 and "max_length" in body["error"],
+              "built-in reference carrying 'max_length' is rejected")
+        builtin_with_validation = json.loads(json.dumps(scratch))
+        builtin_with_validation["fields"] = [
+            {"name": "section", "validation": {"pattern": "X", "message": "Y"},
+             "entry": True, "history": True},
+        ]
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
-                               headers=ADMIN, body=no_columns)
-        check(status == 400 and "contact_list" in body["error"],
-              "template without a contact_list is rejected")
-        bad_entry = dict(scratch, entry_list=["nope"])
+                               headers=ADMIN, body=builtin_with_validation)
+        check(status == 400 and "validation" in body["error"],
+              "built-in reference carrying 'validation' is rejected")
+        builtin_valid = json.loads(json.dumps(scratch))
+        builtin_valid["fields"] = [
+            {"name": "grid", "label": "Grid", "max_length": 4,
+             "entry": True, "history": True},
+            {"name": "section", "entry": True, "history": True,
+             "required": True, "default": "OR"},
+        ]
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
-                               headers=ADMIN, body=bad_entry)
-        check(status == 400 and "entry_list" in body["error"],
-              "entry_list naming an unknown field is rejected")
-        builtin_entry = dict(scratch,
-                             entry_list=["grid", {"name": "state", "default": "OR"}],
-                             contact_list=["grid", "country"])
-        status, body = request("PUT", "/api/admin/templates/smoke-bad",
-                               headers=ADMIN, body=builtin_entry)
+                               headers=ADMIN, body=builtin_valid)
         check(status == 200,
-              "entry_list/contact_list may reference built-ins (with overrides)")
+              "custom and built-in fields coexist in the same ordered list")
         status, _ = request("DELETE", "/api/admin/templates/smoke-bad", headers=ADMIN)
+        missing_flag = json.loads(json.dumps(scratch))
+        del missing_flag["fields"][0]["entry"]
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=missing_flag)
+        check(status == 400 and "entry" in body["error"],
+              "field without 'entry' boolean is rejected")
+        missing_flag2 = json.loads(json.dumps(scratch))
+        del missing_flag2["fields"][0]["history"]
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=missing_flag2)
+        check(status == 400 and "history" in body["error"],
+              "field without 'history' boolean is rejected")
         bad_default = json.loads(json.dumps(scratch))
         bad_default["fields"][0]["default"] = 59
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
@@ -561,12 +596,13 @@ def main():
         check(event["local_exchange"] == "W7XYZ 6A OR",
               "local_exchange round-trips uppercased")
         field_names = [f["name"] for f in event["config"]["fields"]]
-        check(field_names == ["class"], "frozen config has the custom fields only")
-        check(event["config"]["entry_list"][0] == "class"
-              and event["config"]["entry_list"][1]["name"] == "section",
-              "frozen config carries entry_list (built-in section referenced)")
-        check(event["config"]["contact_list"] == ["class", "section"],
-              "frozen config carries contact_list naming a built-in column")
+        check(field_names == ["class", "section"],
+              "frozen config has the ordered fields list (custom + built-in ref)")
+        check(event["config"]["fields"][0]["entry"] is True
+              and event["config"]["fields"][0]["history"] is True
+              and event["config"]["fields"][1]["entry"] is True
+              and event["config"]["fields"][1]["history"] is True,
+              "frozen config carries entry/history booleans on every field")
         check(event["config"]["fields"][0]["validation"]["message"],
               "frozen config carries field validation")
         check(event["config"]["duplicate_type"] == "band-mode",
@@ -599,11 +635,11 @@ def main():
         status, event = request("GET", "/api/event")
         config = event["config"]
         check([f["name"] for f in config["fields"]] == ["grid"]
+              and config["fields"][0]["entry"] is True
+              and config["fields"][0]["history"] is True
               and config["fields"][0]["remember"] is True
-              and config["duplicate_type"] == "none"
-              and config["entry_list"] == ["grid"]
-              and config["contact_list"] == ["grid"],
-              "frozen config mirrors the saved template")
+              and config["duplicate_type"] == "none",
+              "frozen config mirrors the saved template (single fields list)")
         check(config["location"] is None,
               "event created without a location has none in its config")
         check(event["local_exchange"] is None,
@@ -662,6 +698,21 @@ def main():
         check(skew < 10,
               "pull response server_time is close to the current time")
         cursor1 = body["server_time"]
+
+        print("required enforcement on push:")
+        # The event's template (field-day) has class (custom, required, entry)
+        # and section (built-in ref, required, entry). A contact missing the
+        # built-in value (top-level) or the custom value (blob) is rejected.
+        blank = make_contact("client-A", "N0CALL", iso(), section="")
+        del blank["fields"]["class"]
+        status, body = request("POST", "/api/contacts", body=blank)
+        check(status == 400 and "section" in body["error"]
+              and "class" in body["error"],
+              "contact missing a required built-in (top-level) or required"
+              " custom (blob) is rejected at push time")
+        # The contact that the rest of the walk uses (contact_a) already has
+        # section="OR" and fields={"class": "3A"} from make_contact, so it
+        # passed required enforcement on the first push above.
 
         print("LWW conflict (client B edits the same contact):")
         newer = dict(contact_a, operator_initials="XX",
@@ -854,7 +905,12 @@ def main():
         check(status == 200 and event["event_uuid"] == created["event_uuid"],
               "active event survives a server restart")
         check(event["station_callsign"] == "W7XYZ"
-              and [f["name"] for f in event["config"]["fields"]] == ["class"],
+              and [f["name"] for f in event["config"]["fields"]]
+              == ["class", "section"]
+              and event["config"]["fields"][0]["entry"] is True
+              and event["config"]["fields"][0]["history"] is True
+              and event["config"]["fields"][1]["entry"] is True
+              and event["config"]["fields"][1]["history"] is True,
               "event meta and frozen config survive a restart")
         status, body = request("GET", "/api/contacts")
         check(status == 200 and len(body["contacts"]) == 4,
