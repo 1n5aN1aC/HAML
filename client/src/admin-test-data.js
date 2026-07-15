@@ -2,6 +2,7 @@
 // Field values are random strings that satisfy each field's validation
 // pattern, so the generated rows pass the same checks as real traffic.
 import { newUuid } from './uuid.js'
+import { isBuiltin, resolveEntryFields } from './builtin-fields.js'
 
 const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const DIGITS = '0123456789'
@@ -190,8 +191,17 @@ function randomCallsign() {
 // two hours so the log looks lived-in; TEST/TT marks the rows as fake.
 export function generateTestContacts(config, count = 25) {
   const now = Date.now()
+  const entryFields = resolveEntryFields(config)
   return Array.from({ length: count }, () => {
     const iso = new Date(now - randInt(0, 7200) * 1000).toISOString()
+    // entry_list values land where they belong: built-ins as top-level columns,
+    // custom fields in the `fields` blob.
+    const builtins = {}
+    const fields = {}
+    for (const f of entryFields) {
+      if (isBuiltin(f.name)) builtins[f.name] = fieldValue(f)
+      else fields[f.name] = fieldValue(f)
+    }
     return {
       uuid: newUuid(),
       qso_at: iso,
@@ -204,7 +214,14 @@ export function generateTestContacts(config, count = 25) {
       band: pick(config.bands),
       mode: pick(config.modes),
       deleted: false,
-      fields: Object.fromEntries(config.fields.map((f) => [f.name, fieldValue(f)])),
+      // plausible auto built-ins (test data has no callsign lookup); an
+      // entry_list built-in of the same name overrides these
+      country: 'United States',
+      itu_zone: '7',
+      cq_zone: '5',
+      continent: 'NA',
+      ...builtins,
+      fields,
     }
   })
 }

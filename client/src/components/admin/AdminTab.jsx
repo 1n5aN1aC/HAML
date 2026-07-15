@@ -27,7 +27,10 @@ const EMPTY_FORM = {
   longitude: '',
 }
 
-export default function AdminTab() {
+// onEventChange (optional): called after this tab creates or activates an
+// event. The no-event screen uses it to re-boot — there's no WebSocket
+// running in that state to deliver the server's event-switch signal.
+export default function AdminTab({ onEventChange }) {
   const [password, setPassword] = useState('')
   const [unlocked, setUnlocked] = useState(false)
   const [unlockError, setUnlockError] = useState('')
@@ -110,6 +113,7 @@ export default function AdminTab() {
     run(async () => {
       await adminActivateEvent(password, event.event_uuid)
       await refresh()
+      onEventChange?.()
     })
   }
 
@@ -138,6 +142,7 @@ export default function AdminTab() {
       await adminCreateEvent(password, form)
       setForm(EMPTY_FORM)
       await refresh()
+      onEventChange?.()
     })
   }
 

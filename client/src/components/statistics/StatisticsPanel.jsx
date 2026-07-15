@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db.js'
+import { SECTION_NAMES } from '../../sections.js'
 
 export default function StatisticsPanel() {
   const contacts =
@@ -100,7 +101,7 @@ export default function StatisticsPanel() {
   // "section" (same convention as MapPanel); contacts without one land in
   // tally's Unknown bucket and are dropped, so events whose template has no
   // section field render no section stat at all.
-  const topSections = tally((c) => c.fields?.section?.toUpperCase())
+  const topSections = tally((c) => c.section?.toUpperCase())
     .filter(([k]) => k !== 'Unknown')
     .slice(0, 10)
 
@@ -116,12 +117,6 @@ export default function StatisticsPanel() {
         <strong>Longest Gap:</strong>{' '}
         {times.length >= 2 ? formatGap(longestGap) : '—'}
       </p>
-      {topSections.length > 0 && (
-        <p>
-          <strong>Top Sections:</strong>{' '}
-          {topSections.map(([s, n]) => `${s} (${n})`).join(', ')}
-        </p>
-      )}
       <p><strong>Contacts by Band / Mode:</strong></p>
       {contacts.length === 0 ? (
         <p className="indent">No contacts yet</p>
@@ -180,6 +175,27 @@ export default function StatisticsPanel() {
             ))}
           </tbody>
         </table>
+      )}
+      {topSections.length > 0 && (
+        <>
+          <p><strong>Top Sections:</strong></p>
+          <table className="stats-matrix">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Contacts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topSections.map(([section, count]) => (
+                <tr key={section}>
+                  <th title={SECTION_NAMES[section]}>{section}</th>
+                  <td>{count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   )

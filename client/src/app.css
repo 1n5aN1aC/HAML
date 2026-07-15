@@ -190,6 +190,9 @@ body {
 .admin-error { color: var(--theme-danger); }
 .admin-notice { color: var(--theme-success); }
 
+/* banner above the admin panel on the no-active-event screen */
+.no-event-banner { margin: 12px 16px 0; text-align: center; }
+
 .admin-new-template { margin-top: 10px; }
 
 /* --- template editor (admin sub-view) -------------------------------------- */

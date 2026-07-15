@@ -1,5 +1,7 @@
-// Entry form: remote callsign + the Event's template fields. Writes straight
-// to Dexie as `pending` (ADR-0001 — local first, sync engine pushes later).
+// Entry form: remote callsign + the Event's entry_list fields (custom fields
+// and built-ins). Writes straight to Dexie as `pending` (ADR-0001 — local
+// first, sync engine pushes later). Built-ins are stored as top-level
+// properties on the contact; custom fields live in the `fields` blob.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'
@@ -9,6 +11,9 @@ import { sanitizeText } from '../../text-input.js'
 import { playSubmit, playDuplicate, playDx } from '../../sounds.js'
 import { findDuplicate, findLatestContact } from '../../dupes.js'
 import { init as initCallParser, isLoaded, lookup, distanceMiles } from '../../callparser.js'
+import {
+  AUTO_FIELDS, BUILTINS, isBuiltin, resolveEntryFields,
+} from '../../builtin-fields.js'
 import FieldInput from './FieldInput.jsx'
 
 // UTC + local wall clock, corrected by the same server clock offset used for
@@ -35,6 +40,12 @@ function defaultValues(fields) {
   return Object.fromEntries(fields.map((f) => [f.name, f.default ?? '']))
 }
 
+// The auto-filled value for a built-in from a CallParser hit (or '' when no
+// hit / no loaded database).
+function autoValue(hit, name) {
+  return hit ? String(hit[BUILTINS[name].autofill] ?? '') : ''
+}
+
 // same style as the entry clock's local half ("11:42 AM")
 function formatLocalTime(iso) {
   const d = new Date(iso)
@@ -43,12 +54,17 @@ function formatLocalTime(iso) {
 }
 
 export default function ContactEntryForm({ config, session, clientUuid, disabled }) {
-  const fields = useMemo(
-    () => [...config.fields].sort((a, b) => a.order - b.order),
-    [config],
+  const fields = useMemo(() => resolveEntryFields(config), [config])
+  // which auto-fill built-ins have a visible input (live-filled on blur)
+  const visibleAutos = useMemo(
+    () => fields.filter((f) => AUTO_FIELDS.includes(f.name)).map((f) => f.name),
+    [fields],
   )
   const [callsign, setCallsign] = useState('')
   const [values, setValues] = useState(() => defaultValues(fields))
+  // names the operator typed into by hand — at submit, a touched auto field's
+  // value wins over the freshly recomputed lookup value
+  const [touched, setTouched] = useState(() => new Set())
   const [error, setError] = useState('')
   const [dupe, setDupe] = useState(null)
   const callsignRef = useRef(null)
@@ -116,7 +132,8 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
 
   // "remember" autofill, fired on the same blur: copy the most recent
   // contact's values into remember-enabled fields, overwriting what's there.
-  // No match leaves the fields alone; empty source values are skipped.
+  // Built-ins read from the contact's top-level columns, customs from its
+  // `fields` blob. No match leaves the fields alone; empty sources are skipped.
   async function autofillRemembered() {
     if (!callsign) return
     const latest = await findLatestContact(callsign)
@@ -124,9 +141,22 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setValues((prev) => {
       const next = { ...prev }
       for (const f of fields) {
-        const v = latest.fields?.[f.name]
-        if (f.remember && v != null && String(v).trim()) next[f.name] = v
+        if (!f.remember) continue
+        const v = isBuiltin(f.name) ? latest[f.name] : latest.fields?.[f.name]
+        if (v != null && String(v).trim()) next[f.name] = v
       }
+      return next
+    })
+  }
+
+  // Live-fill visible auto built-ins (country/zones/continent) from the
+  // callsign lookup on the same blur, overwriting — parallel to remember.
+  function autofillLookup() {
+    if (!callsign || !parserReady || visibleAutos.length === 0) return
+    const hit = lookup(callsign)
+    setValues((prev) => {
+      const next = { ...prev }
+      for (const name of visibleAutos) next[name] = autoValue(hit, name)
       return next
     })
   }
@@ -134,12 +164,27 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   async function logContact(e) {
     e.preventDefault()
     const problem = validateContact(
-      { remote_callsign: callsign, fields: values },
-      config,
+      { remote_callsign: callsign, values },
+      fields,
     )
     if (problem) {
       setError(problem)
       return
+    }
+    // Split the entry values into built-in columns and the custom `fields` blob.
+    const builtins = {}
+    const customFields = {}
+    for (const f of fields) {
+      if (isBuiltin(f.name)) builtins[f.name] = values[f.name]
+      else customFields[f.name] = values[f.name]
+    }
+    // Recompute the four autos from the final callsign: a value the operator
+    // visibly typed (touched) wins; otherwise the lookup value is authoritative
+    // (this also fills the hidden autos, which have no input at all).
+    const hit = parserReady ? lookup(callsign) : null
+    for (const name of AUTO_FIELDS) {
+      if (visibleAutos.includes(name) && touched.has(name)) continue
+      builtins[name] = autoValue(hit, name)
     }
     // QSO time defaults from server-corrected time (clock offset, plan §3.3);
     // the offset is written by the sync engine and is absent until first sync.
@@ -157,15 +202,17 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       band: session.band,
       mode: session.mode,
       deleted: false,
-      fields: values,
+      ...builtins,
+      fields: customFields,
       sync_state: 'pending',
     })
     pushNow()
     // DX contacts get their own submit sound:
-    if (String(values.section ?? '').trim() === 'DX') playDx()
+    if (String(builtins.section ?? '').trim() === 'DX') playDx()
     else playSubmit()
     setCallsign('')
     setValues(defaultValues(fields))
+    setTouched(new Set())
     setError('')
     setDupe(null)
     callsignRef.current?.focus()
@@ -183,15 +230,19 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             value={callsign}
             onChange={(e) => {
               const next = sanitizeText(e.target.value).toUpperCase()
-              // Emptying the callsign undoes any "remember" autofill so the stale values don't carry over to the next contact.
+              // Emptying the callsign undoes any "remember"/auto autofill so the
+              // stale values don't carry over to the next contact.
               if (callsign && !next) {
                 setValues((prev) => {
                   const cleared = { ...prev }
                   for (const f of fields) {
-                    if (f.remember) cleared[f.name] = f.default ?? ''
+                    if (f.remember || AUTO_FIELDS.includes(f.name)) {
+                      cleared[f.name] = f.default ?? ''
+                    }
                   }
                   return cleared
                 })
+                setTouched(new Set())
                 setError('')
               }
               setCallsign(next)
@@ -200,6 +251,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             onBlur={() => {
               checkDuplicate()
               autofillRemembered()
+              autofillLookup()
             }}
             onKeyDown={(e) =>
               handleFieldNav(e, 0, [callsignRef.current, ...fieldRefs.current])
@@ -213,7 +265,12 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               field={f}
               value={values[f.name]}
               placeholder={f.label + (f.required ? ' *' : '')}
-              onChange={(v) => setValues({ ...values, [f.name]: v })}
+              onChange={(v) => {
+                setValues((prev) => ({ ...prev, [f.name]: v }))
+                setTouched((prev) =>
+                  prev.has(f.name) ? prev : new Set(prev).add(f.name),
+                )
+              }}
               onKeyDown={(e) =>
                 handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current])
               }

@@ -13,7 +13,22 @@ import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA = """
+# Built-in per-contact fields: a fixed roster every Contact can carry, stored
+# as real columns (like band/mode) regardless of the Event's template. Templates
+# only decide *display* (entry_list / contact_list). All are optional; four are
+# auto-populated from the CallParser lookup client-side. The client's display
+# registry (client/src/builtin-fields.js) mirrors this name list — a smoke test
+# keeps the two honest.
+BUILTIN_FIELDS = [
+    "country", "itu_zone", "cq_zone", "continent", "gridsquare",
+    "state", "section", "frequency", "rst_sent", "rst_received", "name",
+]
+
+_BUILTIN_COLUMNS = "".join(
+    f"  {name:<17} TEXT NOT NULL DEFAULT '',\n" for name in BUILTIN_FIELDS
+)
+
+SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -30,8 +45,8 @@ CREATE TABLE IF NOT EXISTS contacts (
   client_uuid       TEXT NOT NULL,
   band              TEXT NOT NULL,
   mode              TEXT NOT NULL,
-  deleted           INTEGER NOT NULL DEFAULT 0,
-  fields            TEXT NOT NULL DEFAULT '{}'
+{_BUILTIN_COLUMNS}  deleted           INTEGER NOT NULL DEFAULT 0,
+  fields            TEXT NOT NULL DEFAULT '{{}}'
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_synced_at ON contacts (synced_at);
 CREATE TABLE IF NOT EXISTS chat (
@@ -67,7 +82,23 @@ def open_db(path):
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate_builtins(conn)
     return conn
+
+
+def _migrate_builtins(conn):
+    """Catch-up migration for Event DBs created before the built-in fields
+    existed: add any missing built-in column. New DBs already have them from
+    SCHEMA, so this is a no-op there."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(contacts)")}
+    added = False
+    for name in BUILTIN_FIELDS:
+        if name not in existing:
+            conn.execute(
+                f"ALTER TABLE contacts ADD COLUMN {name} TEXT NOT NULL DEFAULT ''")
+            added = True
+    if added:
+        conn.commit()
 
 
 def open_db_readonly(path):
@@ -115,6 +146,17 @@ def validate_contact(body):
     if not isinstance(body["fields"], dict):
         raise ValueError("fields must be a JSON object")
     contact["fields"] = json.dumps(body["fields"])
+    # Built-ins are optional and stored as their own columns. Old pending
+    # contacts in a client's Dexie store predate these keys, so a missing key
+    # is fine (defaults to ''); a present value must be a string.
+    for name in BUILTIN_FIELDS:
+        if name in body:
+            value = body[name]
+            if not isinstance(value, str):
+                raise ValueError(f"{name} must be a string")
+            contact[name] = value.strip()
+        else:
+            contact[name] = ""
     # created_at: optional from the client; preserved for existing rows in upsert
     contact["created_at"] = (
         normalize_ts(body["created_at"]) if body.get("created_at") else now_iso()
@@ -133,17 +175,15 @@ def upsert_contact(conn, contact):
         if contact["last_edited"] < row["last_edited"]:
             return False
         contact = dict(contact, created_at=row["created_at"])
+    columns = ["uuid", "qso_at", "created_at", "last_edited", "synced_at",
+               "remote_callsign", "operator_callsign", "operator_initials",
+               "client_uuid", "band", "mode", *BUILTIN_FIELDS, "deleted", "fields"]
+    values = dict(contact, synced_at=now_iso())
+    placeholders = ", ".join("?" for _ in columns)
     conn.execute(
-        """INSERT OR REPLACE INTO contacts
-           (uuid, qso_at, created_at, last_edited, synced_at, remote_callsign,
-            operator_callsign, operator_initials, client_uuid, band, mode,
-            deleted, fields)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (contact["uuid"], contact["qso_at"], contact["created_at"],
-         contact["last_edited"], now_iso(), contact["remote_callsign"],
-         contact["operator_callsign"], contact["operator_initials"],
-         contact["client_uuid"], contact["band"], contact["mode"],
-         contact["deleted"], contact["fields"]),
+        f"INSERT OR REPLACE INTO contacts ({', '.join(columns)}) "
+        f"VALUES ({placeholders})",
+        [values[c] for c in columns],
     )
     conn.commit()
     return True

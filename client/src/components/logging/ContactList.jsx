@@ -4,14 +4,20 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db.js'
+import { isBuiltin, readFieldValue, resolveColumnFields } from '../../builtin-fields.js'
 
 const DISPLAY_LIMIT = 50
 
 // Every space-separated token must match somewhere among the visible columns
-// (not timestamps), case-insensitive — so "w7 ssb" finds W7ABC on SSB.
-function matches(c, tokens) {
-  const values = [c.remote_callsign, c.band, c.mode, c.operator_callsign, ...Object.values(c.fields ?? {})]
-    .map((v) => String(v ?? '').toLowerCase())
+// (not timestamps), case-insensitive — so "w7 ssb" finds W7ABC on SSB. Built-in
+// columns live top-level, custom fields in the `fields` blob, so both are
+// pulled in.
+function matches(c, tokens, columns) {
+  const builtinVals = columns.filter((f) => isBuiltin(f.name)).map((f) => c[f.name])
+  const values = [
+    c.remote_callsign, c.band, c.mode, c.operator_callsign,
+    ...Object.values(c.fields ?? {}), ...builtinVals,
+  ].map((v) => String(v ?? '').toLowerCase())
   return tokens.every((t) => values.some((v) => v.includes(t)))
 }
 
@@ -34,12 +40,16 @@ export default function ContactList({ config, onSelect }) {
   const needle = query.trim().toLowerCase()
   const tokens = needle ? needle.split(/\s+/) : []
 
+  // contact_list picks and orders the columns; each names a custom field or a
+  // built-in. Absent (old frozen configs) = every custom field, by order.
+  const fields = resolveColumnFields(config)
+
   const contacts = useLiveQuery(
     () =>
       db.contacts
         .orderBy('qso_at')
         .reverse()
-        .filter((c) => !c.deleted && (tokens.length === 0 || matches(c, tokens)))
+        .filter((c) => !c.deleted && (tokens.length === 0 || matches(c, tokens, fields)))
         .limit(DISPLAY_LIMIT)
         .toArray(),
     [needle],
@@ -51,12 +61,6 @@ export default function ContactList({ config, onSelect }) {
     setSearchOpen(!searchOpen)
   }
 
-  // template's contact_list picks and orders the custom columns; absent = all
-  const fields = config.contact_list
-    ? config.contact_list
-        .map((name) => config.fields.find((f) => f.name === name))
-        .filter(Boolean)
-    : config.fields
   if (!contacts) return <div className="contact-list" />
 
   return (
@@ -124,7 +128,7 @@ export default function ContactList({ config, onSelect }) {
               <td>{c.band}</td>
               <td>{c.mode}</td>
               {fields.map((f) => (
-                <td key={f.name}>{c.fields[f.name] ?? ''}</td>
+                <td key={f.name}>{readFieldValue(c, f.name) ?? ''}</td>
               ))}
               <td>{c.operator_callsign}</td>
             </tr>

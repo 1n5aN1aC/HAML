@@ -7,24 +7,10 @@
       "required": true,
       "remember": true,
       "default": "",
-      "order": 1,
       "max_length": 3,
       "validation": {
         "pattern": "\\d{1,2}[A-F]",
         "message": "Improper Field Day Class"
-      }
-    },
-    {
-      "name": "section",
-      "label": "Section",
-      "required": true,
-      "remember": true,
-      "default": "",
-      "order": 2,
-      "max_length": 3,
-      "validation": {
-        "pattern": "AB|AK|AL|AR|AZ|BC|CO|CT|DE|DX|EB|EMA|ENY|EPA|EWA|GA|GH|IA|ID|IL|IN|KS|KY|LA|LAX|MB|MDC|ME|MI|MN|MO|MS|MT|MX|NB|NC|ND|NE|NFL|NH|NL|NLI|NM|NNJ|NNY|NS|NTX|NV|OH|OK|ONE|ONN|ONS|OR|ORG|PAC|PE|PR|QC|RI|SB|SC|SCV|SD|SDG|SF|SFL|SJV|SK|SNJ|STX|SV|TER|TN|UT|VA|VI|VT|WCF|WI|WMA|WNY|WPA|WTX|WV|WWA|WY",
-        "message": "Improper Section"
       }
     }
   ],
@@ -49,5 +35,10 @@
     "Digital"
   ],
   "duplicate_type": "band-mode",
+  "entry_list": [
+    "class",
+    { "name": "section", "required": true, "remember": true }
+  ],
+  "contact_list": ["class", "section"],
   "export": null
 }

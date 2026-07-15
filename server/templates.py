@@ -8,6 +8,8 @@ import json
 import re
 from pathlib import Path
 
+from db import BUILTIN_FIELDS
+
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 # How the client decides a Contact is a dupe (advisory only, ADR-0003).
@@ -44,6 +46,11 @@ def validate_template(template):
         name = field.get("name")
         if not isinstance(name, str) or not name or name in seen:
             raise ValueError(f"field has a missing or duplicate name: {name!r}")
+        # custom fields can't shadow a built-in — the name would be ambiguous
+        # between the blob and the column (entry_list references built-ins by
+        # their bare name)
+        if name in BUILTIN_FIELDS:
+            raise ValueError(f"field '{name}' collides with a built-in field name")
         seen.add(name)
         if not isinstance(field.get("label"), str) or not field["label"]:
             raise ValueError(f"field '{name}' needs a label")
@@ -53,10 +60,6 @@ def validate_template(template):
         # contact with the same callsign (autofill on callsign blur)
         if not isinstance(field.get("remember", False), bool):
             raise ValueError(f"field '{name}': 'remember' must be a boolean")
-        # order drives the entry form's sort; missing values would compare NaN
-        order = field.get("order")
-        if not isinstance(order, int) or isinstance(order, bool):
-            raise ValueError(f"field '{name}' needs an integer 'order'")
         default = field.get("default")
         if default is not None and not isinstance(default, str):
             raise ValueError(f"field '{name}': 'default' must be a string")
@@ -81,16 +84,51 @@ def validate_template(template):
                 raise ValueError(f"field '{name}': bad validation pattern: {exc}")
             if not isinstance(validation["message"], str) or not validation["message"]:
                 raise ValueError(f"field '{name}': validation 'message' must be a non-empty string")
-    contact_list = template.get("contact_list")
-    if contact_list is not None:
-        if (not isinstance(contact_list, list)
-                or not all(isinstance(n, str) for n in contact_list)):
-            raise ValueError("'contact_list' must be a list of field names")
-        if len(set(contact_list)) != len(contact_list):
-            raise ValueError("'contact_list' has duplicate field names")
-        unknown = [n for n in contact_list if n not in seen]
-        if unknown:
-            raise ValueError(f"'contact_list' names unknown fields: {', '.join(unknown)}")
+    # entry_list drives the callsign-entry inputs; contact_list drives the
+    # contact-log columns. Both are required and may name custom fields *or*
+    # built-ins (a column can exist without an entry input, e.g. Country).
+    known = seen | set(BUILTIN_FIELDS)
+    _validate_display_list(template, "entry_list", known)
+    _validate_display_list(template, "contact_list", known)
+
+
+# Keys allowed on an object-form display-list entry (a per-event override of the
+# field's registry/template defaults). A bare string is the no-override form.
+_DISPLAY_ENTRY_KEYS = {"name", "required", "remember", "default"}
+
+
+def _validate_display_list(template, key, known):
+    """Validate a required entry_list/contact_list: a list of bare names or
+    {name, required?, remember?, default?} objects; names unique and each a
+    known custom field or built-in. Empty lists are allowed."""
+    items = template.get(key)
+    if not isinstance(items, list):
+        raise ValueError(f"template needs a list '{key}'")
+    names = []
+    for item in items:
+        if isinstance(item, str):
+            name = item
+        elif isinstance(item, dict):
+            name = item.get("name")
+            if not isinstance(name, str) or not name:
+                raise ValueError(f"'{key}' entry needs a string 'name'")
+            extra = set(item) - _DISPLAY_ENTRY_KEYS
+            if extra:
+                raise ValueError(
+                    f"'{key}' entry '{name}' has unknown keys: {', '.join(sorted(extra))}")
+            for flag in ("required", "remember"):
+                if flag in item and not isinstance(item[flag], bool):
+                    raise ValueError(f"'{key}' entry '{name}': '{flag}' must be a boolean")
+            if "default" in item and not isinstance(item["default"], str):
+                raise ValueError(f"'{key}' entry '{name}': 'default' must be a string")
+        else:
+            raise ValueError(f"'{key}' entries must be strings or objects")
+        names.append(name)
+    if len(set(names)) != len(names):
+        raise ValueError(f"'{key}' has duplicate field names")
+    unknown = [n for n in names if n not in known]
+    if unknown:
+        raise ValueError(f"'{key}' names unknown fields: {', '.join(unknown)}")
 
 
 def list_templates(templates_dir=TEMPLATES_DIR):

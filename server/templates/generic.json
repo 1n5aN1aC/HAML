@@ -2,34 +2,22 @@
   "name": "Generic Log",
   "fields": [
     {
-      "name": "rst_sent",
-      "label": "RST Sent",
-      "required": false,
-      "default": "59",
-      "max_length": 3,
-      "order": 1
-    },
-    {
-      "name": "rst_received",
-      "label": "RST Received",
-      "required": false,
-      "default": "59",
-      "max_length": 3,
-      "order": 2
-    },
-    {
       "name": "notes",
       "label": "Notes",
       "required": false,
       "remember": true,
       "default": "",
-      "max_length": 40,
-      "order": 3
+      "max_length": 40
     }
   ],
   "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "1.25m", "70cm", "Other"],
   "modes": ["SSB", "CW", "AM", "FM", "FT8", "FT4", "RTTY", "Digital"],
   "duplicate_type": "none",
+  "entry_list": [
+    { "name": "rst_sent", "default": "59" },
+    { "name": "rst_received", "default": "59" },
+    "notes"
+  ],
   "contact_list": ["rst_sent", "rst_received", "notes"],
   "export": null
 }

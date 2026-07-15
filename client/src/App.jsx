@@ -156,13 +156,27 @@ export default function App() {
   }
 
   if (state.status === 'loading') {
-    return <div className="screen">Connecting…</div>
+    return <div className="screen">Connecting...</div>
   }
   if (state.status === 'no-server') {
     return (
       <div className="screen">
         <p>Cannot reach the HAML server, and no event is cached locally.</p>
         <button onClick={() => window.location.reload()}>Retry</button>
+      </div>
+    )
+  }
+  // Server is up but has no active event (fresh install, or every event was
+  // deleted): only the admin panel is useful, so show just that. Creating or
+  // activating an event re-runs boot — via the cached-event mismatch screen
+  // when stale local data needs the operator's wipe confirmation first.
+  if (state.status === 'no-event') {
+    return (
+      <div className="app">
+        <p className="admin-notice no-event-banner">
+          The server has no active event — create or activate one below.
+        </p>
+        <AdminTab onEventChange={async () => setState(await boot())} />
       </div>
     )
   }

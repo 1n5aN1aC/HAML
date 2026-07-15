@@ -29,7 +29,7 @@ export default function MapPanel() {
       await db.contacts
         .filter((c) => !c.deleted)
         .each((c) => {
-          const s = c.fields?.section?.toUpperCase()
+          const s = c.section?.toUpperCase()
           if (s) sections.add(s)
         })
       return sections

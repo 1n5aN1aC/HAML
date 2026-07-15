@@ -4,7 +4,9 @@ import { getEvent } from './api.js'
 import { getClientUuid, kvGet, kvSet, wipeEventData } from './db.js'
 
 // Resolves to { status, event, clientUuid, connected }
-//   status: 'ready' | 'no-server' | 'mismatch'
+//   status: 'ready' | 'no-server' | 'no-event' | 'mismatch'
+//   'no-event' means the server is reachable but has no active Event — the
+//   admin must create or activate one (App shows the admin panel).
 //   'mismatch' means the server runs a different Event and the operator must
 //   confirm the wipe; caller re-runs boot with { acceptNewEvent: true }.
 export async function boot({ acceptNewEvent = false } = {}) {
@@ -14,7 +16,12 @@ export async function boot({ acceptNewEvent = false } = {}) {
   let event
   try {
     event = await getEvent()
-  } catch {
+  } catch (err) {
+    // Server reachable, no active Event: never continue against a cached
+    // config here — the Event it names no longer exists on the server.
+    if (err.status === 404) {
+      return { status: 'no-event', event: null, clientUuid, connected: true }
+    }
     // Offline boot: fine if we have a cached config, dead end otherwise.
     return cached
       ? { status: 'ready', event: cached, clientUuid, connected: false }

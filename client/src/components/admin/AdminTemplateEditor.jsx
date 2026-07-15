@@ -2,12 +2,19 @@
 // template or editing an existing one. All JSON <-> form conversion lives in
 // admin-template-form.js; validation beyond the save gate is the server's
 // job — its 400 messages surface in the error line.
+//
+// Fields are one unified, reorderable list. Each row is a custom field
+// definition or a built-in picked from a dropdown, with Entry (entry box) and
+// Column (contact log) checkboxes. Row order drives both emitted lists.
 import { useState } from 'react'
 import { adminSaveTemplate } from '../../api.js'
+import { BUILTINS } from '../../builtin-fields.js'
 import {
+  BUILTIN_CHOICES,
   DUPLICATE_TYPES,
-  emptyField,
+  builtinRow,
   emptyForm,
+  emptyRow,
   formComplete,
   formToTemplate,
   slugify,
@@ -37,27 +44,32 @@ export default function AdminTemplateEditor({
     update(isNew && !idTouched ? { name, id: slugify(name) } : { name })
   }
 
-  function updateField(index, patch) {
+  function updateRow(index, patch) {
     setForm((form) => ({
       ...form,
-      fields: form.fields.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+      rows: form.rows.map((r, i) => (i === index ? { ...r, ...patch } : r)),
     }))
   }
 
-  function addField() {
-    update({ fields: [...form.fields, emptyField()] })
+  function addCustomRow() {
+    update({ rows: [...form.rows, emptyRow()] })
   }
 
-  function removeField(index) {
-    update({ fields: form.fields.filter((_, i) => i !== index) })
+  function addBuiltinRow(name) {
+    if (!name) return
+    update({ rows: [...form.rows, builtinRow(name)] })
   }
 
-  function moveField(index, delta) {
-    const fields = [...form.fields]
+  function removeRow(index) {
+    update({ rows: form.rows.filter((_, i) => i !== index) })
+  }
+
+  function moveRow(index, delta) {
+    const rows = [...form.rows]
     const target = index + delta
-    if (target < 0 || target >= fields.length) return
-    ;[fields[index], fields[target]] = [fields[target], fields[index]]
-    update({ fields })
+    if (target < 0 || target >= rows.length) return
+    ;[rows[index], rows[target]] = [rows[target], rows[index]]
+    update({ rows })
   }
 
   async function save(e) {
@@ -147,113 +159,38 @@ export default function AdminTemplateEditor({
 
         <section className="admin-section">
           <h2>Fields</h2>
-          {form.fields.length === 0 && (
-            <p className="placeholder">No fields — contacts log with just the built-ins.</p>
+          <p className="placeholder">
+            Add custom fields or pick built-ins. <strong>Entry</strong> shows the
+            field in the callsign entry box; <strong>Column</strong> shows it in
+            the contact log. Order here sets both.
+          </p>
+          {form.rows.length === 0 && (
+            <p className="placeholder">No fields yet — contacts log with just the callsign.</p>
           )}
-          {form.fields.map((field, i) => (
-            <fieldset className="template-field" key={i}>
-              <div className="template-field-row">
-                <label>
-                  Name
-                  <input
-                    value={field.name}
-                    placeholder="Internal field name"
-                    onChange={(e) => updateField(i, { name: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Label
-                  <input
-                    value={field.label}
-                    placeholder="Column Name"
-                    onChange={(e) => updateField(i, { label: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Default
-                  <input
-                    value={field.default}
-                    placeholder="Starts pre-populated"
-                    onChange={(e) => updateField(i, { default: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Max length
-                  <input
-                    type="number"
-                    min="1"
-                    className="template-num"
-                    value={field.max_length}
-                    onChange={(e) => updateField(i, { max_length: e.target.value })}
-                  />
-                </label>
-                <div className="template-field-actions">
-                  <button type="button" disabled={i === 0} onClick={() => moveField(i, -1)}>
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    disabled={i === form.fields.length - 1}
-                    onClick={() => moveField(i, 1)}
-                  >
-                    ▼
-                  </button>
-                  <button type="button" className="btn-danger" onClick={() => removeField(i)}>
-                    Remove
-                  </button>
-                </div>
-              </div>
-              <div className="template-field-row">
-                <label>
-                  Validation pattern (regex)
-                  <input
-                    className="template-pattern"
-                    value={field.pattern}
-                    placeholder="\d{1,2}[A-Z]{1,4}"
-                    onChange={(e) => updateField(i, { pattern: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Validation message
-                  <input
-                    className="template-message"
-                    value={field.message}
-                    placeholder="Shows when validation fails"
-                    onChange={(e) => updateField(i, { message: e.target.value })}
-                  />
-                </label>
-              </div>
-              <div className="template-field-row">
-                <label className="template-check">
-                  <input
-                    type="checkbox"
-                    checked={field.required}
-                    onChange={(e) => updateField(i, { required: e.target.checked })}
-                  />
-                  Required
-                </label>
-                <label className="template-check">
-                  <input
-                    type="checkbox"
-                    checked={field.remember}
-                    onChange={(e) => updateField(i, { remember: e.target.checked })}
-                  />
-                  Remember per callsign
-                </label>
-                <label className="template-check">
-                  <input
-                    type="checkbox"
-                    checked={field.inContactList}
-                    onChange={(e) => updateField(i, { inContactList: e.target.checked })}
-                  />
-                  Show in history list
-                </label>
-              </div>
-            </fieldset>
-          ))}
-          <button type="button" onClick={addField}>
-            Add field
-          </button>
+          {form.rows.map((row, i) =>
+            row.kind === 'builtin'
+              ? renderBuiltinRow(row, i)
+              : renderCustomRow(row, i),
+          )}
+          <div className="template-add-row">
+            <button type="button" onClick={addCustomRow}>
+              Add custom field
+            </button>
+            <select
+              value=""
+              onChange={(e) => {
+                addBuiltinRow(e.target.value)
+                e.target.value = ''
+              }}
+            >
+              <option value="">Add built-in…</option>
+              {BUILTIN_CHOICES.map((name) => (
+                <option key={name} value={name}>
+                  {BUILTINS[name].label}
+                </option>
+              ))}
+            </select>
+          </div>
         </section>
 
         {error && <p className="admin-error">{error}</p>}
@@ -268,4 +205,199 @@ export default function AdminTemplateEditor({
       </form>
     </div>
   )
+
+  // reorder/remove controls, shared by both row kinds
+  function rowActions(i) {
+    return (
+      <div className="template-field-actions">
+        <button type="button" disabled={i === 0} onClick={() => moveRow(i, -1)}>
+          ▲
+        </button>
+        <button
+          type="button"
+          disabled={i === form.rows.length - 1}
+          onClick={() => moveRow(i, 1)}
+        >
+          ▼
+        </button>
+        <button type="button" className="btn-danger" onClick={() => removeRow(i)}>
+          Remove
+        </button>
+      </div>
+    )
+  }
+
+  // Entry / Column placement checkboxes, shared by both row kinds.
+  function placementChecks(row, i) {
+    return (
+      <>
+        <label className="template-check">
+          <input
+            type="checkbox"
+            checked={row.inEntry}
+            onChange={(e) => updateRow(i, { inEntry: e.target.checked })}
+          />
+          Entry box
+        </label>
+        <label className="template-check">
+          <input
+            type="checkbox"
+            checked={row.inColumn}
+            onChange={(e) => updateRow(i, { inColumn: e.target.checked })}
+          />
+          Show in history list
+        </label>
+      </>
+    )
+  }
+
+  function renderCustomRow(row, i) {
+    return (
+      <fieldset className="template-field" key={i}>
+        <div className="template-field-row">
+          <label>
+            Name
+            <input
+              value={row.name}
+              placeholder="Internal field name"
+              onChange={(e) => updateRow(i, { name: e.target.value })}
+            />
+          </label>
+          <label>
+            Label
+            <input
+              value={row.label}
+              placeholder="Column Name"
+              onChange={(e) => updateRow(i, { label: e.target.value })}
+            />
+          </label>
+          <label>
+            Default
+            <input
+              value={row.default}
+              placeholder="Starts pre-populated"
+              onChange={(e) => updateRow(i, { default: e.target.value })}
+            />
+          </label>
+          <label>
+            Max length
+            <input
+              type="number"
+              min="1"
+              className="template-num"
+              value={row.max_length}
+              onChange={(e) => updateRow(i, { max_length: e.target.value })}
+            />
+          </label>
+          {rowActions(i)}
+        </div>
+        <div className="template-field-row">
+          <label>
+            Validation pattern (regex)
+            <input
+              className="template-pattern"
+              value={row.pattern}
+              placeholder="\d{1,2}[A-Z]{1,4}"
+              onChange={(e) => updateRow(i, { pattern: e.target.value })}
+            />
+          </label>
+          <label>
+            Validation message
+            <input
+              className="template-message"
+              value={row.message}
+              placeholder="Shows when validation fails"
+              onChange={(e) => updateRow(i, { message: e.target.value })}
+            />
+          </label>
+        </div>
+        <div className="template-field-row">
+          <label className="template-check">
+            <input
+              type="checkbox"
+              checked={row.required}
+              onChange={(e) => updateRow(i, { required: e.target.checked })}
+            />
+            Required
+          </label>
+          <label className="template-check">
+            <input
+              type="checkbox"
+              checked={row.remember}
+              onChange={(e) => updateRow(i, { remember: e.target.checked })}
+            />
+            Remember per callsign
+          </label>
+          {placementChecks(row, i)}
+        </div>
+      </fieldset>
+    )
+  }
+
+  function renderBuiltinRow(row, i) {
+    const reg = BUILTINS[row.name] ?? { label: '', max_length: '', validation: null }
+    return (
+      <fieldset className="template-field template-builtin" key={i}>
+        <div className="template-field-row">
+          <label>
+            Built-in
+            <select
+              value={row.name}
+              onChange={(e) => updateRow(i, { name: e.target.value })}
+            >
+              {BUILTIN_CHOICES.map((name) => (
+                <option key={name} value={name}>
+                  {BUILTINS[name].label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Label
+            <input value={reg.label} disabled />
+          </label>
+          <label>
+            Default
+            <input
+              value={row.default}
+              placeholder="Starts pre-populated"
+              onChange={(e) => updateRow(i, { default: e.target.value })}
+            />
+          </label>
+          <label>
+            Max length
+            <input className="template-num" value={reg.max_length} disabled />
+          </label>
+          {rowActions(i)}
+        </div>
+        <div className="template-field-row">
+          <label>
+            Validation pattern (built-in)
+            <input
+              className="template-pattern"
+              value={reg.validation?.pattern ?? '—'}
+              disabled
+            />
+          </label>
+          <label className="template-check">
+            <input
+              type="checkbox"
+              checked={row.required}
+              onChange={(e) => updateRow(i, { required: e.target.checked })}
+            />
+            Required
+          </label>
+          <label className="template-check">
+            <input
+              type="checkbox"
+              checked={row.remember}
+              onChange={(e) => updateRow(i, { remember: e.target.checked })}
+            />
+            Remember per callsign
+          </label>
+          {placementChecks(row, i)}
+        </div>
+      </fieldset>
+    )
+  }
 }

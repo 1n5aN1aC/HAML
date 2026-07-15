@@ -12,6 +12,7 @@ pointing at a garbage db, and a corrupt state.json failing the boot).
 Run: python server/tests/smoke.py   (uses sys.executable for the subprocess)
 """
 import json
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -26,6 +27,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(SERVER_DIR))
+import db          # noqa: E402  (server modules, exercised without the HTTP layer)
+import templates   # noqa: E402
 # template ids this test may write into the live server/templates dir
 TEST_TEMPLATE_IDS = ("smoke-scratch", "smoke-bad", "smoke-broken")
 PORT = 8765
@@ -161,7 +165,83 @@ def expect_boot_failure(config_path, needle, label):
     check(proc.returncode != 0 and needle in out, label)
 
 
+def unit_checks():
+    """Direct-import checks for the built-in-fields plumbing that doesn't need
+    the HTTP layer: the schema catch-up migration, validate_contact's handling
+    of built-ins, and template validation of the new rules."""
+    print("unit: built-in fields (no server):")
+    tmp = Path(tempfile.mkdtemp(prefix="haml-unit-"))
+    try:
+        # a pre-change event db (no built-in columns) gains them on open, with
+        # existing rows preserved and new columns defaulting to ''
+        old_path = tmp / "old.db"
+        raw = sqlite3.connect(old_path)
+        raw.executescript(
+            "CREATE TABLE contacts (uuid TEXT PRIMARY KEY, qso_at TEXT NOT NULL,"
+            " created_at TEXT NOT NULL, last_edited TEXT NOT NULL,"
+            " synced_at TEXT NOT NULL, remote_callsign TEXT NOT NULL,"
+            " operator_callsign TEXT NOT NULL, operator_initials TEXT NOT NULL,"
+            " client_uuid TEXT NOT NULL, band TEXT NOT NULL, mode TEXT NOT NULL,"
+            " deleted INTEGER NOT NULL DEFAULT 0, fields TEXT NOT NULL DEFAULT '{}');")
+        raw.execute(
+            "INSERT INTO contacts (uuid, qso_at, created_at, last_edited,"
+            " synced_at, remote_callsign, operator_callsign, operator_initials,"
+            " client_uuid, band, mode, fields) VALUES"
+            " ('old1','t','t','t','t','K7OLD','W7X','JD','cli','40m','SSB','{}')")
+        raw.commit()
+        raw.close()
+        conn = db.open_db(old_path)
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(contacts)")}
+        check(all(f in cols for f in db.BUILTIN_FIELDS),
+              "opening a pre-change event db adds the built-in columns")
+        row = conn.execute("SELECT country FROM contacts WHERE uuid='old1'").fetchone()
+        check(row["country"] == "", "migrated rows default new columns to ''")
+        conn.close()
+
+        base = {"uuid": "u", "qso_at": iso(), "last_edited": iso(),
+                "remote_callsign": "VE3XYZ", "operator_callsign": "W7X",
+                "operator_initials": "JD", "client_uuid": "c", "band": "20m",
+                "mode": "CW", "deleted": False, "fields": {}}
+        c = db.validate_contact(dict(base, country="Canada", cq_zone="5"))
+        check(c["country"] == "Canada" and c["cq_zone"] == "5" and c["section"] == "",
+              "validate_contact keeps built-ins and defaults absent ones to ''")
+        try:
+            db.validate_contact(dict(base, country=59))
+            check(False, "non-string built-in should have raised")
+        except ValueError:
+            check(True, "validate_contact rejects a non-string built-in")
+
+        # the stock templates only reference built-ins the server knows about —
+        # keeps the server BUILTIN_FIELDS list honest against the templates
+        for tid in ("field-day", "pota", "generic", "example"):
+            t = templates.load_template(tid)
+            refs = [i if isinstance(i, str) else i["name"]
+                    for i in t["entry_list"] + t["contact_list"]]
+            customs = {f["name"] for f in t["fields"]}
+            unknown = [n for n in refs
+                       if n not in customs and n not in db.BUILTIN_FIELDS]
+            check(not unknown, f"{tid} references only known custom/built-in fields")
+
+        # the client's display registry mirrors the server's BUILTIN_FIELDS —
+        # this is the promised honesty check both files' comments refer to. A
+        # client-only name would sync as a top-level key validate_contact
+        # silently drops; a server-only name would store a column no client
+        # can ever show. Set equality only: the two lists order display vs
+        # columns and have no reason to match.
+        registry = SERVER_DIR.parent / "client" / "src" / "builtin-fields.js"
+        check(registry.is_file(), "client built-in registry file exists")
+        body = re.search(r"export const BUILTINS = \{(.*?)\n\}",
+                         registry.read_text(encoding="utf-8"), re.S)
+        names = re.findall(r"^  (\w+): \{", body.group(1), re.M) if body else []
+        check(names, "client registry parses (BUILTINS literal found)")
+        check(sorted(names) == sorted(db.BUILTIN_FIELDS),
+              "client BUILTINS names mirror server BUILTIN_FIELDS")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main():
+    unit_checks()
     remove_test_templates()  # leftovers from a hard-killed earlier run
     data_dir = Path(tempfile.mkdtemp(prefix="haml-smoke-"))
     config_path = data_dir / "config.json"
@@ -228,12 +308,12 @@ def main():
             "fields": [
                 {"name": "grid", "label": "Grid",
                  "required": True, "remember": True, "default": "",
-                 "max_length": 4, "order": 1,
+                 "max_length": 4,
                  "validation": {"pattern": "[A-R]{2}\\d{2}",
                                 "message": "Grid must look like CN85"}},
             ],
             "bands": ["20m"], "modes": ["SSB"], "duplicate_type": "none",
-            "contact_list": ["grid"], "export": None,
+            "entry_list": ["grid"], "contact_list": ["grid"], "export": None,
         }
         status, _ = request("PUT", "/api/admin/templates/smoke-scratch",
                             body=scratch)
@@ -309,12 +389,35 @@ def main():
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
                                headers=ADMIN, body=bad_list)
         check(status == 400, "contact_list naming an unknown field is rejected")
-        no_order = json.loads(json.dumps(scratch))
-        del no_order["fields"][0]["order"]
+        builtin_name = json.loads(json.dumps(scratch))
+        builtin_name["fields"][0]["name"] = "state"
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
-                               headers=ADMIN, body=no_order)
-        check(status == 400 and "order" in body["error"],
-              "field without an order is rejected")
+                               headers=ADMIN, body=builtin_name)
+        check(status == 400 and "built-in" in body["error"],
+              "custom field named after a built-in is rejected")
+        no_entry = {k: v for k, v in scratch.items() if k != "entry_list"}
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=no_entry)
+        check(status == 400 and "entry_list" in body["error"],
+              "template without an entry_list is rejected")
+        no_columns = {k: v for k, v in scratch.items() if k != "contact_list"}
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=no_columns)
+        check(status == 400 and "contact_list" in body["error"],
+              "template without a contact_list is rejected")
+        bad_entry = dict(scratch, entry_list=["nope"])
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=bad_entry)
+        check(status == 400 and "entry_list" in body["error"],
+              "entry_list naming an unknown field is rejected")
+        builtin_entry = dict(scratch,
+                             entry_list=["grid", {"name": "state", "default": "OR"}],
+                             contact_list=["grid", "country"])
+        status, body = request("PUT", "/api/admin/templates/smoke-bad",
+                               headers=ADMIN, body=builtin_entry)
+        check(status == 200,
+              "entry_list/contact_list may reference built-ins (with overrides)")
+        status, _ = request("DELETE", "/api/admin/templates/smoke-bad", headers=ADMIN)
         bad_default = json.loads(json.dumps(scratch))
         bad_default["fields"][0]["default"] = 59
         status, body = request("PUT", "/api/admin/templates/smoke-bad",
@@ -429,9 +532,12 @@ def main():
         check(event["local_exchange"] == "W7XYZ 6A OR",
               "local_exchange round-trips uppercased")
         field_names = [f["name"] for f in event["config"]["fields"]]
-        check(field_names == ["class", "section"], "frozen config has template fields")
-        check(event["config"]["contact_list"] is None,
-              "frozen config carries the absent contact_list (show all fields)")
+        check(field_names == ["class"], "frozen config has the custom fields only")
+        check(event["config"]["entry_list"][0] == "class"
+              and event["config"]["entry_list"][1]["name"] == "section",
+              "frozen config carries entry_list (built-in section referenced)")
+        check(event["config"]["contact_list"] == ["class", "section"],
+              "frozen config carries contact_list naming a built-in column")
         check(event["config"]["fields"][0]["validation"]["message"],
               "frozen config carries field validation")
         check(event["config"]["duplicate_type"] == "band-mode",
@@ -466,6 +572,7 @@ def main():
         check([f["name"] for f in config["fields"]] == ["grid"]
               and config["fields"][0]["remember"] is True
               and config["duplicate_type"] == "none"
+              and config["entry_list"] == ["grid"]
               and config["contact_list"] == ["grid"],
               "frozen config mirrors the saved template")
         check(config["location"] is None,
@@ -503,7 +610,9 @@ def main():
         check(status == 200, "scratch event deleted")
 
         print("push/pull round trip (client A):")
-        contact_a = make_contact("client-A", "N0CALL", iso())
+        contact_a = make_contact("client-A", "N0CALL", iso(),
+                                 country="United States", cq_zone="3",
+                                 itu_zone="7", continent="NA")
         status, body = request("POST", "/api/contacts", body=contact_a)
         check(status == 200 and body["stored"], "push stores a new contact")
         status, body = request("POST", "/api/contacts", body=contact_a)
@@ -513,6 +622,10 @@ def main():
               and body["contacts"][0]["uuid"] == contact_a["uuid"]
               and body["contacts"][0]["fields"]["section"] == "OR",
               "full pull returns the contact with its JSON fields")
+        check(body["contacts"][0]["country"] == "United States"
+              and body["contacts"][0]["cq_zone"] == "3"
+              and body["contacts"][0]["continent"] == "NA",
+              "built-in fields pull back as top-level columns")
         created_a = body["contacts"][0]["created_at"]
         skew = abs((datetime.fromisoformat(body["server_time"])
                     - datetime.now(timezone.utc)).total_seconds())
@@ -556,6 +669,8 @@ def main():
                       if c["uuid"] == contact_b["uuid"]), None)
         check(row_b is not None and row_b["created_at"] == b_created,
               "client-supplied created_at is honored on first insert")
+        check(row_b["country"] == "" and row_b["cq_zone"] == "",
+              "a contact posted without built-in keys defaults them to ''")
         # exclusion: an up-to-date cursor must filter out unchanged rows
         time.sleep(0.002)  # step past the last write's millisecond ('>=' cursor)
         status, body = request("GET", "/api/contacts")
@@ -614,15 +729,13 @@ def main():
               "non-object fields value is rejected")
         empty_fields = make_contact("client-A", "K7AAA", iso(), fields={})
         status, body = request("POST", "/api/contacts", body=empty_fields)
-        check(status == 400 and "class" in body["error"]
-              and "section" in body["error"],
-              "missing required template fields are rejected")
+        check(status == 400 and "class" in body["error"],
+              "missing required custom field is rejected")
         blank_field = make_contact("client-A", "K7AAA", iso(),
-                                   fields={"class": "3A", "section": "  "})
+                                   fields={"class": "  "})
         status, body = request("POST", "/api/contacts", body=blank_field)
-        check(status == 400 and "section" in body["error"]
-              and "class" not in body["error"],
-              "blank required template field is rejected")
+        check(status == 400 and "class" in body["error"],
+              "blank required custom field is rejected")
         bare_tombstone = make_contact("client-A", "K7AAA", iso(),
                                       fields={}, deleted=True)
         status, body = request("POST", "/api/contacts", body=bare_tombstone)
@@ -703,8 +816,7 @@ def main():
         check(status == 200 and event["event_uuid"] == created["event_uuid"],
               "active event survives a server restart")
         check(event["station_callsign"] == "W7XYZ"
-              and [f["name"] for f in event["config"]["fields"]]
-              == ["class", "section"],
+              and [f["name"] for f in event["config"]["fields"]] == ["class"],
               "event meta and frozen config survive a restart")
         status, body = request("GET", "/api/contacts")
         check(status == 200 and len(body["contacts"]) == 4,

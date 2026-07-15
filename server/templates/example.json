@@ -2,42 +2,60 @@
   "_comment": [
     "Top-level keys:",
     "  name           (required) Display name shown in the admin tab and event list.",
-    "  fields         (required) Extra per-contact entry fields, may be empty [].",
+    "  fields         (required) Custom per-contact fields, may be empty []. A",
+    "                 field name may NOT collide with a built-in name (see below).",
     "  bands          (required) Band choices for the status bar, non-empty.",
     "  modes          (required) Mode choices for the status bar, non-empty.",
     "  duplicate_type (required) How the client warns about dupes, see below.",
-    "  contact_list   (optional) Which fields the contact list shows, see below.",
+    "  entry_list     (required) Ordered inputs in the callsign-entry box, see below.",
+    "  contact_list   (required) Ordered columns in the contact log, see below.",
     "  export         (reserved) Export mapping slot, unused in v1 — leave null."
   ],
   "name": "Example (documentation)",
 
+  "_comment_builtins": [
+    "Built-in fields: a fixed roster every contact can carry regardless of",
+    "template, stored as their own columns. Reference them by name in entry_list",
+    "and contact_list; do NOT redefine them in 'fields'. All are optional. Names:",
+    "  country      Country     (auto-filled from the callsign lookup)",
+    "  itu_zone     ITU Zone    (auto-filled)",
+    "  cq_zone      CQ Zone     (auto-filled)",
+    "  continent    Continent   (auto-filled)",
+    "  gridsquare   Grid",
+    "  state        State",
+    "  section      Section",
+    "  frequency    Frequency",
+    "  rst_sent     RST Sent",
+    "  rst_received RST Rcvd",
+    "  name         Name",
+    "The four auto-filled built-ins are recorded on every contact even when no",
+    "template names them; their labels/widths/patterns live in the client, not here."
+  ],
+
   "_comment_fields": [
-    "Each field object takes:",
-    "  name       (required) Internal key, unique within the template.",
-    "  label      (required) Shown as the input's placeholder text.",
+    "Each custom field object takes:",
+    "  name       (required) Internal key, unique, and not a built-in name.",
+    "  label      (required) Shown as the input's placeholder / column header.",
     "  required   (optional, default false) Blocks logging while blank.",
     "  default    (optional) Initial value; the form resets to it after each log.",
     "  max_length (required) Max characters; also sets input width.",
-    "  order      (required) Ascending sort position in the entry form.",
     "  remember   (optional, default false) On leaving the callsign box, re-fill",
     "             this field from the most recent contact with the same callsign.",
-    "             Enable for exchange data that is fixed per station (Field Day",
-    "             class/section); leave off for per-QSO data like signal reports.",
     "  validation (optional) {pattern, message}: 'pattern' is a JS regex the",
     "             whole value must match (green border on match, red on blur",
     "             otherwise — advisory only, never blocks logging); 'message'",
     "             is the tooltip explaining the expected format. No other keys",
-    "             are allowed inside 'validation'."
+    "             are allowed inside 'validation'.",
+    "There is no 'order' key — entry_list position sets the entry-box order."
   ],
   "fields": [
     {
-      "_comment": "A field using every optional parameter.",
+      "_comment": "A custom field using every optional parameter.",
       "name": "exchange",
       "label": "Exchange",
       "required": true,
       "default": "",
       "max_length": 6,
-      "order": 1,
       "remember": true,
       "validation": {
         "pattern": "\\d{1,2}[A-Z]{1,4}",
@@ -45,24 +63,10 @@
       }
     },
     {
-      "_comment": "A minimal field: just the required keys.",
+      "_comment": "A minimal custom field: just the required keys.",
       "name": "serial",
       "label": "Serial #",
-      "max_length": 4,
-      "order": 2
-    },
-    {
-      "_comment": "A digits-only field: plain text constrained by a validation pattern.",
-      "name": "power",
-      "label": "Power",
-      "required": false,
-      "default": "100",
-      "max_length": 4,
-      "order": 3,
-      "validation": {
-        "pattern": "\\d{1,4}",
-        "message": "Power in watts, digits only"
-      }
+      "max_length": 4
     }
   ],
 
@@ -78,11 +82,27 @@
   ],
   "duplicate_type": "band-mode",
 
-  "_comment_contact_list": [
-    "Field names (subset of fields[].name) shown as columns in the contact",
-    "list, in this order. Absent means: show every field, in field order."
+  "_comment_entry_list": [
+    "Ordered list of the inputs shown in the callsign-entry box. Each item is",
+    "either a bare field name (custom field or built-in) or an object that",
+    "overrides that field's defaults for THIS event:",
+    "  {name, required?, remember?, default?}",
+    "Names must be unique. The list may be empty (just the callsign box). The",
+    "edit modal always shows every field regardless of what's listed here."
   ],
-  "contact_list": ["exchange", "power"],
+  "entry_list": [
+    "exchange",
+    { "name": "rst_sent", "required": true, "default": "59" },
+    { "name": "state", "remember": true },
+    "serial"
+  ],
+
+  "_comment_contact_list": [
+    "Ordered list of columns shown in the contact log. Same item forms as",
+    "entry_list; may name built-ins that aren't in entry_list (e.g. 'country',",
+    "auto-filled without an input). May be empty."
+  ],
+  "contact_list": ["exchange", "state", "country"],
 
   "export": null
 }

@@ -6,6 +6,9 @@ import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'
 import { validateContact } from '../../contact-validation.js'
 import { sanitizeText } from '../../text-input.js'
+import {
+  BUILTIN_ORDER, builtinFieldDef, isBuiltin, resolveEntryFields,
+} from '../../builtin-fields.js'
 import FieldInput from './FieldInput.jsx'
 
 // ISO ↔ datetime-local strings. UTC variant treats the input as UTC; local
@@ -35,6 +38,9 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
     band: contact.band,
     mode: contact.mode,
     fields: { ...contact.fields },
+    // built-in columns live top-level on the contact; hold them all so every
+    // built-in can be edited even when the template lists none
+    builtins: Object.fromEntries(BUILTIN_ORDER.map((n) => [n, contact[n] ?? ''])),
   })
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -87,9 +93,15 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
 
   async function save(e) {
     e.preventDefault()
+    const values = {}
+    for (const f of allFields) {
+      values[f.name] = isBuiltin(f.name)
+        ? form.builtins[f.name] ?? ''
+        : form.fields[f.name] ?? ''
+    }
     const problem = validateContact(
-      { remote_callsign: form.remote_callsign, fields: form.fields },
-      config,
+      { remote_callsign: form.remote_callsign, values },
+      allFields,
     )
     if (problem) {
       setError(problem)
@@ -102,6 +114,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
       operator_initials: form.operator_initials.trim(),
       band: form.band,
       mode: form.mode,
+      ...form.builtins, // built-in columns, top-level
       fields: form.fields,
     })
   }
@@ -114,7 +127,32 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
     await write({ deleted: true })
   }
 
-  const templateFields = [...config.fields].sort((a, b) => a.order - b.order)
+  // The modal always shows everything: entry-box fields first (entry_list
+  // order), then a divider and the remaining built-ins (registry order), then
+  // any custom fields the template keeps out of the entry box.
+  const entryFields = resolveEntryFields(config)
+  const entryNames = new Set(entryFields.map((f) => f.name))
+  const modalBuiltins = BUILTIN_ORDER.filter((n) => !entryNames.has(n)).map(builtinFieldDef)
+  const modalCustoms = config.fields.filter((f) => !entryNames.has(f.name))
+  const allFields = [...entryFields, ...modalBuiltins, ...modalCustoms]
+
+  const renderField = (f) => {
+    const builtin = isBuiltin(f.name)
+    const value = builtin ? form.builtins[f.name] ?? '' : form.fields[f.name] ?? ''
+    const onChange = (v) =>
+      setForm((prev) =>
+        builtin
+          ? { ...prev, builtins: { ...prev.builtins, [f.name]: v } }
+          : { ...prev, fields: { ...prev.fields, [f.name]: v } },
+      )
+    return (
+      <label key={f.name}>
+        {f.label}:
+        {f.required && '*'}
+        <FieldInput field={f} value={value} onChange={onChange} />
+      </label>
+    )
+  }
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -175,17 +213,11 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
             </select>
           </label>
           <div className="entry-break" />
-          {templateFields.map((f) => (
-            <label key={f.name}>
-              {f.label}:
-              {f.required && '*'}
-              <FieldInput
-                field={f}
-                value={form.fields[f.name] ?? ''}
-                onChange={(v) => setForm({ ...form, fields: { ...form.fields, [f.name]: v } })}
-              />
-            </label>
-          ))}
+          {entryFields.map(renderField)}
+          {modalBuiltins.length > 0 && <div className="entry-break" />}
+          {modalBuiltins.map(renderField)}
+          {modalCustoms.length > 0 && <div className="entry-break" />}
+          {modalCustoms.map(renderField)}
         </div>
         {error && <div className="entry-error">{error}</div>}
         <div className="modal-actions">
