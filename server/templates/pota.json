@@ -28,7 +28,7 @@
       "default": "",
       "max_length": 8,
       "validation": {
-        "pattern": "[A-Z]{1,2}-\\d{4,5}",
+        "pattern": "[A-Z]{2}-\\d{4,5}",
         "message": "Their Park must be a park reference like US-1234"
       },
       "entry": true,
