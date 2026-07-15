@@ -193,7 +193,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
             Initials:
             <input value={form.operator_initials} onChange={setUpper('operator_initials')} maxLength={4} />
           </label>
-          <div className="entry-break" />
+          <hr className="entry-separator" />
           <label>
             Callsign:
             <input className="cs" value={form.remote_callsign} onChange={setUpper('remote_callsign')} maxLength={10} />
@@ -216,7 +216,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
           </label>
           <div className="entry-break" />
           {templateFields.map(renderField)}
-          {modalBuiltins.length > 0 && <div className="entry-break" />}
+          {modalBuiltins.length > 0 && <hr className="entry-separator" />}
           {modalBuiltins.map(renderField)}
         </div>
         {error && <div className="entry-error">{error}</div>}

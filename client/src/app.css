@@ -627,6 +627,16 @@ body {
    itself, so break rows match the spacing of natural wraps. */
 .entry-break { flex-basis: 100%; height: 0; margin-top: -4px; }
 
+/* visible full-width rule between the template fields and the optional
+   built-ins in the edit-contact modal */
+.entry-separator {
+  flex-basis: 100%;
+  height: 0;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--theme-border);
+}
+
 /* live DXCC country + distance readout, sits right of the entry inputs */
 .entry-fields .call-country {
   font-weight: 700;
