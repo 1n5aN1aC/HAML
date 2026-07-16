@@ -36,7 +36,7 @@ STATUS_NOT_FOUND = "not_found"
 STATUS_ERROR = "error"
 
 # TTLs (seconds). ok rows store expires_at = '' (never expires).
-TTL_NOT_FOUND = 24 * 60 * 60
+TTL_NOT_FOUND = 15 * 60
 TTL_ERROR = 5 * 60
 
 # get the current UTC timestamp in ISO 8601 format with milliseconds precision.

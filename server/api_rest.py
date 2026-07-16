@@ -182,8 +182,11 @@ async def post_lookup(request):
 
     # Cache miss: coalesce, schedule, await under the long-poll ceiling.
     future = callook.schedule(request.app, callsign)
+    # asyncio.shield keeps wait_for() from cancelling the shared future on timeout:
+    # the _drive task keeps running, writes a cache row, and concurrent/late clients still get the result instead of a CancelledError.
     try:
-        result = await asyncio.wait_for(future, timeout=LONGPOLL_TIMEOUT_S)
+        result = await asyncio.wait_for(asyncio.shield(future),
+                                        timeout=LONGPOLL_TIMEOUT_S)
     except asyncio.TimeoutError:
         return json_error(408, "lookup timed out")
     if result["status"] == lookup_cache.STATUS_OK:

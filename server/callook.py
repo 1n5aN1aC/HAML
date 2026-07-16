@@ -95,8 +95,9 @@ async def _hit_callook(app, callsign):
     base_url = app["cfg"].get("callook_base_url", DEFAULT_BASE_URL)
     url = f"{base_url}/{callsign}/json"
     gate = app["callook_gate"]
-    last_at = app["callook_last_at"]
     async with gate:
+        # Prevent a burst of concurrent POSTs from exceeding the 1 req/s limit.
+        last_at = app["callook_last_at"]
         now = time.monotonic()
         wait = MIN_INTERVAL_S - (now - last_at)
         if wait > 0:
@@ -128,12 +129,19 @@ async def _hit_callook(app, callsign):
 
 # Run a single lookup asynchronously.
 async def _run_lookup(app, callsign):
+    # _hit_callook only translates known transport/HTTP failures into CallookError;
+    # Anything else (e.g. AttributeError on a malformed upstream payload) would otherwise escape as a 500.
+    # Catch broadly and persist a STATUS_ERROR row so a retry is bounded by TTL_ERROR.
     try:
         status, payload, error = await _hit_callook(app, callsign)
     except CallookError as exc:
         status = lookup_cache.STATUS_ERROR
         payload = {}
         error = str(exc)
+    except Exception as exc:
+        status = lookup_cache.STATUS_ERROR
+        payload = {}
+        error = f"{type(exc).__name__}: {exc}"
     lookup_cache.put(app["callook_cache"], callsign, status, payload, error)
     return {"status": status, "payload": payload, "error": error}
 
