@@ -12,9 +12,10 @@
 // Gridsquare: The server's canonical-record layer already truncates, uppercases, and pattern-validates it.
 // (4-char Maidenhead field grid or null).
 //
-// Zones (itu_zone, cq_zone): The server's canonical-record layer already coerces these to integers or null
-// The contact-entry form strips the leading zero from CallParser's zero-padded data file ('06' -> '6'),
-// so we hand it the canonical integer form: the form's `autoValue()` treats it like a normal integer.
+// Zones (itu_zone, cq_zone): The server's canonical-record layer already coerces these to integers or null.
+// This patch is the ONLY zone autofill — the CallParser prefix lookup deliberately doesn't
+// fill zones (a US call area doesn't encode station location; see AUTO_FIELDS in
+// builtin-fields.js), so a null here means the field simply stays blank.
 
 // True when the text looks like a callsign the lookup might know about — at
 // least 3 characters and contains a digit. US callsigns always have a digit;

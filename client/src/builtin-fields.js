@@ -15,11 +15,11 @@ export const BUILTINS = {
     label: 'Country', max_length: 40, validation: null, autofill: 'territory',
   },
   itu_zone: {
-    label: 'ITU Zone', max_length: 2, autofill: 'itu',
+    label: 'ITU Zone', max_length: 2, autofill: null,
     validation: { pattern: '[1-9]|[1-8]\\d|90', message: 'ITU zone 1–90' },
   },
   cq_zone: {
-    label: 'CQ Zone', max_length: 2, autofill: 'cq',
+    label: 'CQ Zone', max_length: 2, autofill: null,
     validation: { pattern: '[1-9]|[1-3]\\d|40', message: 'CQ zone 1–40' },
   },
   continent: {
@@ -70,9 +70,14 @@ export const BUILTINS = {
 // Registry order — drives the edit modal's "remaining built-ins" section.
 export const BUILTIN_ORDER = Object.keys(BUILTINS)
 
-// The built-ins pre-filled from the callsign lookup. Stored on every contact
-// (template or not); live-filled in the entry box when visible.
-export const AUTO_FIELDS = ['country', 'itu_zone', 'cq_zone', 'continent']
+// The built-ins pre-filled from the CallParser prefix lookup. Stored on every
+// contact (template or not); live-filled in the entry box when visible.
+// The zones (itu_zone/cq_zone) are deliberately NOT here: a US call area
+// doesn't encode where the station is (vanity calls, operators who moved),
+// so the prefix database's zone guess is wrong often enough to be worse than
+// nothing. They fill exclusively from the server lookup's coordinate-derived
+// values (lookup-fill.js) and stay blank when it has no record.
+export const AUTO_FIELDS = ['country', 'continent']
 
 export function isBuiltin(name) {
   return Object.prototype.hasOwnProperty.call(BUILTINS, name)

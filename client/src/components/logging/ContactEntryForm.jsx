@@ -97,30 +97,19 @@ function clearUntouchedFields(prev, touched, fields, hiddenBuiltins) {
   return cleared
 }
 
-// Zone fields whose CallParser source is zero-padded in the data file ('06'),
-// Must strip the padding, or the bare-number validation pattern will reject it.
-const ZERO_PADDED = new Set(['itu_zone', 'cq_zone'])
+// Auto fields whose CallParser source lists every value for entities that
+// span several regions ('EU;AF'). There's no single right answer for those,
+// so we fill nothing rather than a wrong guess. Country is excluded — its
+// names legitimately carry '-' and ';' (e.g. 'Guinea-Bissau').
+const MULTI_VALUE = new Set(['continent'])
 
-// Auto fields whose CallParser source lists every value for entities that span
-// several zones/continents ('03;04', '01-05', 'EU;AF'). There's no single right
-// answer for those, so we fill nothing rather than a wrong guess. Country is
-// excluded — its names legitimately carry '-' and ';' (e.g. 'Guinea-Bissau').
-const MULTI_VALUE = new Set(['itu_zone', 'cq_zone', 'continent'])
-
-// Auto fields the server lookup can also fill, from the license's coordinates.
-// They're exactly the fields MULTI_VALUE blanks for the US (CQ 3-5, ITU 6-8),
-// so a blank local answer here is the normal case, not the exception — and it
-// must not overwrite what the server derived. lookupPatch() omits the name
-// instead; a callsign change still clears it via clearUntouchedFields.
-const SERVER_DERIVED = new Set(['itu_zone', 'cq_zone'])
-
-// The auto-filled value for a built-in from a CallParser hit (or '' when no hit,
-// no loaded database, or the entity spans multiple zones/continents).
+// The auto-filled value for a built-in from a CallParser hit (or '' when no
+// hit, no loaded database, or the entity spans multiple continents).
 function autoValue(hit, name) {
   if (!hit) return ''
   const raw = String(hit[BUILTINS[name].autofill] ?? '')
   if (MULTI_VALUE.has(name) && /[;,-]/.test(raw)) return ''
-  return ZERO_PADDED.has(name) ? raw.replace(/^0+(?=\d)/, '') : raw
+  return raw
 }
 
 // same style as the entry clock's local half ("11:42 AM")
@@ -223,23 +212,20 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     if (match) playDuplicate()
   }
 
-  // CallParser fill: the auto built-ins (country/zones/continent) for a
-  // callsign, as a name -> value patch. Covers *all* AUTO_FIELDS now that
-  // every built-in lives in state, not just the ones with a visible input.
+  // CallParser fill: the auto built-ins (country/continent) for a callsign,
+  // as a name -> value patch. Covers *all* AUTO_FIELDS now that every
+  // built-in lives in state, not just the ones with a visible input.
   // Synchronous (an in-memory index walk), so submit can use it without a
-  // setValues round-trip. No hit (or no loaded database) fills each with '',
-  // except for the SERVER_DERIVED zones: those are left out of the patch
-  // entirely rather than blanked, so the server's coordinate-derived value
-  // survives both the blur fill and the submit re-run.
+  // setValues round-trip. No hit (or no loaded database) fills each with ''.
+  // The zones are absent from AUTO_FIELDS by design (see builtin-fields.js),
+  // which is what lets the server lookup's coordinate-derived zone fills
+  // survive the submit-time re-run of this patch: this patch never carries
+  // the name, so mergeUntouched never overwrites them.
   function lookupPatch(call) {
     if (!call) return {}
     const hit = parserReady ? lookup(call) : null
     const patch = {}
-    for (const name of AUTO_FIELDS) {
-      const value = autoValue(hit, name)
-      if (value === '' && SERVER_DERIVED.has(name)) continue
-      patch[name] = value
-    }
+    for (const name of AUTO_FIELDS) patch[name] = autoValue(hit, name)
     return patch
   }
 
