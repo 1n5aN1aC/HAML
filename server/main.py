@@ -13,15 +13,28 @@ from aiohttp import web
 
 import api_rest
 import api_ws
+import callook
 import events
+import lookup_cache
 from config import load_config
 
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 
+# Application teardown
+async def _close_cache(app):
+    conn = app.get("callook_cache")
+    if conn is not None:
+        conn.close()
 
+# Build the main application instance.
 def build_app(cfg):
     app = web.Application()
     app["cfg"] = cfg
+    callook.setup(app)
+    app["callook_cache"] = lookup_cache.open_cache(
+        cfg["data_dir"] / "callook_cache.db"
+    )
+    app.on_shutdown.append(_close_cache)
     api_ws.setup(app)  # defines app["poke"] / app["notify_event"]
     api_rest.set_active_connection(app, events.get_active_path(cfg["data_dir"]))
     api_rest.setup_routes(app)
@@ -30,7 +43,7 @@ def build_app(cfg):
         app.router.add_static("/", CLIENT_DIST)
     return app
 
-
+# Main entry point: load config, build app, run it.
 def main():
     cfg = load_config(sys.argv[1] if len(sys.argv) > 1 else None)
     app = build_app(cfg)
@@ -38,7 +51,6 @@ def main():
     print(f"HAML server on {cfg['host']}:{cfg['port']} — "
           + (f"event: {active['name']}" if active else "no active event"))
     web.run_app(app, host=cfg["host"], port=cfg["port"], print=None)
-
 
 if __name__ == "__main__":
     main()

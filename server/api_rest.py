@@ -3,13 +3,16 @@
 # Contacts: one record per request, idempotent LWW upsert (ADR-0001).
 # Admin endpoints are gated by the shared password header (ADR-0004).
 #
+import asyncio
 import json
 import sqlite3
 
 from aiohttp import web
 
+import callook
 import db
 import events
+import lookup_cache
 import templates
 
 
@@ -136,6 +139,58 @@ async def get_chat(request):
     return web.json_response(
         {"messages": db.chat_history(conn), "server_time": db.now_iso()}
     )
+
+
+# --- callsign lookup --------------------------------------------------------
+# Lookup is a separate concern from the active Event (Q6: the cache lives
+# in its own file and outlives events). The handler is therefore not gated
+# by require_event() — it works even when no Event is loaded, so the Admin
+# page can still use it for diagnosing setup.
+
+LONGPOLL_TIMEOUT_S = 15
+
+async def post_lookup(request):
+    """Look up a callsign via Callook, returning the cached or fresh result.
+
+    Cache-first, then long-poll for misses:
+      - cache hit ok         -> 200 + payload, instant
+      - cache hit not_found  -> 404 (no row, no upstream)
+      - cache hit error      -> 502 (transient upstream failure)
+      - cache miss           -> coalesce, run Callook, wait up to 15s
+      - timeout (no result in 15s) -> 408 (no cache write; client retries)
+
+    Two concurrent POSTs for the same callsign share a single Callook hit
+    """
+    try:
+        body = await request.json()
+    except json.JSONDecodeError:
+        return json_error(400, "body must be JSON")
+    raw = body.get("callsign") if isinstance(body, dict) else None
+    callsign = callook.normalize_callsign(raw or "")
+    if not callsign:
+        return json_error(400, "callsign must be a non-empty string")
+
+    cache_conn = request.app["callook_cache"]
+    cached = lookup_cache.get(cache_conn, callsign)
+    if cached is not None:
+        if cached["status"] == lookup_cache.STATUS_OK:
+            return web.json_response(json.loads(cached["payload"]))
+        if cached["status"] == lookup_cache.STATUS_NOT_FOUND:
+            return json_error(404, "callsign not found")
+        # status == error
+        return json_error(502, cached["error"] or "upstream lookup failed")
+
+    # Cache miss: coalesce, schedule, await under the long-poll ceiling.
+    future = callook.schedule(request.app, callsign)
+    try:
+        result = await asyncio.wait_for(future, timeout=LONGPOLL_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        return json_error(408, "lookup timed out")
+    if result["status"] == lookup_cache.STATUS_OK:
+        return web.json_response(result["payload"])
+    if result["status"] == lookup_cache.STATUS_NOT_FOUND:
+        return json_error(404, "callsign not found")
+    return json_error(502, result["error"] or "upstream lookup failed")
 
 
 # --- admin endpoints --------------------------------------------------------
@@ -273,6 +328,7 @@ def setup_routes(app):
     app.router.add_post("/api/contacts", post_contact)
     app.router.add_get("/api/contacts", get_contacts)
     app.router.add_get("/api/chat", get_chat)
+    app.router.add_post("/api/lookup", post_lookup)
     app.router.add_get("/api/admin/templates", admin_list_templates)
     app.router.add_get("/api/admin/templates/{template_id}",
                        admin_get_template)
