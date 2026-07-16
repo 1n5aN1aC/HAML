@@ -30,11 +30,11 @@ def normalize_callsign(raw):
     """Returns the normalized form, or '' when nothing usable remains."""
     if not isinstance(raw, str):
         return ""
-    s = raw.strip().upper()
+    s = raw.strip().upper().rstrip("/")
     for suffix in _CALLSIGN_SUFFIXES:
         if s.endswith(suffix):
             s = s[: -len(suffix)]
-    s = s.strip()
+    s = s.strip().rstrip("/")
     return s
 
 # Map a Callook JSON response into our normalized cache entry.
@@ -142,7 +142,13 @@ async def _run_lookup(app, callsign):
         status = lookup_cache.STATUS_ERROR
         payload = {}
         error = f"{type(exc).__name__}: {exc}"
-    lookup_cache.put(app["callook_cache"], callsign, status, payload, error)
+    # A failed cache write (sqlite locked, disk full) must not poison the
+    # shared future — waiters still get the result; the next request for
+    # this callsign simply re-hits Callook.
+    try:
+        lookup_cache.put(app["callook_cache"], callsign, status, payload, error)
+    except Exception as exc:
+        print(f"warning: callook cache write failed for {callsign}: {exc}")
     return {"status": status, "payload": payload, "error": error}
 
 # Get an existing future or create a new one for a callsign.
