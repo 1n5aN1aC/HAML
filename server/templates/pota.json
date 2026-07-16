@@ -53,12 +53,9 @@
     "Other"
   ],
   "modes": [
-    "SSB",
+    "Phone",
     "CW",
-    "FT8",
-    "FT4",
-    "FM",
-    "AM"
+    "Digital"
   ],
   "duplicate_type": "band-mode-day",
   "export": null

@@ -21,7 +21,15 @@ const isoToLocalInput = (iso) => {
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
-const utcInputToIso = (value) => new Date(value + 'Z').toISOString()
+// Both variants return '' for invalid/empty input rather than throwing — a
+// half-typed value followed by blur must never crash the modal. The local
+// branch checks isNaN (toISOString would throw on an Invalid Date); the UTC
+// branch needs both checks, since toISOString throws RangeError on a valid
+// Date that would round-trip outside the representable range.
+const utcInputToIso = (value) => {
+  const d = new Date(value + 'Z')
+  return isNaN(d) ? '' : d.toISOString()
+}
 const localInputToIso = (value) => {
   // datetime-local has no zone; the browser parses it as local time.
   const d = new Date(value)

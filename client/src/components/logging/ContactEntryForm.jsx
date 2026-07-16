@@ -4,6 +4,7 @@
 // later). Built-ins are stored as top-level properties on the contact; custom
 // fields live in the `fields` blob.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'
 import { newUuid } from '../../uuid.js'
@@ -21,10 +22,10 @@ import FieldInput from './FieldInput.jsx'
 // UTC + local wall clock, corrected by the same server clock offset used for
 // QSO timestamps so what's shown matches what gets logged.
 function EntryClock() {
-  const [offset, setOffset] = useState(0)
+  // Attach react query so the displayed clock corrects itself when clock_offset is written.
+  const offset = useLiveQuery(() => kvGet('clock_offset'), [], 0) ?? 0
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    kvGet('clock_offset').then((v) => setOffset(v ?? 0))
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
