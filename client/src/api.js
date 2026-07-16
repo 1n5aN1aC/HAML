@@ -46,6 +46,20 @@ export function getContacts(since) {
   )
 }
 
+// Look up a callsign via the server's lookup endpoint (cached, coalesced, long-polled upstream).
+// The 200 body is the canonical record shape defined by server/lookup_record.py:
+// flat keys, null for absent values. request() throws with err.status on 4xx/5xx:
+// 404 = not found,
+// 408 = long-poll timeout,
+// 502 = upstream error.
+export function lookupCallsign(callsign) {
+  return request('/api/lookup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callsign }),
+  })
+}
+
 // --- admin endpoints (ADR-0004: gated by the shared password header) --------
 
 const adminHeaders = (password) => ({ 'X-Admin-Password': password })

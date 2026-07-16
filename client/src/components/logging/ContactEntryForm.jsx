@@ -17,6 +17,8 @@ import {
   AUTO_FIELDS, BUILTINS, BUILTIN_ORDER, isBuiltin, resolveEntryFields,
 } from '../../builtin-fields.js'
 import { SECTION_TO_STATE, STATE_TO_SECTION } from '../../sections.js'
+import { lookupCallsign } from '../../api.js'
+import { isPlausibleCallsign, lookupPatchFromRecord } from '../../lookup-fill.js'
 import FieldInput from './FieldInput.jsx'
 
 // UTC + local wall clock, corrected by the same server clock offset used for
@@ -81,6 +83,20 @@ function crossFillPatch(values) {
   return patch
 }
 
+// Reset every untouched field to its empty-state default without touching anything the operator typed into
+// (a touched field keeps its value and its touched flag, so later fills still leave it alone).
+// Apply on every callsign text change so in-flight async patches (CallParser fill, remember, server lookup) are wiped before the
+// next contact's fills land — submitting before the new fills arrive then logs blanks, never the previous station's data.
+function clearUntouchedFields(prev, touched, fields, hiddenBuiltins) {
+  const cleared = { ...prev }
+  for (const f of fields) {
+    if (!touched.has(f.name)) cleared[f.name] = f.default ?? ''
+  }
+  // hidden built-ins have no entry input, so they can never be touched
+  for (const name of hiddenBuiltins) cleared[name] = ''
+  return cleared
+}
+
 // Zone fields whose CallParser source is zero-padded in the data file ('06'),
 // Must strip the padding, or the bare-number validation pattern will reject it.
 const ZERO_PADDED = new Set(['itu_zone', 'cq_zone'])
@@ -120,11 +136,22 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   // names the operator typed into by hand — at submit, a touched auto field's
   // value wins over the freshly recomputed lookup value
   const [touched, setTouched] = useState(() => new Set())
+  // Live mirror `touched` for async fills that resolve long after they fired (the server lookup can take up to 15s):
+  // merging with the closure's stale `touched` would overwrite fields the operator typed into while the request was in flight.
+  const touchedRef = useRef(touched)
+  touchedRef.current = touched
   const [error, setError] = useState('')
   const [dupe, setDupe] = useState(null)
   const callsignRef = useRef(null)
   const fieldRefs = useRef([])
   fieldRefs.current = fields.map((_, i) => fieldRefs.current[i] ?? null)
+  // Pending debounced server-lookup POST — cancelled on blur, by the next change, and on unmount.
+  const idleTimerRef = useRef(null)
+  // The callsign text each in-flight server lookup was fired for.
+  // Updated on every change, reset to '' on submit;
+  // a response lands only when this still equals the box's current content.
+  // Covers both operator edits (the lookup fires for the old text) and post-submit (box goes to '').
+  const callsignLiveRef = useRef('')
 
   // DXCC prefix database, loaded once in the background; until it arrives
   // the country label just stays empty.
@@ -133,6 +160,10 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     initCallParser()
       .then(() => setParserReady(true))
       .catch((err) => console.warn('CallParser init failed:', err))
+  }, [])
+  // Drop any pending debounced server lookup on unmount so its setValues never fires into an unmounted tree.
+  useEffect(() => () => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
   }, [])
 
   // Country + distance label, recomputed per keystroke (the lookup is a
@@ -234,6 +265,29 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setValues((prev) => mergeUntouched(prev, touched, crossFillPatch(prev)))
   }
 
+  // Fire an async server callsign-lookup POST and apply the patch on success.
+  // Named to avoid colliding with CallParser's `lookup` import.
+  // Skips non-plausible callsigns and silently swallows every rejection (404/408/502 plus network errors):
+  // Enrichment is best-effort, never blocks.
+  // Race guard: if the operator has changed the callsign since the request fired, the response is dropped
+  function fireServerLookup(call) {
+    if (!isPlausibleCallsign(call)) return
+    lookupCallsign(call)
+      .then((record) => {
+        if (callsignLiveRef.current !== call) return
+        const lookupPatch = lookupPatchFromRecord(record)
+        setValues((prev) => {
+          // touchedRef, not the closure's touched: the response can land long after this render, and fields typed into meanwhile must win.
+          const nowTouched = touchedRef.current
+          const merged = mergeUntouched(prev, nowTouched, lookupPatch)
+          // Live cross-fill: a freshly-derived state should populate its
+          // section on screen, the same way submit does for the saved row.
+          return mergeUntouched(merged, nowTouched, crossFillPatch(merged))
+        })
+      })
+      .catch(() => { /* silent miss — see comment above */ })
+  }
+
   async function logContact(e) {
     e.preventDefault()
     // Run the full blur pipeline over the current state so an edit-then-Enter
@@ -297,6 +351,8 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setTouched(new Set())
     setError('')
     setDupe(null)
+    // Mirror the cleared callsign box in the live ref so any in-flight server-lookup response is dropped.
+    callsignLiveRef.current = ''
     callsignRef.current?.focus()
   }
 
@@ -312,28 +368,29 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             value={callsign}
             onChange={(e) => {
               const next = sanitizeText(e.target.value).toUpperCase()
-              // Emptying the callsign undoes any "remember"/auto autofill so the
-              // stale values don't carry over to the next contact.
-              if (callsign && !next) {
-                setValues((prev) => {
-                  const cleared = { ...prev }
-                  for (const f of fields) {
-                    if (f.remember || AUTO_FIELDS.includes(f.name)) {
-                      cleared[f.name] = f.default ?? ''
-                    }
-                  }
-                  // hidden built-ins have no entry field but can hold fills
-                  // (auto lookup, and later async enrichment) — clear them too
-                  for (const name of hiddenBuiltins) cleared[name] = ''
-                  return cleared
-                })
-                setTouched(new Set())
-                setError('')
+              // Mirror the live value for the server-lookup race guard.
+              callsignLiveRef.current = next
+              if (next !== callsign) {
+                // Every callsign text change resets every untouched field, not just remember/auto fills.
+                // Stale server-lookup patches, remember fills, or local autos from the previous station
+                // Don't carry forward into the next contact.
+                setValues((prev) => clearUntouchedFields(prev, touched, fields, hiddenBuiltins))
+                // Fully emptying additionally forgets what the operator typed
+                // and clears any leftover error: matches the pre-existing special case.
+                if (!next) {
+                  setTouched(new Set())
+                  setError('')
+                }
               }
               setCallsign(next)
               setDupe(null)
+              // (Re)start the idle debounce that fires fireServerLookup 750ms after typing settles
+              if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+              idleTimerRef.current = setTimeout(() => fireServerLookup(next), 750)
             }}
             onBlur={() => {
+              if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+              fireServerLookup(callsign)
               checkDuplicate()
               applyBlurFills()
             }}
