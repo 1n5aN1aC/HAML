@@ -117,8 +117,58 @@ async def post_lookup(session, callsign):
         return resp.status, body
 
 
+def check_ttl_policy():
+    """Verify the TTL policy constants without spinning up the server.
+
+    Locks in the policy so that future drift in lookup_cache.TTL_* is caught
+    by the smoke test (which otherwise only exercises the cache write/read
+    path, not the actual expiry windows).
+    """
+    # Add server/ to sys.path so we can import lookup_cache directly.
+    sys.path.insert(0, str(SERVER_DIR))
+    import lookup_cache
+
+    # TTL_NOT_FOUND must be ~1 month (30 fixed days) in seconds.
+    expected_month = 30 * 24 * 60 * 60
+    check(
+        lookup_cache.TTL_NOT_FOUND == expected_month,
+        f"TTL_NOT_FOUND == {expected_month} (1 month)",
+    )
+
+    # TTL_ERROR must be 15 minutes in seconds.
+    check(
+        lookup_cache.TTL_ERROR == 15 * 60,
+        f"TTL_ERROR == {15 * 60} (15 min)",
+    )
+
+    # And the dispatcher _expires_at() must produce a row whose lifetime
+    # matches each constant within a small tolerance.
+    def lifetime_seconds(status):
+        from datetime import datetime, timezone as _tz
+        s = lookup_cache._expires_at(status)
+        check(s != "", f"_expires_at({status!r}) returns a non-empty string")
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        now = datetime.now(_tz.utc)
+        return (dt - now).total_seconds()
+
+    nf_secs = lifetime_seconds(lookup_cache.STATUS_NOT_FOUND)
+    check(
+        abs(nf_secs - expected_month) < 5,
+        f"not_found lifetime ~30 days (got {nf_secs:.0f}s, expected {expected_month}s)",
+    )
+
+    err_secs = lifetime_seconds(lookup_cache.STATUS_ERROR)
+    check(
+        abs(err_secs - 15 * 60) < 5,
+        f"error lifetime ~15 min (got {err_secs:.0f}s, expected {15 * 60}s)",
+    )
+
+
 async def main():
     preclean()
+    # TTL-policy constants check — runs without the server so it stays fast
+    # and catches accidental drift in lookup_cache.TTL_* values.
+    check_ttl_policy()
     tmp = Path(tempfile.mkdtemp(prefix="haml-lookup-"))
     try:
         # The server reads cfg from a JSON file whose `data_dir` it then

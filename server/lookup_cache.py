@@ -7,8 +7,9 @@ Schema is intentionally narrow: status + fetched_at + expires_at + payload
 
 TTL policy:
   status='ok'         -> never expires. Information does not go stale for now.
-  status='not_found'  -> 15min.
-  status='error'      -> 5min. Upstream being down for hours is plausible;
+  status='not_found'  -> 1 month (30 days). A non-existent callsign will stay
+                         non-existent for a long time; no point re-asking.
+  status='error'      -> 15min. Upstream being down for hours is plausible;
                          a short TTL lets us discover recovery quickly.
 
 The 408 long-poll ceiling does NOT write a cache row — clients are free to retry immediately.
@@ -36,8 +37,8 @@ STATUS_NOT_FOUND = "not_found"
 STATUS_ERROR = "error"
 
 # TTLs (seconds). ok rows store expires_at = '' (never expires).
-TTL_NOT_FOUND = 15 * 60
-TTL_ERROR = 5 * 60
+TTL_NOT_FOUND = 30 * 24 * 60 * 60   # 1 month — 30 fixed days
+TTL_ERROR = 15 * 60                 # 15 minutes — short enough to recover quickly
 
 # get the current UTC timestamp in ISO 8601 format with milliseconds precision.
 def now_iso():
