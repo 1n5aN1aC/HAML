@@ -8,6 +8,9 @@
 //
 // Provider-agnostic: no upstream name appears anywhere here. The record is
 // the contract; whichever adapter the server talks to today is irrelevant.
+//
+// Gridsquare: The server's canonical-record layer already truncates, uppercases, and pattern-validates it.
+// (4-char Maidenhead field grid or null).
 
 // True when the text looks like a callsign the lookup might know about — at
 // least 3 characters and contains a digit. US callsigns always have a digit;
@@ -16,11 +19,6 @@
 export function isPlausibleCallsign(s) {
   return typeof s === 'string' && s.length >= 3 && /\d/.test(s)
 }
-
-// Maidenhead grid, top-level, truncated to the 4-char field grid (the entry
-// field's validation accepts exactly 4). A longer grid exists for VHF/UHF
-// callers but the field can't carry it, so we don't try.
-const GRID_RE = /^[A-R]{2}\d{2}$/
 
 // US/Canadian ZIP suffix on the address — pulls the 2-letter state out of
 // "PORTLAND, OR 97201". Absent addresses or addresses with state in
@@ -48,14 +46,6 @@ function firstTokenTitleCased(name) {
   return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()
 }
 
-// 4-char gridsquare from the canonical record: longer grids are truncated
-// to their first 4 chars; null when absent or the result doesn't validate.
-function grid4(record) {
-  if (!record.gridsquare) return null
-  const g = String(record.gridsquare).trim().toUpperCase().slice(0, 4)
-  return GRID_RE.test(g) ? g : null
-}
-
 // 2-letter state from the address_line2 ZIP, or null when the line isn't
 // shaped like one or the code isn't on the entry field's accepted list.
 function stateFromAddress(record) {
@@ -79,8 +69,8 @@ export function lookupPatchFromRecord(record) {
     const n = firstTokenTitleCased(record.name)
     if (n) patch.name = n
   }
-  const g = grid4(record)
-  if (g) patch.gridsquare = g
+  // The server has already coerced gridsquare to a 4-char uppercase grid.
+  if (record.gridsquare) patch.gridsquare = record.gridsquare
   const s = stateFromAddress(record)
   if (s) patch.state = s
   return patch

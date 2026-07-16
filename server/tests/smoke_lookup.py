@@ -251,6 +251,24 @@ def check_coerce():
     check(record["gridsquare"] == "CN84",
           "full fixture -> gridsquare truncated to 4 chars (got "
           f"{record['gridsquare']!r})")
+
+    # Lowercase input must be uppercased and accepted as clean.
+    lower_input = {**full_input, "gridsquare": "cn84mo"}
+    lower_record, lower_bad = lookup_record.coerce(lower_input)
+    check(lower_record["gridsquare"] == "CN84",
+          f"lowercase gridsquare -> 'CN84' (got {lower_record['gridsquare']!r})")
+    check(lower_bad == [],
+          f"lowercase gridsquare -> no bad_fields (got {lower_bad})")
+
+    # Junk that truncates but doesn't match the Maidenhead pattern must be
+    # flagged dirty exactly like an unparseable date or latitude.
+    junk_input = {**full_input, "gridsquare": "9xq"}
+    junk_record, junk_bad = lookup_record.coerce(junk_input)
+    check(junk_record["gridsquare"] is None,
+          f"junk gridsquare -> None (got {junk_record['gridsquare']!r})")
+    check("gridsquare" in junk_bad,
+          f"junk gridsquare -> 'gridsquare' in bad_fields (got {junk_bad})")
+
     check("junk" not in record, "full fixture -> unknown key dropped")
 
     # Sparse: only license_type and name provided. Everything else is null,
@@ -358,8 +376,8 @@ async def main():
                       "W1AW has expected name")
                 check(isinstance(body.get("gridsquare"), str) and body.get("gridsquare"),
                       "W1AW has gridsquare (string)")
-                check(len(body.get("gridsquare", "")) <= 4,
-                      "W1AW gridsquare is truncated to <=4 chars "
+                check(re.match(r"^[A-R]{2}\d{2}$", body.get("gridsquare", "")),
+                      "W1AW gridsquare matches 4-char Maidenhead pattern "
                       f"(got {body.get('gridsquare')!r})")
                 check(isinstance(body.get("latitude"), float),
                       "W1AW latitude is float")

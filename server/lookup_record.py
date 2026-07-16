@@ -16,6 +16,7 @@ A present-but-uncoercible value is reported in `bad_fields` so the cache layer c
 the row as dirty and shorten its TTL: that's the contract the caller relies on.
 """
 from datetime import datetime, timezone
+import re
 
 
 # --- field set -------------------------------------------------------------
@@ -62,17 +63,31 @@ def _coerce_str(value):
     return s if s else None
 
 
+# Maidenhead 4-char field grid: two letters in [A-R] followed by two digits.
+# Mirrors `BUILTINS.gridsquare.validation` client-side.
+# Compiled once at module scope so the regex isn't rebuilt on every coerce() call.
+_GRID_RE = re.compile(r"^[A-R]{2}[0-9]{2}$")
+
+
 def _coerce_gridsquare(value):
-    """Maidenhead grid truncated to the 4-char field grid.
+    """Maidenhead grid truncated and validated to the 4-char field grid.
 
     The entry field accepts exactly 4 chars (BUILTINS.gridsquare.max_length,
     pattern `[A-R]{2}\\d{2}`). Longer grids exist for VHF/UHF callers but
     neither the field nor the cache can carry them, so we keep only the
-    first 4 chars here. This means the cache stores — and every cache hit
-    returns — the truncated value; the client no longer has to slice.
+    first 4 chars here, uppercase, and then validate the Maidenhead pattern;
+    anything that doesn't match is treated as a present-but-uncoercible
+    value (returned as None so coerce() flags the row dirty, the same as an
+    unparseable date or latitude).
+
+    Net effect: the cache stores — and every cache hit returns — an
+    uppercase, pattern-valid 4-char grid or null; the client only null-checks.
     """
     s = _coerce_str(value)
-    return s[:4] if s is not None else None
+    if s is None:
+        return None
+    g = s[:4].upper()
+    return g if _GRID_RE.match(g) else None
 
 
 def _coerce_lower(value):
