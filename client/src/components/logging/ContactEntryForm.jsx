@@ -178,8 +178,8 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     return miles != null ? `${hit.territory} (${miles.toLocaleString()} mi)` : hit.territory
   }, [callsign, parserReady, config])
 
-  // Fields never contain spaces, so Space doubles as "next field" (wrapping,
-  // like Tab) instead of typing a literal space.
+  // Fields never contain spaces, so Space doubles as "next field" (wrapping, like Tab) instead of typing a literal space.
+  // Escape in any entry field resets the whole form and returns focus to the callsign box.
   function handleFieldNav(e, index, order) {
     if (e.key === ' ') {
       e.preventDefault()
@@ -192,6 +192,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
         e.preventDefault()
         order[order.length - 1]?.focus()
       }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      resetForm()
     }
   }
 
@@ -352,6 +355,21 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setError('')
     setDupe(null)
     // Mirror the cleared callsign box in the live ref so any in-flight server-lookup response is dropped.
+    callsignLiveRef.current = ''
+    callsignRef.current?.focus()
+  }
+
+  // Escape in any entry field wipes the in-progress contact (callsign, every
+  // visible + hidden value, touched flags, error, dupe banner, pending server
+  // lookup) and returns focus to the callsign box — same end-state as a fresh
+  // post-submit form so the operator can start the next QSO immediately.
+  function resetForm() {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    setCallsign('')
+    setValues(defaultValues(fields))
+    setTouched(new Set())
+    setError('')
+    setDupe(null)
     callsignLiveRef.current = ''
     callsignRef.current?.focus()
   }
