@@ -9,6 +9,7 @@ import { sanitizeText } from '../../text-input.js'
 import {
   BUILTIN_ORDER, builtinFieldDef, isBuiltin, resolveAllFields,
 } from '../../builtin-fields.js'
+import { SECTION_TO_STATE, STATE_TO_SECTION } from '../../sections.js'
 import FieldInput from './FieldInput.jsx'
 
 // ISO ↔ datetime-local strings. UTC variant treats the input as UTC; local
@@ -44,6 +45,12 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
   })
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Built-in names the operator has edited this session. Unlike the entry form,
+  // every field starts pre-filled with saved data, so state<->section derivation
+  // fires only FROM a field the operator actually changed, and only writes INTO a
+  // counterpart they haven't touched — never silently rewriting historical data
+  // just by opening or tabbing through the modal.
+  const [touched, setTouched] = useState(() => new Set())
 
   // When the user blurs either time field, re-derive the other from the
   // canonical ISO timestamp kept in qso_at.
@@ -138,20 +145,46 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
     .map(builtinFieldDef)
   const allFields = [...templateFields, ...modalBuiltins]
 
+  // Blur of an edited section/state field derives the counterpart (state from
+  // section, or section from state) into an untouched counterpart. Gated on the
+  // source being touched, so merely tabbing through never rewrites saved data.
+  const deriveCounterpart = (name) => {
+    if (!touched.has(name)) return
+    const counterpart = name === 'section' ? 'state' : 'section'
+    if (touched.has(counterpart)) return
+    setForm((prev) => {
+      const derived = name === 'section'
+        ? SECTION_TO_STATE[String(prev.builtins.section ?? '').trim()]
+        : STATE_TO_SECTION[String(prev.builtins.state ?? '').trim()]
+      if (!derived) return prev
+      return { ...prev, builtins: { ...prev.builtins, [counterpart]: derived } }
+    })
+  }
+
   const renderField = (f) => {
     const builtin = isBuiltin(f.name)
+    const crossFill = builtin && (f.name === 'section' || f.name === 'state')
     const value = builtin ? form.builtins[f.name] ?? '' : form.fields[f.name] ?? ''
-    const onChange = (v) =>
+    const onChange = (v) => {
       setForm((prev) =>
         builtin
           ? { ...prev, builtins: { ...prev.builtins, [f.name]: v } }
           : { ...prev, fields: { ...prev.fields, [f.name]: v } },
       )
+      if (crossFill) {
+        setTouched((prev) => (prev.has(f.name) ? prev : new Set(prev).add(f.name)))
+      }
+    }
     return (
       <label key={f.name}>
         {f.label}:
         {f.required && '*'}
-        <FieldInput field={f} value={value} onChange={onChange} />
+        <FieldInput
+          field={f}
+          value={value}
+          onChange={onChange}
+          onBlur={crossFill ? () => deriveCounterpart(f.name) : undefined}
+        />
       </label>
     )
   }
