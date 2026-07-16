@@ -2,7 +2,8 @@
 // and the contact edit modal. All data/state comes from App; only the
 // modal's open/close state lives here, so switching tabs closes it.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { kvGet } from '../../db.js'
 import StatusBar from './StatusBar.jsx'
 import ContactList from './ContactList.jsx'
@@ -29,13 +30,8 @@ export default function LoggingTab({
   // Band-conflict warning: another station (seen within the last 15s) is on
   // our band. No timer — the roster rebroadcasts on every heartbeat (≥ every
   // 5s, including our own), so `stations` re-renders us often enough. Ages
-  // use the persisted server clock offset, same as StationsPanel.
-  const [offset, setOffset] = useState(0)
-  useEffect(() => {
-    let cancelled = false
-    kvGet('clock_offset').then((v) => { if (!cancelled) setOffset(v ?? 0) })
-    return () => { cancelled = true }
-  }, [])
+  // use the live server clock offset, same as StationsPanel.
+  const offset = useLiveQuery(() => kvGet('clock_offset'), [], 0) ?? 0
   const serverNow = (Date.now() + offset) / 1000
   const conflicts =
     session.band === 'Off-Air'

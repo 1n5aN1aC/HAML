@@ -1,9 +1,10 @@
 // Online stations roster (plan §3.5).
 // The server sends `last_seen_at` for each station as a wall-clock epoch second;
-// We tick once per second locally and compute the age here, applying the persisted server clock offset (kv: clock_offset)
+// We tick once per second locally and compute the age here, applying the server clock offset (kv: clock_offset)
 // so this client agrees with the server even if its wall clock is skewed.
 
 import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { kvGet } from '../../db.js'
 
 function ageBand(age) {
@@ -13,15 +14,13 @@ function ageBand(age) {
 }
 
 export default function StationsPanel({ stations, clientUuid, conflictUuids, bands = [] }) {
-  // `offset` is server_now - Date.now() (set by sync.js after each pull).
-  const [offset, setOffset] = useState(0)
-  const [tick, setTick] = useState(0)
+  // `offset` is server_now - Date.now(). A live query, not a one-shot read:
+  const offset = useLiveQuery(() => kvGet('clock_offset'), [], 0) ?? 0
+  const [, setTick] = useState(0)
 
   useEffect(() => {
-    let cancelled = false
-    kvGet('clock_offset').then((v) => { if (!cancelled) setOffset(v ?? 0) })
     const id = setInterval(() => setTick((t) => t + 1), 1000)
-    return () => { cancelled = true; clearInterval(id) }
+    return () => clearInterval(id)
   }, [])
 
   const serverNow = (Date.now() + offset) / 1000
