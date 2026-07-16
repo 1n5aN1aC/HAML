@@ -62,6 +62,19 @@ def _coerce_str(value):
     return s if s else None
 
 
+def _coerce_gridsquare(value):
+    """Maidenhead grid truncated to the 4-char field grid.
+
+    The entry field accepts exactly 4 chars (BUILTINS.gridsquare.max_length,
+    pattern `[A-R]{2}\\d{2}`). Longer grids exist for VHF/UHF callers but
+    neither the field nor the cache can carry them, so we keep only the
+    first 4 chars here. This means the cache stores — and every cache hit
+    returns — the truncated value; the client no longer has to slice.
+    """
+    s = _coerce_str(value)
+    return s[:4] if s is not None else None
+
+
 def _coerce_lower(value):
     """Lowercase enum passthrough. None / non-string / empty -> None."""
     s = _coerce_str(value)
@@ -110,7 +123,7 @@ _COERCERS = {
     "address_attn": _coerce_str,
     "latitude": _coerce_float,
     "longitude": _coerce_float,
-    "gridsquare": _coerce_str,
+    "gridsquare": _coerce_gridsquare,
     "frn": _coerce_str,
     "grant_date": _coerce_iso_date,
     "expiry_date": _coerce_iso_date,

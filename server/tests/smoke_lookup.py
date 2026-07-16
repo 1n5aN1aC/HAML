@@ -248,6 +248,9 @@ def check_coerce():
           "full fixture -> longitude is float")
     check(record["grant_date"] == "2024-03-19", "full fixture -> grant_date ISO")
     check(record["frn"] == "0024933376", "full fixture -> frn preserved")
+    check(record["gridsquare"] == "CN84",
+          "full fixture -> gridsquare truncated to 4 chars (got "
+          f"{record['gridsquare']!r})")
     check("junk" not in record, "full fixture -> unknown key dropped")
 
     # Sparse: only license_type and name provided. Everything else is null,
@@ -355,6 +358,9 @@ async def main():
                       "W1AW has expected name")
                 check(isinstance(body.get("gridsquare"), str) and body.get("gridsquare"),
                       "W1AW has gridsquare (string)")
+                check(len(body.get("gridsquare", "")) <= 4,
+                      "W1AW gridsquare is truncated to <=4 chars "
+                      f"(got {body.get('gridsquare')!r})")
                 check(isinstance(body.get("latitude"), float),
                       "W1AW latitude is float")
                 check(isinstance(body.get("longitude"), float),
