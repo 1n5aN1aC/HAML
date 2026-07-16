@@ -45,12 +45,12 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
   })
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
-  // Built-in names the operator has edited this session. Unlike the entry form,
-  // every field starts pre-filled with saved data, so state<->section derivation
-  // fires only FROM a field the operator actually changed, and only writes INTO a
-  // counterpart they haven't touched — never silently rewriting historical data
-  // just by opening or tabbing through the modal.
+  // Field names the operator has edited this session:
+  // A dirty-state set for the whole modal.  Prevents automation from modifying something the user has already touched.
+  // Consumed by automatic logic such as the state<->section derivation
   const [touched, setTouched] = useState(() => new Set())
+  const markTouched = (name) =>
+    setTouched((prev) => (prev.has(name) ? prev : new Set(prev).add(name)))
 
   // When the user blurs either time field, re-derive the other from the
   // canonical ISO timestamp kept in qso_at.
@@ -81,9 +81,14 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value })
-  const setUpper = (key) => (e) =>
+  const set = (key) => (e) => {
+    setForm({ ...form, [key]: e.target.value })
+    markTouched(key)
+  }
+  const setUpper = (key) => (e) => {
     setForm({ ...form, [key]: sanitizeText(e.target.value).toUpperCase() })
+    markTouched(key)
+  }
 
   async function write(changes) {
     const offset = (await kvGet('clock_offset')) ?? 0
@@ -171,9 +176,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
           ? { ...prev, builtins: { ...prev.builtins, [f.name]: v } }
           : { ...prev, fields: { ...prev.fields, [f.name]: v } },
       )
-      if (crossFill) {
-        setTouched((prev) => (prev.has(f.name) ? prev : new Set(prev).add(f.name)))
-      }
+      markTouched(f.name)
     }
     return (
       <label key={f.name}>
@@ -204,7 +207,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
             <input
               type="datetime-local"
               value={form.qso_at_utc}
-              onChange={(e) => setForm({ ...form, qso_at_utc: e.target.value })}
+              onChange={(e) => { setForm({ ...form, qso_at_utc: e.target.value }); markTouched('qso_at') }}
               onBlur={onUtcBlur}
             />
           </label>
@@ -213,7 +216,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
             <input
               type="datetime-local"
               value={form.qso_at_local}
-              onChange={(e) => setForm({ ...form, qso_at_local: e.target.value })}
+              onChange={(e) => { setForm({ ...form, qso_at_local: e.target.value }); markTouched('qso_at') }}
               onBlur={onLocalBlur}
             />
           </label>
