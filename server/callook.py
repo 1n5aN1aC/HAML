@@ -20,10 +20,12 @@ queried key gets a standard not_found row (30-day TTL). The client
 receives 404 — a previous call is not a currently-assigned callsign.
 """
 import asyncio
+import json
 import time
 import aiohttp
 import lookup_cache
 import lookup_record
+import zones
 
 SOURCE = "callook"
 
@@ -123,7 +125,7 @@ async def _hit_callook(app, callsign):
         raise CallookError(f"HTTP {status_code}")
 
     try:
-        data = __import__("json").loads(body)
+        data = json.loads(body)
     except ValueError as exc:
         raise CallookError("non-JSON response") from exc
 
@@ -134,6 +136,15 @@ async def _hit_callook(app, callsign):
         raise CallookError(f"unexpected status: {upstream_status!r}")
 
     record, bad_fields = lookup_record.coerce(extract(data))
+    # Derive CQ + ITU zones from the coordinates whenever we have them.
+    # `zones.derive()` is total (never raises, returns None on bad input or when no polygon contains the point),
+    # so this is safe to call blindly; we only assign over a still-null field so a direct value from a future provider would still win.
+    if record.get("latitude") is not None and record.get("longitude") is not None:
+        derived = zones.derive(record["latitude"], record["longitude"])
+        if record.get("itu_zone") is None:
+            record["itu_zone"] = derived["itu_zone"]
+        if record.get("cq_zone") is None:
+            record["cq_zone"] = derived["cq_zone"]
     dirty = bool(bad_fields)
     if dirty:
         print(

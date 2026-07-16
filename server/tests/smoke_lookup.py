@@ -383,6 +383,12 @@ async def main():
                       "W1AW latitude is float")
                 check(isinstance(body.get("longitude"), float),
                       "W1AW longitude is float")
+                # W1AW is at ARRL HQ in Newington, CT: CQ Zone 5 (Eastern N. America),
+                # ITU Zone 8 (Eastern USA).
+                check(body.get("cq_zone") == 5,
+                      f"W1AW cq_zone == 5 (got {body.get('cq_zone')!r})")
+                check(body.get("itu_zone") == 8,
+                      f"W1AW itu_zone == 8 (got {body.get('itu_zone')!r})")
                 check(body.get("source") == "callook",
                       "W1AW payload has source=callook")
                 check("status" not in body,
@@ -401,6 +407,11 @@ async def main():
                       "warm hit returns identical fetched_at (cache hit)")
                 check(warm_ms < cold_ms / 2,
                       f"warm hit ({warm_ms:.0f}ms) faster than cold ({cold_ms:.0f}ms)")
+                # Zones round-trip through the cache (same ints as the cold hit).
+                check(body2.get("cq_zone") == body.get("cq_zone"),
+                      "warm W1AW cq_zone matches cold")
+                check(body2.get("itu_zone") == body.get("itu_zone"),
+                      "warm W1AW itu_zone matches cold")
                 print(f"  ({warm_ms:.0f}ms warm)")
 
                 # ---- suffix normalization ----
@@ -456,6 +467,12 @@ async def main():
                       f"{KNOWN_VALID_PERSON} frn matches")
                 check(re.match(r"^\d{4}-\d{2}-\d{2}$", k_body.get("expiry_date", "")),
                       f"{KNOWN_VALID_PERSON} expiry_date matches YYYY-MM-DD")
+                # K1MI is in Oregon: CQ Zone 3 (Western N. America),
+                # ITU Zone 6 (Pacific USA).
+                check(k_body.get("cq_zone") == 3,
+                      f"{KNOWN_VALID_PERSON} cq_zone == 3 (got {k_body.get('cq_zone')!r})")
+                check(k_body.get("itu_zone") == 6,
+                      f"{KNOWN_VALID_PERSON} itu_zone == 6 (got {k_body.get('itu_zone')!r})")
                 check(k_ms < 200,
                       f"{KNOWN_VALID_PERSON} lookup is fast (warmed by {KNOWN_PREVIOUS}): {k_ms:.0f}ms")
 

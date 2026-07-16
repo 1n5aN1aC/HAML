@@ -21,9 +21,8 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-# Re-exported so existing call sites that imported now_iso from this module keep working.
 # lookup_record is the canonical home of the timestamp format.
-from lookup_record import now_iso  # noqa: F401
+from lookup_record import now_iso
 
 
 SCHEMA = """

@@ -11,6 +11,10 @@
 //
 // Gridsquare: The server's canonical-record layer already truncates, uppercases, and pattern-validates it.
 // (4-char Maidenhead field grid or null).
+//
+// Zones (itu_zone, cq_zone): The server's canonical-record layer already coerces these to integers or null
+// The contact-entry form strips the leading zero from CallParser's zero-padded data file ('06' -> '6'),
+// so we hand it the canonical integer form: the form's `autoValue()` treats it like a normal integer.
 
 // True when the text looks like a callsign the lookup might know about — at
 // least 3 characters and contains a digit. US callsigns always have a digit;
@@ -56,11 +60,11 @@ function stateFromAddress(record) {
   return VALID_STATES.has(code) ? code : null
 }
 
-// { name?, gridsquare?, state? } — only the keys the entry form knows how
-// to fill from a server lookup, only when the record carries a usable
-// value. Clubs, military, and RACES (license_type !== 'person') deliberately
-// skip the name fill; a null/missing record or one without any usable value
-// returns `{}`.
+// { name?, gridsquare?, state?, itu_zone?, cq_zone? } — only the keys the
+// entry form knows how to fill from a server lookup, only when the record
+// carries a usable value. Clubs, military, and RACES (license_type !== 'person')
+// deliberately skip the name fill; a null/missing record or one without any
+// usable value returns `{}`.
 export function lookupPatchFromRecord(record) {
   if (!record || typeof record !== 'object') return {}
   const patch = {}
@@ -73,5 +77,10 @@ export function lookupPatchFromRecord(record) {
   if (record.gridsquare) patch.gridsquare = record.gridsquare
   const s = stateFromAddress(record)
   if (s) patch.state = s
+  // The record stores zones as integers (the server's coercer rejects fractional/bool/out-of-range inputs as dirty).
+  // String-convert here because the entry form's text-input layer is type-agnostic and stringifies on its own.
+  // But going through String() keeps the empty-patch semantics consistent: null in, absent from the patch.
+  if (record.itu_zone != null) patch.itu_zone = String(record.itu_zone)
+  if (record.cq_zone != null) patch.cq_zone = String(record.cq_zone)
   return patch
 }

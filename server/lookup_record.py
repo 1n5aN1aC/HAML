@@ -8,6 +8,7 @@ Providers (Callook today, QRZ/HamQTH tomorrow) adapt their raw JSON into the key
   - whitespace    -> stripped
   - enums         -> lowercased passthrough (no closed set yet)
   - lat/lon       -> float (None on parse failure -> dirty)
+  - zones         -> int within an allowed range (None on parse failure -> dirty)
   - dates         -> YYYY-MM-DD ISO 8601 (None on parse failure -> dirty)
   - fetched_at    -> ISO 8601 UTC with milliseconds
 
@@ -41,6 +42,8 @@ FIELDS = (
     "latitude",
     "longitude",
     "gridsquare",
+    "itu_zone",
+    "cq_zone",
     "frn",
     "grant_date",
     "expiry_date",
@@ -119,6 +122,46 @@ def _coerce_iso_date(value):
         return None
 
 
+def _coerce_zone(lo, hi):
+    """Factory: int within [lo, hi], accepting ints, integer-valued floats,
+    and numeric strings.
+
+    Used by `itu_zone` (1..90) and `cq_zone` (1..40). Decimal zones aren't
+    a thing in either system, so we reject fractional values and out-of-
+    range integers as dirty. Numeric strings with leading zeros ('06')
+    coerce fine — the contact entry form strips the padding on its side,
+    but the canonical record prefers the canonical integer form.
+
+    A None / non-numeric / out-of-range / fractional value returns None so
+    `coerce()` can append it to bad_fields and the cache will use the
+    shorter "dirty" TTL. Boolean values are rejected explicitly (Python's
+    bool is an int subclass, so without the guard `True` would coerce to 1).
+    """
+    def coercer(value):
+        if isinstance(value, bool):
+            return None
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            f = float(value)
+        elif isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return None
+            try:
+                f = float(s)
+            except ValueError:
+                return None
+        else:
+            return None
+        # A "zone" is inherently integer-valued; refuse fractional floats.
+        if not f.is_integer():
+            return None
+        n = int(f)
+        return n if lo <= n <= hi else None
+    return coercer
+
+
 # Per-field coercer map. A coercer returns None on "missing" or on a value
 # that cannot be parsed; the caller distinguishes the two via the missing-
 # value check (the input did not contain the key, or the value was empty).
@@ -139,6 +182,8 @@ _COERCERS = {
     "latitude": _coerce_float,
     "longitude": _coerce_float,
     "gridsquare": _coerce_gridsquare,
+    "itu_zone": _coerce_zone(1, 90),
+    "cq_zone": _coerce_zone(1, 40),
     "frn": _coerce_str,
     "grant_date": _coerce_iso_date,
     "expiry_date": _coerce_iso_date,
