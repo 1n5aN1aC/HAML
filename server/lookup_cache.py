@@ -1,34 +1,43 @@
 """Lookup cache: persistent SQLite store for upstream callsign-lookup results.
 
-Lives in its own file (data/callook_cache.db), separate from any Event DB.
-Schema is intentionally narrow: status + fetched_at + expires_at + payload
-    This way, the only cache-row concept we ever need to evolve is what's inside `payload`
-    (we add fields there as upstream sources expose them).
+Lives in its own DB (data/lookup_cache.db).
+Schema is intentionally narrow: status + fetched_at + expires_at + source + payload.
+The only cache-row concept we ever need to evolve is what's inside `payload`:
+`payload` now follows the strict canonical record defined in `lookup_record`.
+Future providers (QRZ, HamQTH) just need an adapter, not a new cache shape.
 
 TTL policy:
-  status='ok'         -> never expires. Information does not go stale for now.
-  status='not_found'  -> 1 month (30 days). A non-existent callsign will stay
-                         non-existent for a long time; no point re-asking.
-  status='error'      -> 15min. Upstream being down for hours is plausible;
-                         a short TTL lets us discover recovery quickly.
+  status='ok', clean    -> 365 days. Information does not go stale.
+  status='ok', dirty    -> 15 min.  At least one field failed coercion;
+                                     the row is best-effort; retry sooner.
+  status='not_found'    -> 30 days. A non-existent callsign stays non-existent.
+  status='error'        -> 15 min.  Upstream being down for hours is plausible;
+                                     a short TTL lets us discover recovery quickly.
 
-The 408 long-poll ceiling does NOT write a cache row — clients are free to retry immediately.
+The 408 long-poll ceiling does NOT write a cache row — clients are free to
+retry immediately.
 """
 import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+# Re-exported so existing call sites that imported now_iso from this module keep working.
+# lookup_record is the canonical home of the timestamp format.
+from lookup_record import now_iso  # noqa: F401
+
+
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS callook_cache (
+CREATE TABLE IF NOT EXISTS lookup_cache (
   callsign    TEXT PRIMARY KEY,
   status      TEXT NOT NULL,
   fetched_at  TEXT NOT NULL,
   expires_at  TEXT NOT NULL,
+  source      TEXT NOT NULL DEFAULT '',
   payload     TEXT NOT NULL DEFAULT '{}',
   error       TEXT NOT NULL DEFAULT ''
 );
-CREATE INDEX IF NOT EXISTS idx_callook_cache_expires
-  ON callook_cache (expires_at);
+CREATE INDEX IF NOT EXISTS idx_lookup_cache_expires
+  ON lookup_cache (expires_at);
 """
 
 # Cache-row statuses — distinct from Callook's uppercase 'VALID'/'INVALID'.
@@ -36,79 +45,86 @@ STATUS_OK = "ok"
 STATUS_NOT_FOUND = "not_found"
 STATUS_ERROR = "error"
 
-# TTLs (seconds). ok rows store expires_at = '' (never expires).
-TTL_NOT_FOUND = 30 * 24 * 60 * 60   # 1 month — 30 fixed days
-TTL_ERROR = 15 * 60                 # 15 minutes — short enough to recover quickly
+# TTLs (seconds).
+TTL_OK = 365 * 24 * 60 * 60        # 1 year — info doesn't go stale
+TTL_NOT_FOUND = 30 * 24 * 60 * 60  # 1 month — 30 fixed days
+TTL_ERROR = 15 * 60                # 15 minutes — short enough to recover quickly
 
-# get the current UTC timestamp in ISO 8601 format with milliseconds precision.
-def now_iso():
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-
-# normalizes a timestamp to UTC ISO 8601 with milliseconds precision, for comparison with now_iso().
+# Normalize a timestamp to UTC ISO 8601 with milliseconds, for comparison with now_iso(). Used when reading back expires_at.
 def normalize_ts(value):
     dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat(timespec="milliseconds")
 
-# sets the expires_at field for a cache row based on its status.
-def _expires_at(status):
-    if status == STATUS_OK:
-        return ""
-    seconds = TTL_NOT_FOUND if status == STATUS_NOT_FOUND else TTL_ERROR
+# Compute expires_at for a cache row. Always returns a timestamp: the old "expires_at = '' means never expire" convention is gone;
+# ok rows now have a 365-day TTL (or 15 min if dirty).
+def _expires_at(status, dirty=False):
+    seconds = TTL_OK
+    if status == STATUS_NOT_FOUND:
+        seconds = TTL_NOT_FOUND
+    elif status == STATUS_ERROR or (status == STATUS_OK and dirty):
+        seconds = TTL_ERROR
     return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat(
         timespec="milliseconds"
     )
 
-# opens the cache database file.
+# Open the cache database file.
 def open_cache(path):
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     return conn
 
-# gets a cache row for a given callsign.
-# Honors TTL: an expired row is reported as if absent.
+# Get a cache row for a given callsign. Honors TTL: an expired row is
+# reported as if absent.
 def get(conn, callsign):
     row = conn.execute(
-        "SELECT * FROM callook_cache WHERE callsign = ?", (callsign,)
+        "SELECT * FROM lookup_cache WHERE callsign = ?", (callsign,)
     ).fetchone()
     if row is None:
         return None
-    expires = row["expires_at"]
-    if expires and normalize_ts(expires) <= now_iso():
+    # expires_at is always populated now, so the old "if expires:" guard collapses into a direct comparison.
+    if normalize_ts(row["expires_at"]) <= now_iso():
         return None
     return dict(row)
 
-# inserts or updates a cache row for a given callsign.
-def put(conn, callsign, status, payload, error=""):
+# Insert or update a cache row for a given callsign.
+# This is the single place record metadata is stamped:
+def put(conn, callsign, status, payload, error="", source="", dirty=False):
+    fetched = now_iso()
+    record = dict(payload)
+    record["fetched_at"] = fetched
+    if status == STATUS_OK:
+        record["source"] = source
     conn.execute(
-        """INSERT INTO callook_cache
-             (callsign, status, fetched_at, expires_at, payload, error)
-           VALUES (?, ?, ?, ?, ?, ?)
+        """INSERT INTO lookup_cache
+             (callsign, status, fetched_at, expires_at, source, payload, error)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(callsign) DO UPDATE SET
              status = excluded.status,
              fetched_at = excluded.fetched_at,
              expires_at = excluded.expires_at,
+             source = excluded.source,
              payload = excluded.payload,
              error = excluded.error""",
         (
             callsign,
             status,
-            now_iso(),
-            _expires_at(status),
-            json.dumps(payload),
+            fetched,
+            _expires_at(status, dirty),
+            source,
+            json.dumps(record),
             error,
         ),
     )
     conn.commit()
+    return record
 
-# deletes a cache row for a given callsign.
+# Delete expired rows. Cheap; safe to call on a timer or after writes.
 def purge_expired(conn):
-    """Delete expired rows. Cheap; safe to call on a timer or after writes."""
     conn.execute(
-        "DELETE FROM callook_cache WHERE expires_at != '' "
-        "AND expires_at <= ?",
+        "DELETE FROM lookup_cache WHERE expires_at <= ?",
         (now_iso(),),
     )
     conn.commit()

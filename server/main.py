@@ -22,7 +22,7 @@ CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 
 # Application teardown
 async def _close_cache(app):
-    conn = app.get("callook_cache")
+    conn = app.get("lookup_cache")
     if conn is not None:
         conn.close()
 
@@ -31,8 +31,8 @@ def build_app(cfg):
     app = web.Application()
     app["cfg"] = cfg
     callook.setup(app)
-    app["callook_cache"] = lookup_cache.open_cache(
-        cfg["data_dir"] / "callook_cache.db"
+    app["lookup_cache"] = lookup_cache.open_cache(
+        cfg["data_dir"] / "lookup_cache.db"
     )
     app.on_shutdown.append(_close_cache)
     api_ws.setup(app)  # defines app["poke"] / app["notify_event"]

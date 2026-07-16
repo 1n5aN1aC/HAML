@@ -1,5 +1,9 @@
 """Callook upstream client + the coalescing/throttling around it.
 
+This module is a pure adapter: it turns Callook's JSON shape into the
+canonical record defined in `lookup_record`, and runs the coalescing and
+rate-limiting that the /api/lookup handler relies on.
+
 One asyncio task per active lookup:
 The first POST handler for a callsign creates an asyncio.Future, awaits it, and runs the actual Callook hit.
 Concurrent POSTs for the same callsign reuse the same Future.
@@ -8,11 +12,20 @@ When the task finishes, it writes a cache row and resolves the Future so every w
 Rate-limit gate: a simple asyncio.Lock + last-request timestamp holds us under Callook's published 1 req/s.
 We acquire the lock, sleep until the gate opens, fire the request, release.
 Two concurrent POSTs for different callsigns serialize at the gate — fine, it's only 1 second.
+
+Supersession: when the queried callsign refers to a *previous* license
+(e.g. KG7WKU now returns K1MI's record), the ok row is cached under the
+returned callsign (warming future direct lookups for it), and the
+queried key gets a standard not_found row (30-day TTL). The client
+receives 404 — a previous call is not a currently-assigned callsign.
 """
 import asyncio
 import time
 import aiohttp
 import lookup_cache
+import lookup_record
+
+SOURCE = "callook"
 
 # Callook's URL pattern. Configurable per test setup via cfg.
 DEFAULT_BASE_URL = "https://callook.info"
@@ -37,9 +50,9 @@ def normalize_callsign(raw):
     s = s.strip().rstrip("/")
     return s
 
-# Map a Callook JSON response into our normalized cache entry.
-# Always returns a dict (never raises on missing fields — a partial result
-# is more useful than throwing away a near-complete row).
+# Map a Callook JSON response into the canonical (provider-neutral) field names.
+# Values are passed raw: typing/lowercasing happens in `lookup_record.coerce()`.
+# Always returns a dict; never raises on missing fields (a near-complete row beats throwing the whole thing away).
 def extract(callook_json):
     current = callook_json.get("current") or {}
     previous = callook_json.get("previous") or {}
@@ -49,28 +62,23 @@ def extract(callook_json):
     other = callook_json.get("otherInfo") or {}
     return {
         "callsign": current.get("callsign", ""),
-        "status": callook_json.get("status", ""),
-        "type": callook_json.get("type", ""),
-        "OperatorClass": current.get("operClass", ""),
-        "PreviousCallsign": previous.get("callsign", ""),
-        "PreviousOperatorClass": previous.get("operClass", ""),
         "name": callook_json.get("name", ""),
-        "TrusteeCallsign": trustee.get("callsign", ""),
-        "TrusteeName": trustee.get("name", ""),
-        "address": {
-            "line1": address.get("line1", ""),
-            "line2": address.get("line2", ""),
-            "attn": address.get("attn", ""),
-        },
-        "location": {
-            "latitude": location.get("latitude", ""),
-            "longitude": location.get("longitude", ""),
-            "gridsquare": location.get("gridsquare", ""),
-        },
-        "grantDate": other.get("grantDate", ""),
-        "expiryDate": other.get("expiryDate", ""),
-        "lastActionDate": other.get("lastActionDate", ""),
-        "fetched_at": lookup_cache.now_iso(),
+        "license_type": callook_json.get("type", ""),
+        "license_class": current.get("operClass", ""),
+        "previous_callsign": previous.get("callsign", ""),
+        "previous_license_class": previous.get("operClass", ""),
+        "trustee_callsign": trustee.get("callsign", ""),
+        "trustee_name": trustee.get("name", ""),
+        "address_line1": address.get("line1", ""),
+        "address_line2": address.get("line2", ""),
+        "address_attn": address.get("attn", ""),
+        "latitude": location.get("latitude", ""),
+        "longitude": location.get("longitude", ""),
+        "gridsquare": location.get("gridsquare", ""),
+        "frn": other.get("frn", ""),
+        "grant_date": other.get("grantDate", ""),
+        "expiry_date": other.get("expiryDate", ""),
+        "last_action_date": other.get("lastActionDate", ""),
     }
 
 # Outcome of one upstream hit, ready for the cache layer.
@@ -90,7 +98,9 @@ async def _throttled_get(app, url):
     async with http.get(url, timeout=timeout) as resp:
         return resp.status, await resp.read()
 
-# Hit the Callook API and return the normalized response.
+# Hit the Callook API and return the coerced canonical record plus a
+# dirty flag. The dirty flag tells the cache layer to use a shortened
+# TTL when the record contains fields that couldn't be coerced.
 async def _hit_callook(app, callsign):
     base_url = app["cfg"].get("callook_base_url", DEFAULT_BASE_URL)
     url = f"{base_url}/{callsign}/json"
@@ -119,13 +129,18 @@ async def _hit_callook(app, callsign):
 
     upstream_status = data.get("status")
     if upstream_status == "INVALID":
-        return lookup_cache.STATUS_NOT_FOUND, {}, ""
+        return lookup_cache.STATUS_NOT_FOUND, {}, False
     if upstream_status != "VALID":
         raise CallookError(f"unexpected status: {upstream_status!r}")
 
-    payload = extract(data)
-    payload["callsign"] = callsign
-    return lookup_cache.STATUS_OK, payload, ""
+    record, bad_fields = lookup_record.coerce(extract(data))
+    dirty = bool(bad_fields)
+    if dirty:
+        print(
+            f"warning: callook record for {callsign} has dirty fields: "
+            f"{', '.join(bad_fields)}"
+        )
+    return lookup_cache.STATUS_OK, record, dirty
 
 # Run a single lookup asynchronously.
 async def _run_lookup(app, callsign):
@@ -133,23 +148,70 @@ async def _run_lookup(app, callsign):
     # Anything else (e.g. AttributeError on a malformed upstream payload) would otherwise escape as a 500.
     # Catch broadly and persist a STATUS_ERROR row so a retry is bounded by TTL_ERROR.
     try:
-        status, payload, error = await _hit_callook(app, callsign)
+        status, payload, dirty = await _hit_callook(app, callsign)
     except CallookError as exc:
         status = lookup_cache.STATUS_ERROR
         payload = {}
         error = str(exc)
+        dirty = False
     except Exception as exc:
         status = lookup_cache.STATUS_ERROR
         payload = {}
         error = f"{type(exc).__name__}: {exc}"
+        dirty = False
+
+    # Supersession: when the queried key is a previous call and Callook
+    # returned the current license, cache the ok row under the returned
+    # callsign (warming future direct lookups) and fall through to a
+    # not_found result for the queried key. The 404 path below will
+    # write that not_found row.
+    superseded = False
+    if status == lookup_cache.STATUS_OK and payload.get("callsign"):
+        returned = normalize_callsign(payload["callsign"])
+        if returned and returned != callsign:
+            superseded = True
+
     # A failed cache write (sqlite locked, disk full) must not poison the
     # shared future — waiters still get the result; the next request for
     # this callsign simply re-hits Callook.
+    cache = app["lookup_cache"]
+    response_payload = payload
     try:
-        lookup_cache.put(app["callook_cache"], callsign, status, payload, error)
+        if superseded:
+            # Warm the cache for the returned callsign with the full record.
+            lookup_cache.put(
+                cache, payload["callsign"],
+                lookup_cache.STATUS_OK, payload,
+                source=SOURCE, dirty=dirty,
+            )
+            # Fall through to not_found for the queried key — write that
+            # row last so it carries the actual result the client sees.
+            lookup_cache.put(
+                cache, callsign,
+                lookup_cache.STATUS_NOT_FOUND, {},
+                error="callsign not found",
+            )
+        else:
+            response_payload = lookup_cache.put(
+                cache, callsign, status, payload,
+                error=error if status == lookup_cache.STATUS_ERROR else "",
+                source=SOURCE if status == lookup_cache.STATUS_OK else "",
+                dirty=dirty,
+            )
     except Exception as exc:
-        print(f"warning: callook cache write failed for {callsign}: {exc}")
-    return {"status": status, "payload": payload, "error": error}
+        print(f"warning: lookup cache write failed for {callsign}: {exc}")
+
+    if superseded:
+        return {
+            "status": lookup_cache.STATUS_NOT_FOUND,
+            "payload": {},
+            "error": "callsign not found",
+        }
+    return {
+        "status": status,
+        "payload": response_payload,
+        "error": error if status == lookup_cache.STATUS_ERROR else "",
+    }
 
 # Get an existing future or create a new one for a callsign.
 def _get_or_create_future(app, callsign):

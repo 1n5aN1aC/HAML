@@ -150,16 +150,24 @@ async def get_chat(request):
 LONGPOLL_TIMEOUT_S = 15
 
 async def post_lookup(request):
-    """Look up a callsign via Callook, returning the cached or fresh result.
+    """Look up a callsign via the upstream provider, returning the cached or fresh result.
+    The 200 response body is the canonical record from `lookup_record`:
+    The client can trust its field names, types, and value sets without validating.
 
     Cache-first, then long-poll for misses:
-      - cache hit ok         -> 200 + payload, instant
+      - cache hit ok         -> 200 + canonical record, instant
       - cache hit not_found  -> 404 (no row, no upstream)
       - cache hit error      -> 502 (transient upstream failure)
-      - cache miss           -> coalesce, run Callook, wait up to 15s
+      - cache miss           -> coalesce, run upstream, wait up to 15s
       - timeout (no result in 15s) -> 408 (no cache write; client retries)
 
-    Two concurrent POSTs for the same callsign share a single Callook hit
+    Two concurrent POSTs for the same callsign share a single upstream hit.
+
+    TTLs (see lookup_cache):
+      - ok, clean   -> 365 days
+      - ok, dirty   -> 15 min  (one or more fields failed coercion)
+      - not_found   -> 30 days
+      - error       -> 15 min
     """
     try:
         body = await request.json()
@@ -170,7 +178,7 @@ async def post_lookup(request):
     if not callsign:
         return json_error(400, "callsign must be a non-empty string")
 
-    cache_conn = request.app["callook_cache"]
+    cache_conn = request.app["lookup_cache"]
     cached = lookup_cache.get(cache_conn, callsign)
     if cached is not None:
         if cached["status"] == lookup_cache.STATUS_OK:
