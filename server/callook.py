@@ -10,7 +10,8 @@ Concurrent POSTs for the same callsign reuse the same Future.
 When the task finishes, it writes a cache row and resolves the Future so every waiter gets the result.
 
 Rate-limit gate: a simple asyncio.Lock + last-request timestamp holds us under Callook's published 1 req/s.
-We acquire the lock, sleep until the gate opens, fire the request, release.
+We acquire the lock, sleep until the gate opens, stamp the timestamp, and release *before* firing the request —
+the gate spaces requests apart, so holding it across the response would also serialize on upstream latency.
 Two concurrent POSTs for different callsigns serialize at the gate — fine, it's only 1 second.
 
 Supersession: when the queried callsign refers to a *previous* license
@@ -90,7 +91,7 @@ def extract(callook_json):
 class CallookError(Exception):
     """Raised when we cannot reach Callook or its response is unusable."""
 
-# Wait for the rate-limit gate, then GET.
+# GET the url. The caller has already waited out the rate-limit gate.
 async def _throttled_get(app, url):
     http = app["http"]
     timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_S)
@@ -114,12 +115,14 @@ async def _hit_callook(app, callsign):
         wait = MIN_INTERVAL_S - (now - last_at)
         if wait > 0:
             await asyncio.sleep(wait)
-        try:
-            status_code, body = await _throttled_get(app, url)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-            app["callook_last_at"] = time.monotonic()
-            raise CallookError(str(exc)) from exc
+        # Stamp at send time, not on response: 1 req/s is about how fast we hit Callook, not how long they take to answer.
+        # Releasing here keeps a slow upstream from adding its latency to everyone else's wait.
         app["callook_last_at"] = time.monotonic()
+
+    try:
+        status_code, body = await _throttled_get(app, url)
+    except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        raise CallookError(str(exc)) from exc
 
     if status_code != 200:
         raise CallookError(f"HTTP {status_code}")
