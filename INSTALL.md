@@ -15,6 +15,14 @@ npm install
 cd ..
 ```
 
+> **PowerShell note:** If you see an error like *"activate.ps1 cannot be loaded because running scripts is disabled on this system"*, PowerShell's execution policy is blocking `Activate.ps1`. To bypass for the current session only, run this **before** `activate`:
+>
+> ```powershell
+> Set-ExecutionPolicy -Scope Process Bypass
+> ```
+>
+> Alternatively, use `cmd.exe` (where the policy doesn't apply), or activate with the `.bat` form: `.venv\Scripts\activate.bat`.
+
 ## Run development server
 
 Run the server:
