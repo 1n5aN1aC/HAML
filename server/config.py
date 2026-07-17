@@ -4,7 +4,7 @@ from pathlib import Path
 
 DEFAULTS = {
     "host": "0.0.0.0",        # Listen on all interfaces
-    "port": 8080,             # Port for HAML REST API & WebSocket
+    "port": 80,               # Port for HAML REST API & WebSocket
     "data_dir": "data",       # Contains template & event state. (relative to server/)
     "admin_password": "haml", # Password for the admin REST endpoints
     "fcc_db_path": "datasets/fcc_amateur.sqlite", # Path to the local FCC ULS sqlite
