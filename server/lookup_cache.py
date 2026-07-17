@@ -127,3 +127,23 @@ def purge_expired(conn):
         (now_iso(),),
     )
     conn.commit()
+
+
+# Raw per-status row counts (expired rows included — this reports actual DB
+# contents, which is what the admin Clear button acts on). Do not "fix" by
+# filtering on expires_at.
+def stats(conn):
+    counts = {STATUS_OK: 0, STATUS_NOT_FOUND: 0, STATUS_ERROR: 0}
+    for status, n in conn.execute(
+        "SELECT status, COUNT(*) FROM lookup_cache GROUP BY status"
+    ):
+        if status in counts:
+            counts[status] = n
+    return counts
+
+
+# Delete every cache row. Returns the number of rows removed.
+def clear(conn):
+    deleted = conn.execute("DELETE FROM lookup_cache").rowcount
+    conn.commit()
+    return deleted

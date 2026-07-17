@@ -333,6 +333,19 @@ async def admin_clear_chat(request):
     return web.json_response({"cleared": True})
 
 
+# Raw lookup-cache row counts by status (expired rows included).
+async def admin_lookup_cache_stats(request):
+    require_admin(request)
+    return web.json_response(lookup_cache.stats(request.app["lookup_cache"]))
+
+
+# Delete every row from the lookup cache.
+async def admin_clear_lookup_cache(request):
+    require_admin(request)
+    deleted = lookup_cache.clear(request.app["lookup_cache"])
+    return web.json_response({"cleared": True, "deleted": deleted})
+
+
 # Register all REST routes on the given app.
 def setup_routes(app):
     app.router.add_get("/api/event", get_event)
@@ -355,3 +368,5 @@ def setup_routes(app):
                           admin_delete_event)
     app.router.add_post("/api/admin/backup", admin_backup)
     app.router.add_delete("/api/admin/chat", admin_clear_chat)
+    app.router.add_get("/api/admin/lookup-cache", admin_lookup_cache_stats)
+    app.router.add_delete("/api/admin/lookup-cache", admin_clear_lookup_cache)
