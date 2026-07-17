@@ -185,7 +185,7 @@ body {
 .admin-create .cs { width: 130px; text-transform: uppercase; font-weight: 600; }
 .admin-create .admin-coord { width: 90px; }
 
-.admin-maintenance { display: flex; gap: 10px; }
+.admin-maintenance { display: flex; gap: 10px; align-items: center; }
 
 .admin-error { color: var(--theme-danger); }
 .admin-notice { color: var(--theme-success); }

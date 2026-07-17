@@ -147,3 +147,16 @@ export function adminClearChat(password) {
     headers: adminHeaders(password),
   })
 }
+
+// Raw lookup-cache row counts by status: { ok, not_found, error }.
+export function adminLookupCacheStats(password) {
+  return request('/api/admin/lookup-cache', { headers: adminHeaders(password) })
+}
+
+// Clear the lookup cache entirely; the server will re-fetch on demand.
+export function adminClearLookupCache(password) {
+  return request('/api/admin/lookup-cache', {
+    method: 'DELETE',
+    headers: adminHeaders(password),
+  })
+}

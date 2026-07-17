@@ -14,6 +14,8 @@ import {
   adminDeleteEvent,
   adminBackup,
   adminClearChat,
+  adminLookupCacheStats,
+  adminClearLookupCache,
 } from '../../api.js'
 import { generateTestContacts } from '../../admin-test-data.js'
 import AdminTemplateEditor from './AdminTemplateEditor.jsx'
@@ -41,14 +43,18 @@ export default function AdminTab({ onEventChange }) {
   const [notice, setNotice] = useState('')
   // null, or { id, template } — id/template are null when creating from scratch
   const [editing, setEditing] = useState(null)
+  // null until first load, then { ok, not_found, error } counts
+  const [cacheStats, setCacheStats] = useState(null)
 
   async function refresh(pw = password) {
-    const [{ events }, { templates }] = await Promise.all([
+    const [{ events }, { templates }, stats] = await Promise.all([
       adminListEvents(pw),
       adminListTemplates(pw),
+      adminLookupCacheStats(pw),
     ])
     setEvents(events)
     setTemplates(templates)
+    setCacheStats(stats)
   }
 
   async function unlock(e) {
@@ -171,6 +177,15 @@ export default function AdminTab({ onEventChange }) {
     run(async () => {
       await adminClearChat(password)
       setNotice('All chat deleted.')
+    })
+  }
+
+  function clearLookupCache() {
+    if (!window.confirm('Clear all cached callsign lookups?')) return
+    run(async () => {
+      const { deleted } = await adminClearLookupCache(password)
+      setCacheStats(await adminLookupCacheStats(password))
+      setNotice(`Lookup cache cleared (${deleted} rows).`)
     })
   }
 
@@ -341,6 +356,20 @@ export default function AdminTab({ onEventChange }) {
         >
           New template
         </button>
+      </section>
+
+      <section className="admin-section">
+        <h2>Lookup cache</h2>
+        <div className="admin-maintenance">
+          <span>
+            {cacheStats
+              ? `${cacheStats.ok} found · ${cacheStats.not_found} not found · ${cacheStats.error} errors`
+              : '…'}
+          </span>
+          <button className="btn-danger" onClick={clearLookupCache}>
+            Clear
+          </button>
+        </div>
       </section>
 
       <section className="admin-section">
