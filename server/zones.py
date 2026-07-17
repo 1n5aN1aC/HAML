@@ -17,6 +17,9 @@ Coordinate convention:
   - Caller passes (lat, lon). Standard geographic order.
   - GeoJSON stores coordinates as (lon, lat) per the spec.
   - We swap on read so the rest of this module reasons in (lat, lon).
+  - Vendored polygons that cross the antimeridian are stored with unwrapped
+    longitudes running past ±180 (e.g. -200 means 160°E); _lookup() handles
+    this by also testing the point at lon±360.
 """
 import json
 import math
@@ -150,12 +153,20 @@ def _point_in_polygon(lat, lon, rings):
     return (parity % 2) == 1
 
 def _lookup(lat, lon, zones):
-    """First zone whose polygon contains (lat, lon), or None."""
+    """First zone whose polygon contains (lat, lon), or None.
+
+    Dateline-crossing polygons in the vendored data are stored unwrapped
+    (longitudes run past ±180; -200 means 160°E). Longitude is periodic
+    mod 360, so testing the point at lon±360 as well covers them exactly.
+    The bbox prefilter rejects the shifted copies instantly for the ~all
+    zones that don't wrap, so the extra cost is two tuple comparisons.
+    """
     for zone in zones:
-        if not _point_in_bbox(lat, lon, zone["bbox"]):
-            continue
-        if _point_in_polygon(lat, lon, zone["rings"]):
-            return zone["number"]
+        for lo in (lon, lon - 360.0, lon + 360.0):
+            if not _point_in_bbox(lat, lo, zone["bbox"]):
+                continue
+            if _point_in_polygon(lat, lo, zone["rings"]):
+                return zone["number"]
     return None
 
 
