@@ -42,6 +42,11 @@ const VALID_STATES = new Set([
   'TX','UT','VA','VT','WA','WI','WV','WY','YT',
 ])
 
+// Continent codes the entry field's validation accepts (mirrors
+// BUILTINS.continent.validation.pattern in builtin-fields.js), inlined for
+// the same no-coupling reason as VALID_STATES above.
+const VALID_CONTINENTS = new Set(['AF', 'AN', 'AS', 'EU', 'NA', 'OC', 'SA'])
+
 // First token of a name, title-cased. "JOSHUA A COOK" -> "Joshua". The
 // record stores ALL-CAPS last-write from the upstream; we just normalize
 // the first token for the entry field.
@@ -61,7 +66,7 @@ function stateFromAddress(record) {
   return VALID_STATES.has(code) ? code : null
 }
 
-// { name?, gridsquare?, state?, county?, distance?, itu_zone?, cq_zone? } —
+// { name?, gridsquare?, state?, county?, continent?, distance?, itu_zone?, cq_zone? } —
 // only the keys the entry form knows how to fill from a server lookup, only
 // when the record carries a usable value. Clubs, military, and RACES
 // (license_type !== 'person') deliberately skip the name fill; a null/missing
@@ -79,6 +84,11 @@ export function lookupPatchFromRecord(record) {
   const s = stateFromAddress(record)
   if (s) patch.state = s
   if (record.county) patch.county = record.county
+  // Guarded like state: the record's continent is a free string, so only a
+  // code the entry field's validation accepts fills; anything else stays
+  // blank rather than landing invalid.
+  const c = record.continent && String(record.continent).toUpperCase()
+  if (c && VALID_CONTINENTS.has(c)) patch.continent = c
   // 0 km is a valid value, hence the explicit null check.
   if (record.distance != null) patch.distance = String(record.distance)
   // The record stores zones as integers (the server's coercer rejects fractional/bool/out-of-range inputs as dirty).
