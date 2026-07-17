@@ -26,7 +26,7 @@ import math
 from pathlib import Path
 
 # Vendored data location, relative to this file. Created at setup time.
-_DATA_DIR = Path(__file__).parent / "zonedata"
+_DATA_DIR = Path(__file__).parent / "datasets"
 
 # Lazily populated by _ensure_loaded(). Each list is a flat table of zones:
 #   { "number": int, "bbox": (lat_min, lat_max, lon_min, lon_max),
