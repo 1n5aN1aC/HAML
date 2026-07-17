@@ -379,6 +379,9 @@ def check_coerce():
         "address_line1": "14970 SALT CREEK RD",
         "address_line2": "DALLAS, OR 97338",
         "address_attn": "",
+        "state": "Oregon",   # spelled-out on purpose — must map to the code
+        "county": "",
+        "country": "",
         "latitude": "44.979441",
         "longitude": "-123.337862",
         "gridsquare": "CN84hx",
@@ -433,6 +436,27 @@ def check_coerce():
           f"junk gridsquare -> 'gridsquare' in bad_fields (got {junk_bad})")
 
     check("junk" not in record, "full fixture -> unknown key dropped")
+
+    # State: spelled-out name maps to the USPS code; blank county/country
+    # coerce to a clean null.
+    check(record["state"] == "OR",
+          f"full fixture -> 'Oregon' maps to 'OR' (got {record['state']!r})")
+    check(record["county"] is None, "full fixture -> blank county is None")
+    check(record["country"] is None, "full fixture -> blank country is None")
+
+    # A two-letter code (any case) passes through uppercased and clean.
+    code_record, code_bad = lookup_record.coerce({**full_input, "state": "or"})
+    check(code_record["state"] == "OR",
+          f"lowercase 'or' -> 'OR' (got {code_record['state']!r})")
+    check(code_bad == [], f"lowercase 'or' -> no bad_fields (got {code_bad})")
+
+    # An unrecognized state is present-but-uncoercible -> dirty.
+    junk_state_record, junk_state_bad = lookup_record.coerce(
+        {**full_input, "state": "OREGONIA"})
+    check(junk_state_record["state"] is None,
+          f"junk state -> None (got {junk_state_record['state']!r})")
+    check("state" in junk_state_bad,
+          f"junk state -> 'state' in bad_fields (got {junk_state_bad})")
 
     # Sparse: only license_type and name provided. Everything else is null,
     # and dirty must be False (sparse data is not a coercion failure).
@@ -529,6 +553,12 @@ def check_fcc_unit():
               f"(got {m.group(1) if m else None!r})")
         check(m and VALID_STATES.intersection({m.group(1)}),
               "W1AW extracted state is in the client's accepted set")
+        check(rec["state"] == "OR",
+              f"W1AW state is the 2-letter code (got {rec['state']!r})")
+        check(rec["county"] is None,
+              f"W1AW county is None for now (got {rec['county']!r})")
+        check(rec["country"] is None,
+              f"W1AW country is None for now (got {rec['country']!r})")
         check(rec["latitude"] == 44.979441, f"W1AW latitude (got {rec['latitude']!r})")
         check(rec["longitude"] == -123.337862,
               f"W1AW longitude (got {rec['longitude']!r})")
@@ -716,6 +746,12 @@ async def run_e2e(fcc_db_path, missing_db=False):
                 check(m and m.group(1) == "OR",
                       f"W1AW client regex extracts OR (got "
                       f"{m.group(1) if m else None!r})")
+                check(body.get("state") == "OR",
+                      f"W1AW state field is 'OR' (got {body.get('state')!r})")
+                check(body.get("county") is None,
+                      f"W1AW county is null (got {body.get('county')!r})")
+                check(body.get("country") is None,
+                      f"W1AW country is null (got {body.get('country')!r})")
                 check(isinstance(body.get("latitude"), float)
                       and body["latitude"] == 44.979441,
                       "W1AW latitude is float 44.979441")

@@ -7,6 +7,7 @@ Providers (FCC today, QRZ/HamQTH tomorrow) adapt their raw payload into the keys
   - empty string  -> None
   - whitespace    -> stripped
   - enums         -> lowercased passthrough (no closed set yet)
+  - state         -> USPS 2-letter code, accepting spelled-out names (None on unknown -> dirty)
   - lat/lon       -> float (None on parse failure -> dirty)
   - zones         -> int within an allowed range (None on parse failure -> dirty)
   - dates         -> YYYY-MM-DD ISO 8601 (None on parse failure -> dirty)
@@ -39,6 +40,9 @@ FIELDS = (
     "address_line1",
     "address_line2",
     "address_attn",
+    "state",
+    "county",
+    "country",
     "latitude",
     "longitude",
     "gridsquare",
@@ -90,6 +94,48 @@ def _coerce_gridsquare(value):
         return None
     g = s[:4].upper()
     return g if _GRID_RE.match(g) else None
+
+
+# USPS full name -> two-letter code. Single source of truth: the valid-code
+# set below is derived from these values, so adding an entry here makes both
+# the spelled-out and two-letter forms coerce.
+_STATE_NAMES = {
+    "ALABAMA": "AL", "ALASKA": "AK", "ARIZONA": "AZ", "ARKANSAS": "AR",
+    "CALIFORNIA": "CA", "COLORADO": "CO", "CONNECTICUT": "CT",
+    "DELAWARE": "DE", "DISTRICT OF COLUMBIA": "DC", "FLORIDA": "FL",
+    "GEORGIA": "GA", "HAWAII": "HI", "IDAHO": "ID", "ILLINOIS": "IL",
+    "INDIANA": "IN", "IOWA": "IA", "KANSAS": "KS", "KENTUCKY": "KY",
+    "LOUISIANA": "LA", "MAINE": "ME", "MARYLAND": "MD",
+    "MASSACHUSETTS": "MA", "MICHIGAN": "MI", "MINNESOTA": "MN",
+    "MISSISSIPPI": "MS", "MISSOURI": "MO", "MONTANA": "MT",
+    "NEBRASKA": "NE", "NEVADA": "NV", "NEW HAMPSHIRE": "NH",
+    "NEW JERSEY": "NJ", "NEW MEXICO": "NM", "NEW YORK": "NY",
+    "NORTH CAROLINA": "NC", "NORTH DAKOTA": "ND", "OHIO": "OH",
+    "OKLAHOMA": "OK", "OREGON": "OR", "PENNSYLVANIA": "PA",
+    "RHODE ISLAND": "RI", "SOUTH CAROLINA": "SC", "SOUTH DAKOTA": "SD",
+    "TENNESSEE": "TN", "TEXAS": "TX", "UTAH": "UT", "VERMONT": "VT",
+    "VIRGINIA": "VA", "WASHINGTON": "WA", "WEST VIRGINIA": "WV",
+    "WISCONSIN": "WI", "WYOMING": "WY",
+}
+_STATE_CODES = frozenset(_STATE_NAMES.values()) # two-letter codes, derived from the name map above.
+
+
+def _coerce_state(value):
+    """US state as the USPS two-letter code.
+
+    Accepts a two-letter code (any case) or a spelled-out name; always
+    returns the uppercase code. Anything else — a code or name we don't
+    recognize — is present-but-uncoercible (None -> dirty), same as a bad
+    date or latitude.
+    """
+    s = _coerce_str(value)
+    if s is None:
+        return None
+    u = s.upper()
+    if len(u) == 2:
+        return u if u in _STATE_CODES else None
+    # Collapse internal whitespace so "NEW  YORK" still maps.
+    return _STATE_NAMES.get(" ".join(u.split()))
 
 
 def _coerce_lower(value):
@@ -191,6 +237,9 @@ _COERCERS = {
     "address_line1": _coerce_str,
     "address_line2": _coerce_str,
     "address_attn": _coerce_str,
+    "state": _coerce_state,
+    "county": _coerce_str,
+    "country": _coerce_str,
     "latitude": _coerce_float,
     "longitude": _coerce_float,
     "gridsquare": _coerce_gridsquare,
