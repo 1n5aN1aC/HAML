@@ -151,6 +151,7 @@ def _build_record(row):
         "state": state, # 2-digit USPS code
         "county": "",   # Not implemented yet.
         "country": "",  # Not implemented yet.
+        "continent": "",  # Not implemented yet.
         "latitude": latitude,
         "longitude": longitude,
         "gridsquare": row["gridsquare"] or "",

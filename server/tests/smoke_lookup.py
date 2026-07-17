@@ -382,6 +382,7 @@ def check_coerce():
         "state": "Oregon",   # spelled-out on purpose — must map to the code
         "county": "",
         "country": "",
+        "continent": "",
         "latitude": "44.979441",
         "longitude": "-123.337862",
         "gridsquare": "CN84hx",
@@ -443,6 +444,7 @@ def check_coerce():
           f"full fixture -> 'Oregon' maps to 'OR' (got {record['state']!r})")
     check(record["county"] is None, "full fixture -> blank county is None")
     check(record["country"] is None, "full fixture -> blank country is None")
+    check(record["continent"] is None, "full fixture -> blank continent is None")
 
     # A two-letter code (any case) passes through uppercased and clean.
     code_record, code_bad = lookup_record.coerce({**full_input, "state": "or"})
@@ -584,6 +586,8 @@ def check_fcc_unit():
               f"W1AW county is None for now (got {rec['county']!r})")
         check(rec["country"] is None,
               f"W1AW country is None for now (got {rec['country']!r})")
+        check(rec["continent"] is None,
+              f"W1AW continent is None for now (got {rec['continent']!r})")
         check(rec["latitude"] == 44.979441, f"W1AW latitude (got {rec['latitude']!r})")
         check(rec["longitude"] == -123.337862,
               f"W1AW longitude (got {rec['longitude']!r})")
@@ -782,6 +786,8 @@ async def run_e2e(fcc_db_path, missing_db=False):
                       f"W1AW county is null (got {body.get('county')!r})")
                 check(body.get("country") is None,
                       f"W1AW country is null (got {body.get('country')!r})")
+                check(body.get("continent") is None,
+                      f"W1AW continent is null (got {body.get('continent')!r})")
                 check(isinstance(body.get("latitude"), float)
                       and body["latitude"] == 44.979441,
                       "W1AW latitude is float 44.979441")
