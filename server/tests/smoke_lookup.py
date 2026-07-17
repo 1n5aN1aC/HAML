@@ -516,8 +516,8 @@ def check_distance_unit():
         "location": {"latitude": 45.5152, "longitude": -122.6784}}}}
 
     out = api_rest._with_distance(loc_app, record)
-    check(out["distance"] == 49,
-          f"Portland -> Dallas OR == 49 mi (got {out['distance']!r})")
+    check(out["distance"] == 78,
+          f"Portland -> Dallas OR == 78 km floored (got {out['distance']!r})")
     check("distance" not in record,
           "_with_distance leaves the input record unmodified")
 
@@ -704,7 +704,7 @@ def _make_minimal_event_db(tmp):
     conn.execute("INSERT INTO meta VALUES ('event_name', 'smoke-lookup')")
     conn.execute("INSERT INTO meta VALUES ('station_callsign', 'TEST')")
     # Operating position: Portland, OR. W1AW's fixture coords are Dallas, OR
-    # — 49 miles away by the shared Haversine formula — so the e2e can
+    # — 78 km away by the server's Haversine formula — so the e2e can
     # assert an exact `distance` in the lookup response.
     conn.execute(
         """INSERT INTO meta VALUES ('config',
@@ -799,8 +799,8 @@ async def run_e2e(fcc_db_path, missing_db=False):
                       f"W1AW grant_date is YYYY-MM-DD "
                       f"(got {body.get('grant_date')!r})")
                 # Event location is Portland, OR; W1AW is Dallas, OR.
-                check(body.get("distance") == 49,
-                      f"W1AW distance == 49 mi from event location "
+                check(body.get("distance") == 78,
+                      f"W1AW distance == 78 km from event location "
                       f"(got {body.get('distance')!r})")
                 print(f"  ({cold_ms:.0f}ms cold)")
 

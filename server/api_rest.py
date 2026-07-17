@@ -150,15 +150,14 @@ async def get_chat(request):
 
 LONGPOLL_TIMEOUT_S = 15
 
-# Earth radius in miles — same constant as the client's distanceMiles
-# (callparser.js), so the two readouts agree.
-_EARTH_RADIUS_MI = 3958.8
+# Mean Earth radius in kilometers.
+_EARTH_RADIUS_KM = 6371.0
 
 
 def _with_distance(app, record):
-    """Return the record plus a `distance` key: whole-mile Haversine distance
-    from the active event's operating position (config.location) to the
-    record's coordinates, or null when either end is missing.
+    """Return the record plus a `distance` key: Haversine kilometers, rounded down to a whole number
+    From the active event's operating position (config.location) to the record's coordinates.
+    null when missing.
 
     Distance is event-relative, so it is stamped on the response here and
     never stored in the canonical record or the cache — a cached row must
@@ -176,7 +175,7 @@ def _with_distance(app, record):
         a = (math.sin(d_phi / 2) ** 2
              + math.cos(phi1) * math.cos(phi2) * math.sin(d_lam / 2) ** 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        distance = round(_EARTH_RADIUS_MI * c)
+        distance = math.floor(_EARTH_RADIUS_KM * c)
     return dict(record, distance=distance)
 
 
