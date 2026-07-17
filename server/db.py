@@ -21,8 +21,8 @@ from pathlib import Path
 # (client/src/builtin-fields.js) mirrors this name list — a smoke test keeps
 # the two honest.
 BUILTIN_FIELDS = [
-    "country", "itu_zone", "cq_zone", "continent", "gridsquare",
-    "state", "section", "frequency", "rst_sent", "rst_received", "name",
+    "country", "itu_zone", "cq_zone", "continent", "gridsquare", "distance",
+    "state", "section", "county", "frequency", "rst_sent", "rst_received", "name",
 ]
 
 _BUILTIN_COLUMNS = "".join(

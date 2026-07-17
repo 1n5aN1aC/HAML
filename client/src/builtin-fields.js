@@ -36,6 +36,10 @@ export const BUILTINS = {
       message: 'Maidenhead grid like CN84',
     },
   },
+  distance: {
+    label: 'Distance (km)', max_length: 5, autofill: null,
+    validation: { pattern: '\\d{1,5}', message: 'Whole kilometers, like 79' },
+  },
   state: {
     label: 'State', max_length: 2, autofill: null,
     validation: {
@@ -49,6 +53,9 @@ export const BUILTINS = {
       pattern: 'AB|AK|AL|AR|AZ|BC|CO|CT|DE|DX|EB|EMA|ENY|EPA|EWA|GA|GH|IA|ID|IL|IN|KS|KY|LA|LAX|MB|MDC|ME|MI|MN|MO|MS|MT|MX|NB|NC|ND|NE|NFL|NH|NL|NLI|NM|NNJ|NNY|NS|NTX|NV|OH|OK|ONE|ONN|ONS|OR|ORG|PAC|PE|PR|QC|RI|SB|SC|SCV|SD|SDG|SF|SFL|SJV|SK|SNJ|STX|SV|TER|TN|UT|VA|VI|VT|WCF|WI|WMA|WNY|WPA|WTX|WV|WWA|WY',
       message: 'Improper Section',
     },
+  },
+  county: {
+    label: 'County', max_length: 30, validation: null, autofill: null,
   },
   frequency: {
     label: 'Frequency', max_length: 10, autofill: null,

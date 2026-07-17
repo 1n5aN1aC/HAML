@@ -61,11 +61,11 @@ function stateFromAddress(record) {
   return VALID_STATES.has(code) ? code : null
 }
 
-// { name?, gridsquare?, state?, itu_zone?, cq_zone? } — only the keys the
-// entry form knows how to fill from a server lookup, only when the record
-// carries a usable value. Clubs, military, and RACES (license_type !== 'person')
-// deliberately skip the name fill; a null/missing record or one without any
-// usable value returns `{}`.
+// { name?, gridsquare?, state?, county?, distance?, itu_zone?, cq_zone? } —
+// only the keys the entry form knows how to fill from a server lookup, only
+// when the record carries a usable value. Clubs, military, and RACES
+// (license_type !== 'person') deliberately skip the name fill; a null/missing
+// record or one without any usable value returns `{}`.
 export function lookupPatchFromRecord(record) {
   if (!record || typeof record !== 'object') return {}
   const patch = {}
@@ -78,6 +78,9 @@ export function lookupPatchFromRecord(record) {
   if (record.gridsquare) patch.gridsquare = record.gridsquare
   const s = stateFromAddress(record)
   if (s) patch.state = s
+  if (record.county) patch.county = record.county
+  // 0 km is a valid value, hence the explicit null check.
+  if (record.distance != null) patch.distance = String(record.distance)
   // The record stores zones as integers (the server's coercer rejects fractional/bool/out-of-range inputs as dirty).
   // String-convert here because the entry form's text-input layer is type-agnostic and stringifies on its own.
   // But going through String() keeps the empty-patch semantics consistent: null in, absent from the patch.
