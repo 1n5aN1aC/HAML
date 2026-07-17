@@ -1,4 +1,4 @@
-﻿# Pytho stuff:
+﻿# Python stuff:
 .venv/
 __pycache__/
 *.pyc
@@ -7,7 +7,8 @@ __pycache__/
 client/dist/
 node_modules/
 
-# AI Stuff:
+# Dev Stuff
+.vscode/
 .claude/
 
 # Live event state:
