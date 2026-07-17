@@ -141,7 +141,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   const callsignRef = useRef(null)
   const fieldRefs = useRef([])
   fieldRefs.current = fields.map((_, i) => fieldRefs.current[i] ?? null)
-  // Pending debounced server-lookup POST — cancelled on blur, by the next change, and on unmount.
+  // Pending debounced server-lookup POST only cancelled by the next change, by Escape, and on unmount.
   const idleTimerRef = useRef(null)
   // The callsign text each in-flight server lookup was fired for.
   // Updated on every change, reset to '' on submit;
@@ -385,7 +385,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             maxLength={10}
             value={callsign}
             onChange={(e) => {
-              const next = sanitizeText(e.target.value).toUpperCase()
+              // No .toUpperCase() here: transforming the typed text makes React write a value the DOM
+              // doesn't already hold, and that assignment drops the caret to the end mid-edit.
+              // CSS uppercases on screen and submit uppercases what's stored; every consumer (CallParser,
+              // dupes, the server) normalizes case on its own.
+              const next = sanitizeText(e.target.value)
               // Mirror the live value for the server-lookup race guard.
               callsignLiveRef.current = next
               if (next !== callsign) {
@@ -402,13 +406,12 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               }
               setCallsign(next)
               setDupe(null)
-              // (Re)start the idle debounce that fires fireServerLookup 750ms after typing settles
+              // (Re)start the idle debounce that fires fireServerLookup 500ms after typing settles
               if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-              idleTimerRef.current = setTimeout(() => fireServerLookup(next), 750)
+              idleTimerRef.current = setTimeout(() => fireServerLookup(next), 500)
             }}
             onBlur={() => {
-              if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-              fireServerLookup(callsign)
+              // No lookup here: Idle debounce from last keystroke survives blur and fires on its own.
               checkDuplicate()
               applyBlurFills()
             }}
