@@ -175,15 +175,16 @@ async def _run_lookup(app, callsign):
         dirty = False
 
     # Supersession: when the queried key is a previous call and Callook
-    # returned the current license, cache the ok row under the returned
-    # callsign (warming future direct lookups) and fall through to a
-    # not_found result for the queried key. The 404 path below will
-    # write that not_found row.
-    superseded = False
+    #   returned the current license, cache the ok row under the returned
+    #   callsign (warming future direct lookups) and fall through to a
+    #   not_found result for the queried key. The 404 path below will write that not_found row.
+    # Holds the normalized returned callsign when it supersedes the queried one,
+    #   Else "" — the key to warm and the superseded flag are the same fact.
+    superseded_by = ""
     if status == lookup_cache.STATUS_OK and payload.get("callsign"):
         returned = normalize_callsign(payload["callsign"])
         if returned and returned != callsign:
-            superseded = True
+            superseded_by = returned
 
     # A failed cache write (sqlite locked, disk full) must not poison the
     # shared future — waiters still get the result; the next request for
@@ -191,10 +192,11 @@ async def _run_lookup(app, callsign):
     cache = app["lookup_cache"]
     response_payload = payload
     try:
-        if superseded:
+        if superseded_by:
             # Warm the cache for the returned callsign with the full record.
+            # Key on the normalized form — the read path always looks up normalized keys, so a raw payload value would be unreachable.
             lookup_cache.put(
-                cache, payload["callsign"],
+                cache, superseded_by,
                 lookup_cache.STATUS_OK, payload,
                 source=SOURCE, dirty=dirty,
             )
@@ -215,7 +217,7 @@ async def _run_lookup(app, callsign):
     except Exception as exc:
         print(f"warning: lookup cache write failed for {callsign}: {exc}")
 
-    if superseded:
+    if superseded_by:
         return {
             "status": lookup_cache.STATUS_NOT_FOUND,
             "payload": {},
