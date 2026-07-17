@@ -10,7 +10,7 @@ import { pushNow } from '../../sync.js'
 import { newUuid } from '../../uuid.js'
 import { validateContact } from '../../contact-validation.js'
 import { sanitizeText } from '../../text-input.js'
-import { playSubmit, playDuplicate, playDx } from '../../sounds.js'
+import { playSubmit, playDuplicate, playDx, playError } from '../../sounds.js'
 import { findDuplicate, findLatestContact } from '../../dupes.js'
 import { init as initCallParser, isLoaded, lookup, distanceMiles } from '../../callparser.js'
 import {
@@ -316,6 +316,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       fields,
     )
     if (problem) {
+      playError()
       setError(problem)
       return
     }
