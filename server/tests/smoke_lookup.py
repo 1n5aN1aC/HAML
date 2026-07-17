@@ -1,22 +1,28 @@
-"""End-to-end smoke test for the callsign-lookup feature.
+"""End-to-end smoke test for the callsign-lookup feature (offline, FCC-backed).
 
-Spawns the real server on a scratch port with a scratch data dir, then
-walks POST /api/lookup against the live Callook upstream:
+Stdlib-only. Spawns the real server on a scratch port with a scratch data
+dir + a scratch FCC ULS fixture sqlite, then walks POST /api/lookup:
 
-  - cold-cache VALID hit (W1AW)        -> 200 + canonical record, cache row written
-  - warm-cache re-hit                  -> 200 + same record, instant
-  - suffix normalization (W1AW/P)      -> hits the warm W1AW cache row
-  - cold-cache INVALID (a clearly bad callsign) -> 404, cache row written
-  - warm INVALID re-hit                -> 404, instant (cache hit)
-  - bad input (empty)                  -> 400
-  - supersession: cold KG7WKU (previous call of K1MI) -> 404, but
-    warms K1MI's cache; subsequent K1MI lookup is fast; warm KG7WKU
-    is also fast (not_found row written under the queried key)
-  - coalescing: two concurrent POSTs for the same cold callsign only hit
-    Callook once (verified by elapsed time and the in-flight counter)
+  - cold Individual: 200 with composed name "FIRST M LAST", license_type
+    "person", address_line2 matching the client's state regex, derived
+    zones, ISO dates, source "fcc"
+  - warm re-hit: 200, same record
+  - suffix normalization (W1AW/P): 200, same record
+  - cold Amateur Club: 200, license_type "club", entity_name
+  - PO-box-only licensee: address_line1 == "PO BOX 123"
+  - NULL coordinates: 200, latitude/longitude None, zones None
+  - cold unknown call: 404
+  - previous_callsign value (not in the table): 404
+  - bad input (empty): 400
+  - bad input (non-JSON): 400
+  - missing-DB config: 502
+  - coalescing: two concurrent POSTs for the same cold callsign only
+    resolve once
+  - unit checks: TTL policy, coerce() contract (incl. ISO date acceptance),
+    fcc adapter row -> canonical mapping
 
-Requires internet access to callook.info. The smoke is intentionally
-allowed to flake if Callook is unreachable; the run exits non-zero.
+No internet access required. The fixture sqlite is built in scratch,
+not the real 192MB dataset.
 
 Run: python server/tests/smoke_lookup.py
 """
@@ -24,6 +30,7 @@ import asyncio
 import json
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -34,16 +41,24 @@ from pathlib import Path
 import aiohttp
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(SERVER_DIR))
+import lookup_cache    # noqa: E402
+import lookup_record   # noqa: E402
+
 PORT = 8767
 BASE = f"http://127.0.0.1:{PORT}"
 
-# Known-stable Callook inputs. W1AW is ARRL HQ (club); K1MI is a PERSON
-# (extra class, in Oregon). KG7WKU is a previous call of K1MI (a
-# supersession case). INVALIDCALL999 won't ever exist.
-KNOWN_VALID_CLUB = "W1AW"
-KNOWN_VALID_PERSON = "K1MI"
-KNOWN_PREVIOUS = "KG7WKU"
-KNOWN_INVALID = "INVALIDCALL999"
+# --- client state-parse contract ------------------------------------------
+# Mirrors client/src/lookup-fill.js so the test asserts the same regex the
+# client uses to fill the state field.
+STATE_IN_ADDRESS_RE = re.compile(r"\b([A-Z]{2})\s+\d{5}\b")
+VALID_STATES = {
+    'AB','AK','AL','AR','AZ','BC','CA','CO','CT','DC','DE','DX','FL','GA',
+    'HI','IA','ID','IL','IN','KS','KY','LA','MA','MB','MD','ME','MI','MN',
+    'MO','MS','MT','NB','NC','ND','NE','NH','NJ','NL','NM','NS','NT','NU',
+    'NV','NY','OH','OK','ON','OR','PA','PE','QC','RI','SC','SD','SK','TN',
+    'TX','UT','VA','VT','WA','WI','WV','WY','YT',
+}
 
 checks = 0
 
@@ -56,6 +71,163 @@ def check(condition, label):
     print(f"  ok: {label}")
 
 
+# --- fixture ---------------------------------------------------------------
+# Mirror of the production `operators` schema (see server/datasets/README.md).
+# Real DB has 826k rows; the test only needs a handful to exercise the
+# adapter's mapping + zones + status paths.
+FCC_SCHEMA = """
+CREATE TABLE operators (
+  callsign              TEXT PRIMARY KEY,
+  applicant_type        TEXT,
+  first_name            TEXT,
+  middle_initial        TEXT,
+  last_name             TEXT,
+  name_suffix           TEXT,
+  entity_name           TEXT,
+  operator_class        TEXT,
+  previous_operator_class TEXT,
+  previous_callsign     TEXT,
+  trustee_callsign      TEXT,
+  trustee_name          TEXT,
+  street_address        TEXT,
+  po_box                TEXT,
+  city                  TEXT,
+  state                 TEXT,
+  zip_code              TEXT,
+  attention_line        TEXT,
+  frn                   TEXT,
+  grant_date            TEXT,
+  expired_date          TEXT,
+  gridsquare            TEXT,
+  coordinates           TEXT
+);
+"""
+
+# Fixture rows. Coordinates pick known locations so the expected zones are
+# stable across the polygon files we vendor:
+#   W1AW:  Dallas, OR     (44.98, -123.34) — CQ 3, ITU 6
+#   K1MI:  Portland, OR   (45.52, -122.68) — CQ 3, ITU 6
+#   W7CLB: Portland, OR   (45.52, -122.68) — CQ 3, ITU 6
+#   N0BOX: Eugene, OR     (44.05, -123.09) — CQ 3, ITU 6
+#   N0GEO: no coordinates
+FCC_FIXTURE = [
+    # W1AW: Individual, has coords + previous_callsign (KG7WKU is NOT a row
+    # in the table — proves a 404 for a "previous" value). entity_name is
+    # "MONKS, WILLIAM S" — proves the adapter builds the name from the
+    # component fields, not the entity column (which would feed the client
+    # the wrong first token).
+    {
+        "callsign": "W1AW",
+        "applicant_type": "Individual",
+        "first_name": "JOSHUA", "middle_initial": "D", "last_name": "VILLWOCK",
+        "name_suffix": "",
+        "entity_name": "MONKS, WILLIAM S",
+        "operator_class": "E", "previous_operator_class": "G",
+        "previous_callsign": "KG7WKU",
+        "trustee_callsign": "", "trustee_name": "",
+        "street_address": "14970 SALT CREEK RD", "po_box": "",
+        "city": "DALLAS", "state": "OR", "zip_code": "97338",
+        "attention_line": "",
+        "frn": "0024933376",
+        "grant_date": "2024-03-19", "expired_date": "2034-03-19",
+        "gridsquare": "CN84hx",
+        "coordinates": "44.979441,-123.337862",
+    },
+    # K1MI: Individual, has coords, no previous call. Used to prove the
+    # previous_callsign field surfaces when set, and absent otherwise.
+    {
+        "callsign": "K1MI",
+        "applicant_type": "Individual",
+        "first_name": "TEST", "middle_initial": "", "last_name": "USER",
+        "name_suffix": "",
+        "entity_name": "",
+        "operator_class": "G", "previous_operator_class": "",
+        "previous_callsign": "",
+        "trustee_callsign": "", "trustee_name": "",
+        "street_address": "1 TEST ST", "po_box": "",
+        "city": "PORTLAND", "state": "OR", "zip_code": "97201",
+        "attention_line": "",
+        "frn": "0024933376",
+        "grant_date": "2020-01-01", "expired_date": "2030-01-01",
+        "gridsquare": "CN85",
+        "coordinates": "45.5152,-122.6784",
+    },
+    # W7CLB: Amateur Club with trustee. License_class is empty for clubs;
+    # trustee_callsign populates the trustee fields the client displays.
+    {
+        "callsign": "W7CLB",
+        "applicant_type": "Amateur Club",
+        "first_name": "", "middle_initial": "", "last_name": "",
+        "name_suffix": "",
+        "entity_name": "TEST RADIO CLUB",
+        "operator_class": "", "previous_operator_class": "",
+        "previous_callsign": "",
+        "trustee_callsign": "W7TRU", "trustee_name": "TEST TRUSTEE",
+        "street_address": "100 CLUB LN", "po_box": "",
+        "city": "PORTLAND", "state": "OR", "zip_code": "97201",
+        "attention_line": "",
+        "frn": "",
+        "grant_date": "2000-01-01", "expired_date": "2030-01-01",
+        "gridsquare": "CN85",
+        "coordinates": "45.5152,-122.6784",
+    },
+    # N0BOX: PO-box-only licensee (no street_address). The adapter must
+    # synthesize "PO BOX {po_box}" so the entry form has something usable.
+    {
+        "callsign": "N0BOX",
+        "applicant_type": "Individual",
+        "first_name": "BOX", "middle_initial": "", "last_name": "PERSON",
+        "name_suffix": "",
+        "entity_name": "",
+        "operator_class": "T", "previous_operator_class": "",
+        "previous_callsign": "",
+        "trustee_callsign": "", "trustee_name": "",
+        "street_address": "", "po_box": "123",
+        "city": "EUGENE", "state": "OR", "zip_code": "97401",
+        "attention_line": "",
+        "frn": "",
+        "grant_date": "2010-01-01", "expired_date": "2030-01-01",
+        "gridsquare": "CN84",
+        "coordinates": "44.0521,-123.0868",
+    },
+    # N0GEO: NULL coordinates. latitude/longitude/zones must all be None.
+    {
+        "callsign": "N0GEO",
+        "applicant_type": "Individual",
+        "first_name": "GEO", "middle_initial": "", "last_name": "NONE",
+        "name_suffix": "",
+        "entity_name": "",
+        "operator_class": "T", "previous_operator_class": "",
+        "previous_callsign": "",
+        "trustee_callsign": "", "trustee_name": "",
+        "street_address": "1 NOWHERE RD", "po_box": "",
+        "city": "ANYTOWN", "state": "OR", "zip_code": "97201",
+        "attention_line": "",
+        "frn": "",
+        "grant_date": "2010-01-01", "expired_date": "2030-01-01",
+        "gridsquare": "",
+        "coordinates": "",
+    },
+]
+
+
+def build_fixture(path):
+    """Write the fixture sqlite at `path`. Returns the path."""
+    conn = sqlite3.connect(path)
+    conn.executescript(FCC_SCHEMA)
+    cols = list(FCC_FIXTURE[0].keys())
+    placeholders = ",".join("?" for _ in cols)
+    for row in FCC_FIXTURE:
+        conn.execute(
+            f"INSERT INTO operators ({','.join(cols)}) VALUES ({placeholders})",
+            [row[c] for c in cols],
+        )
+    conn.commit()
+    conn.close()
+    return path
+
+
+# --- server helpers --------------------------------------------------------
 def wait_for_server(proc):
     for _ in range(50):
         time.sleep(0.1)
@@ -104,8 +276,7 @@ def cleanup(data_dir):
 def preclean():
     """Remove any leftover scratch dirs from prior failed runs (Windows can
     hold a transient lock on them for a moment after a hard kill)."""
-    import tempfile as _tf
-    base = Path(_tf.gettempdir())
+    base = Path(tempfile.gettempdir())
     for d in base.glob("haml-lookup-*"):
         if d.is_dir():
             shutil.rmtree(d, ignore_errors=True)
@@ -123,39 +294,37 @@ async def post_lookup(session, callsign):
         return resp.status, body
 
 
+async def post_raw(session, body):
+    """POST /api/lookup with a non-dict body — used to assert the bad-input
+    400 path without going through the dict-shaped post_lookup helper."""
+    async with session.post(BASE + "/api/lookup",
+                            data=body,
+                            headers={"Content-Type": "application/json"},
+                            timeout=aiohttp.ClientTimeout(total=5)) as resp:
+        text = await resp.text()
+        try:
+            return resp.status, json.loads(text) if text else {}
+        except json.JSONDecodeError:
+            return resp.status, {"_raw": text}
+
+
+# --- unit checks (no server) ----------------------------------------------
 def check_ttl_policy():
-    """Verify the TTL policy constants without spinning up the server.
-
-    Locks in the policy so that future drift in lookup_cache.TTL_* is
-    caught by the smoke test (which otherwise only exercises the cache
-    write/read path, not the actual expiry windows).
-    """
-    # Add server/ to sys.path so we can import lookup_cache / lookup_record.
-    sys.path.insert(0, str(SERVER_DIR))
-    import lookup_cache
-    import lookup_record
-
-    # TTL_OK must be 365 days in seconds.
+    """Verify the TTL policy constants haven't drifted."""
     check(
         lookup_cache.TTL_OK == 365 * 24 * 60 * 60,
         f"TTL_OK == {365 * 24 * 60 * 60} (365 days)",
     )
-
-    # TTL_NOT_FOUND must be ~1 month (30 fixed days) in seconds.
     expected_month = 30 * 24 * 60 * 60
     check(
         lookup_cache.TTL_NOT_FOUND == expected_month,
         f"TTL_NOT_FOUND == {expected_month} (1 month)",
     )
-
-    # TTL_ERROR must be 15 minutes in seconds.
     check(
         lookup_cache.TTL_ERROR == 15 * 60,
         f"TTL_ERROR == {15 * 60} (15 min)",
     )
 
-    # And the dispatcher _expires_at() must produce a row whose lifetime
-    # matches each constant within a small tolerance.
     from datetime import datetime, timezone as _tz
     def lifetime_seconds(status, dirty=False):
         s = lookup_cache._expires_at(status, dirty=dirty)
@@ -188,8 +357,6 @@ def check_ttl_policy():
         f"error lifetime ~15 min (got {err_secs:.0f}s, expected {15 * 60}s)",
     )
 
-    # Re-export check: lookup_cache.now_iso should be the same function
-    # lookup_record exports (so existing call sites still work).
     check(
         lookup_cache.now_iso is lookup_record.now_iso,
         "lookup_cache.now_iso re-exports lookup_record.now_iso",
@@ -197,19 +364,11 @@ def check_ttl_policy():
 
 
 def check_coerce():
-    """Verify lookup_record.coerce() shapes input into the canonical record.
-
-    Runs without the server. Locks in:
-      - output keys are EXACTLY FIELDS
-      - full fixture -> clean, all fields populated
-      - sparse fixture -> clean nulls (no dirty)
-      - garbage fixture -> nulls + dirty list naming the failed fields
-    """
-    sys.path.insert(0, str(SERVER_DIR))
-    import lookup_record
-
+    """Verify lookup_record.coerce() shapes input into the canonical record,
+    and that the ISO date coercer accepts YYYY-MM-DD in addition to MM/DD/YYYY
+    (FCC ULS stores dates in ISO form)."""
     full_input = {
-        "callsign": "K1MI",
+        "callsign": "W1AW",
         "name": "JOSHUA D VILLWOCK",
         "license_type": "PERSON",
         "license_class": "EXTRA",
@@ -224,33 +383,37 @@ def check_coerce():
         "longitude": "-123.337862",
         "gridsquare": "CN84hx",
         "frn": "0024933376",
-        "grant_date": "03/19/2024",
-        "expiry_date": "03/19/2034",
-        "last_action_date": "03/19/2024",
+        "grant_date": "2024-03-19",  # ISO form — used to be a dirty field
+        "expiry_date": "2034-03-19",
         "fetched_at": "2026-07-16T20:11:04.123+00:00",
-        "source": "callook",
-        # Unknown key — should be dropped.
+        "source": "fcc",
         "junk": "ignore me",
     }
     record, bad = lookup_record.coerce(full_input)
     check(set(record.keys()) == set(lookup_record.FIELDS),
           "full fixture -> output keys == FIELDS exactly")
     check(bad == [], f"full fixture -> no bad_fields (got {bad})")
-    check(record["callsign"] == "K1MI", "full fixture -> callsign")
-    check(record["license_type"] == "person", "full fixture -> license_type lowercased")
-    check(record["license_class"] == "extra", "full fixture -> license_class lowercased")
+    check(record["callsign"] == "W1AW", "full fixture -> callsign")
+    check(record["license_type"] == "person",
+          "full fixture -> license_type lowercased")
+    check(record["license_class"] == "extra",
+          "full fixture -> license_class lowercased")
     check(record["previous_license_class"] == "general",
           "full fixture -> previous_license_class lowercased")
-    check(record["trustee_callsign"] is None, "full fixture -> trustee_callsign None (empty)")
+    check(record["trustee_callsign"] is None,
+          "full fixture -> trustee_callsign None (empty)")
     check(isinstance(record["latitude"], float) and record["latitude"] == 44.979441,
           "full fixture -> latitude is float")
     check(isinstance(record["longitude"], float) and record["longitude"] == -123.337862,
           "full fixture -> longitude is float")
-    check(record["grant_date"] == "2024-03-19", "full fixture -> grant_date ISO")
+    check(record["grant_date"] == "2024-03-19",
+          "full fixture -> ISO grant_date preserved")
+    check(record["expiry_date"] == "2034-03-19",
+          "full fixture -> ISO expiry_date preserved")
     check(record["frn"] == "0024933376", "full fixture -> frn preserved")
     check(record["gridsquare"] == "CN84",
-          "full fixture -> gridsquare truncated to 4 chars (got "
-          f"{record['gridsquare']!r})")
+          f"full fixture -> gridsquare truncated to 4 chars "
+          f"(got {record['gridsquare']!r})")
 
     # Lowercase input must be uppercased and accepted as clean.
     lower_input = {**full_input, "gridsquare": "cn84mo"}
@@ -302,215 +465,422 @@ def check_coerce():
     check(set(bad) == {"latitude", "grant_date"},
           f"garbage fixture -> bad_fields == {{latitude, grant_date}} (got {bad})")
 
+    # Backwards compat: legacy Callook-style MM/DD/YYYY dates must still
+    # coerce to YYYY-MM-DD — a Callook row in the cache must read back
+    # cleanly through the new coercer.
+    legacy_input = {
+        "callsign": "K1MI",
+        "grant_date": "03/19/2024",
+        "expiry_date": "03/19/2034",
+    }
+    legacy, legacy_bad = lookup_record.coerce(legacy_input)
+    check(legacy["grant_date"] == "2024-03-19",
+          f"legacy MM/DD/YYYY grant_date -> 2024-03-19 (got {legacy['grant_date']!r})")
+    check(legacy["expiry_date"] == "2034-03-19",
+          f"legacy MM/DD/YYYY expiry_date -> 2034-03-19 (got {legacy['expiry_date']!r})")
+    check(legacy_bad == [],
+          f"legacy MM/DD/YYYY dates -> no bad_fields (got {legacy_bad})")
 
-async def main():
+
+def check_fcc_unit():
+    """Drive the FCC adapter directly against a scratch fixture, without
+    the server / HTTP layer. Locks in the row -> canonical mapping and
+    the zone-derivation path."""
+    import fcc
+    scratch = Path(tempfile.mkdtemp(prefix="haml-fcc-unit-"))
+    try:
+        fcc_path = scratch / "fcc.sqlite"
+        build_fixture(fcc_path)
+
+        class _App(dict):
+            pass
+        app = _App()
+        app["cfg"] = {"fcc_db_path": str(fcc_path)}
+        fcc.setup(app)
+        check(app.get("fcc_db") is not None,
+              "fcc.setup() opens the DB on a valid file")
+        check(app.get("fcc_db_path") == str(fcc_path),
+              "fcc.setup() stashes the resolved path")
+
+        # ---- W1AW: Individual, has previous_callsign, has coords ----
+        result = fcc.lookup(app, "W1AW")
+        check(result["status"] == lookup_cache.STATUS_OK,
+              "W1AW -> STATUS_OK")
+        rec = result["payload"]
+        # Name composed from components, NOT entity_name "MONKS, WILLIAM S".
+        check(rec["name"] == "JOSHUA D VILLWOCK",
+              f"W1AW name built from components (got {rec['name']!r})")
+        check(rec["callsign"] == "W1AW", "W1AW callsign")
+        check(rec["license_type"] == "person", "W1AW license_type=person")
+        check(rec["license_class"] == "extra", "W1AW license_class=extra")
+        check(rec["previous_callsign"] == "KG7WKU", "W1AW previous_callsign")
+        check(rec["previous_license_class"] == "general",
+              "W1AW previous_license_class=general")
+        check(rec["trustee_callsign"] is None, "W1AW no trustee")
+        check(rec["address_line1"] == "14970 SALT CREEK RD",
+              "W1AW address_line1 from street_address")
+        # address_line2 must match the client's state regex AND extract OR.
+        check(rec["address_line2"] == "DALLAS, OR 97338",
+              f"W1AW address_line2 == 'DALLAS, OR 97338' "
+              f"(got {rec['address_line2']!r})")
+        m = STATE_IN_ADDRESS_RE.search(rec["address_line2"])
+        check(m and m.group(1) == "OR",
+              f"W1AW address_line2 parses OR via client regex "
+              f"(got {m.group(1) if m else None!r})")
+        check(m and VALID_STATES.intersection({m.group(1)}),
+              "W1AW extracted state is in the client's accepted set")
+        check(rec["latitude"] == 44.979441, f"W1AW latitude (got {rec['latitude']!r})")
+        check(rec["longitude"] == -123.337862,
+              f"W1AW longitude (got {rec['longitude']!r})")
+        check(rec["gridsquare"] == "CN84",
+              f"W1AW gridsquare truncated to 4 chars (got {rec['gridsquare']!r})")
+        check(rec["frn"] == "0024933376", "W1AW frn")
+        check(rec["grant_date"] == "2024-03-19", "W1AW grant_date ISO")
+        check(rec["expiry_date"] == "2034-03-19", "W1AW expiry_date ISO")
+        check(rec["source"] == "fcc", "W1AW source=fcc")
+        check(rec.get("fetched_at"),
+              "W1AW fetched_at stamped")
+        # Dallas, OR is CQ 3, ITU 6.
+        check(rec["cq_zone"] == 3,
+              f"W1AW cq_zone == 3 (Dallas, OR; got {rec['cq_zone']!r})")
+        check(rec["itu_zone"] == 6,
+              f"W1AW itu_zone == 6 (Dallas, OR; got {rec['itu_zone']!r})")
+        # output keys must be exactly FIELDS
+        check(set(rec.keys()) == set(lookup_record.FIELDS),
+              "W1AW output keys == FIELDS exactly")
+
+        # ---- W7CLB: Amateur Club, has trustee ----
+        result = fcc.lookup(app, "W7CLB")
+        check(result["status"] == lookup_cache.STATUS_OK,
+              "W7CLB -> STATUS_OK")
+        rec = result["payload"]
+        check(rec["license_type"] == "club", "W7CLB license_type=club")
+        check(rec["license_class"] is None, "W7CLB no license_class")
+        check(rec["name"] == "TEST RADIO CLUB",
+              "W7CLB name from entity_name (not components)")
+        check(rec["trustee_callsign"] == "W7TRU", "W7CLB trustee_callsign")
+        check(rec["trustee_name"] == "TEST TRUSTEE", "W7CLB trustee_name")
+
+        # ---- N0BOX: PO-box-only licensee ----
+        result = fcc.lookup(app, "N0BOX")
+        rec = result["payload"]
+        check(result["status"] == lookup_cache.STATUS_OK, "N0BOX -> STATUS_OK")
+        check(rec["address_line1"] == "PO BOX 123",
+              f"N0BOX address_line1 synthesized (got {rec['address_line1']!r})")
+
+        # ---- N0GEO: NULL coordinates ----
+        result = fcc.lookup(app, "N0GEO")
+        rec = result["payload"]
+        check(result["status"] == lookup_cache.STATUS_OK, "N0GEO -> STATUS_OK")
+        check(rec["latitude"] is None,
+              f"N0GEO latitude is None (got {rec['latitude']!r})")
+        check(rec["longitude"] is None,
+              f"N0GEO longitude is None (got {rec['longitude']!r})")
+        check(rec["cq_zone"] is None,
+              f"N0GEO cq_zone is None (got {rec['cq_zone']!r})")
+        check(rec["itu_zone"] is None,
+              f"N0GEO itu_zone is None (got {rec['itu_zone']!r})")
+
+        # ---- unknown callsign ----
+        result = fcc.lookup(app, "ZZZZZZ")
+        check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
+              "unknown call -> STATUS_NOT_FOUND")
+        check(result["payload"] == {},
+              "unknown call -> empty payload")
+        check(result["error"] == "callsign not found",
+              "unknown call -> standard 'callsign not found' error")
+
+        # ---- missing-DB setup ----
+        scratch2 = Path(tempfile.mkdtemp(prefix="haml-fcc-missing-"))
+        try:
+            class _App2(dict):
+                pass
+            app2 = _App2()
+            app2["cfg"] = {"fcc_db_path": str(scratch2 / "absent.sqlite")}
+            fcc.setup(app2)
+            check(app2.get("fcc_db") is None,
+                  "fcc.setup() with a missing file -> app['fcc_db'] is None")
+            check(app2.get("fcc_db_path") == str(scratch2 / "absent.sqlite"),
+                  "fcc.setup() still stashes the resolved path on missing file")
+            result = fcc.lookup(app2, "W1AW")
+            check(result["status"] == lookup_cache.STATUS_ERROR,
+                  "missing-DB lookup -> STATUS_ERROR")
+            check("unavailable" in result["error"].lower(),
+                  f"missing-DB error mentions unavailability "
+                  f"(got {result['error']!r})")
+        finally:
+            shutil.rmtree(scratch2, ignore_errors=True)
+
+        app["fcc_db"].close()
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+# --- end-to-end against the live server ------------------------------------
+def _make_minimal_event_db(tmp):
+    """Write a minimal event DB into tmp/events/ and a state.json pointing
+    at it, so the server has an active event to bind to.
+    """
+    events_dir = tmp / "events"
+    events_dir.mkdir(parents=True)
+    event_db = events_dir / "test.db"
+    conn = sqlite3.connect(event_db)
+    conn.executescript("""
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE contacts (
+          uuid TEXT PRIMARY KEY,
+          qso_at TEXT NOT NULL, created_at TEXT NOT NULL,
+          last_edited TEXT NOT NULL, synced_at TEXT NOT NULL,
+          remote_callsign TEXT NOT NULL, operator_callsign TEXT NOT NULL,
+          operator_initials TEXT NOT NULL, client_uuid TEXT NOT NULL,
+          band TEXT NOT NULL, mode TEXT NOT NULL,
+          country TEXT NOT NULL DEFAULT '', itu_zone TEXT NOT NULL DEFAULT '',
+          cq_zone TEXT NOT NULL DEFAULT '', continent TEXT NOT NULL DEFAULT '',
+          gridsquare TEXT NOT NULL DEFAULT '', state TEXT NOT NULL DEFAULT '',
+          section TEXT NOT NULL DEFAULT '', frequency TEXT NOT NULL DEFAULT '',
+          rst_sent TEXT NOT NULL DEFAULT '', rst_received TEXT NOT NULL DEFAULT '',
+          name TEXT NOT NULL DEFAULT '',
+          deleted INTEGER NOT NULL DEFAULT 0, fields TEXT NOT NULL DEFAULT '{}');
+        CREATE TABLE chat (uuid TEXT PRIMARY KEY, sent_at TEXT NOT NULL,
+          operator_callsign TEXT NOT NULL, operator_initials TEXT NOT NULL,
+          client_uuid TEXT NOT NULL, text TEXT NOT NULL);
+    """)
+    conn.execute("INSERT INTO meta VALUES ('event_uuid', 'test-uuid')")
+    conn.execute("INSERT INTO meta VALUES ('event_name', 'smoke-lookup')")
+    conn.execute("INSERT INTO meta VALUES ('station_callsign', 'TEST')")
+    conn.execute("INSERT INTO meta VALUES ('config', '{}')")
+    conn.commit()
+    conn.close()
+    (tmp / "state.json").write_text(
+        json.dumps({"active": "events/test.db"}))
+
+
+def _make_config(tmp, fcc_db_path):
+    return tmp / "config.json", json.dumps({
+        "host": "127.0.0.1", "port": PORT,
+        "data_dir": str(tmp), "admin_password": "test-pw",
+        "fcc_db_path": str(fcc_db_path),
+    })
+
+
+async def run_e2e(fcc_db_path, missing_db=False):
     preclean()
-    # Offline checks first — fast, catch drift in TTL constants and in
-    # the coerce() contract without needing the server or Callook.
-    check_ttl_policy()
-    check_coerce()
     tmp = Path(tempfile.mkdtemp(prefix="haml-lookup-"))
     try:
-        # The server reads cfg from a JSON file whose `data_dir` it then
-        # uses (resolved relative to the server dir) — same pattern as
-        # smoke.py. Point both at our scratch dir.
-        config_path = tmp / "config.json"
-        config_path.write_text(json.dumps({
-            "host": "127.0.0.1", "port": PORT,
-            "data_dir": str(tmp), "admin_password": "test-pw",
-        }))
-        # Pre-create the scratch data dir with an active Event so the rest
-        # of the server's startup path is exercised identically to prod.
-        events_dir = tmp / "events"
-        events_dir.mkdir(parents=True)
-        # Minimal event: a single-row DB the server will load.
-        import sqlite3
-        event_db = events_dir / "test.db"
-        conn = sqlite3.connect(event_db)
-        conn.executescript("""
-            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            CREATE TABLE contacts (
-              uuid TEXT PRIMARY KEY,
-              qso_at TEXT NOT NULL, created_at TEXT NOT NULL,
-              last_edited TEXT NOT NULL, synced_at TEXT NOT NULL,
-              remote_callsign TEXT NOT NULL, operator_callsign TEXT NOT NULL,
-              operator_initials TEXT NOT NULL, client_uuid TEXT NOT NULL,
-              band TEXT NOT NULL, mode TEXT NOT NULL,
-              country TEXT NOT NULL DEFAULT '', itu_zone TEXT NOT NULL DEFAULT '',
-              cq_zone TEXT NOT NULL DEFAULT '', continent TEXT NOT NULL DEFAULT '',
-              gridsquare TEXT NOT NULL DEFAULT '', state TEXT NOT NULL DEFAULT '',
-              section TEXT NOT NULL DEFAULT '', frequency TEXT NOT NULL DEFAULT '',
-              rst_sent TEXT NOT NULL DEFAULT '', rst_received TEXT NOT NULL DEFAULT '',
-              name TEXT NOT NULL DEFAULT '',
-              deleted INTEGER NOT NULL DEFAULT 0, fields TEXT NOT NULL DEFAULT '{}');
-            CREATE TABLE chat (uuid TEXT PRIMARY KEY, sent_at TEXT NOT NULL,
-              operator_callsign TEXT NOT NULL, operator_initials TEXT NOT NULL,
-              client_uuid TEXT NOT NULL, text TEXT NOT NULL);
-        """)
-        conn.execute("INSERT INTO meta VALUES ('event_uuid', 'test-uuid')")
-        conn.execute("INSERT INTO meta VALUES ('event_name', 'smoke-lookup')")
-        conn.execute("INSERT INTO meta VALUES ('station_callsign', 'TEST')")
-        conn.execute("INSERT INTO meta VALUES ('config', '{}')")
-        conn.commit()
-        conn.close()
-        (tmp / "state.json").write_text(
-            json.dumps({"active": "events/test.db"}))
+        if missing_db:
+            fcc_path = tmp / "does_not_exist.sqlite"
+        else:
+            fcc_path = fcc_db_path
+        config_path, body = _make_config(tmp, fcc_path)
+        config_path.write_text(body)
+        _make_minimal_event_db(tmp)
 
         proc = start_server(config_path)
         try:
             async with aiohttp.ClientSession() as session:
-                # ---- cold VALID (CLUB) ----
+                if missing_db:
+                    print("missing-DB config -> 502:")
+                    status, b = await post_lookup(session, "W1AW")
+                    check(status == 502,
+                          f"missing-DB W1AW -> 502 (got {status})")
+                    check("error" in b,
+                          "missing-DB 502 body has error field")
+                    check("unavailable" in b.get("error", "").lower(),
+                          f"502 error mentions unavailability "
+                          f"(got {b.get('error')!r})")
+                    return
+
+                # ---- cold Individual (W1AW) ----
+                print("cold Individual (W1AW):")
                 t0 = time.monotonic()
-                status, body = await post_lookup(session, KNOWN_VALID_CLUB)
+                status, body = await post_lookup(session, "W1AW")
                 cold_ms = (time.monotonic() - t0) * 1000
-                check(status == 200, f"cold {KNOWN_VALID_CLUB} -> 200")
-                check(body.get("callsign") == KNOWN_VALID_CLUB,
-                      f"payload has callsign={KNOWN_VALID_CLUB}")
-                check(body.get("license_type") == "club",
-                      "W1AW is license_type=club (lowercased)")
-                check(body.get("trustee_callsign") == "NA2AA",
-                      "W1AW has trustee NA2AA")
-                check(body.get("license_class") is None,
-                      "W1AW has no license_class (club, not person)")
-                check(body.get("name") == "ARRL HQ OPERATORS CLUB",
-                      "W1AW has expected name")
-                check(isinstance(body.get("gridsquare"), str) and body.get("gridsquare"),
-                      "W1AW has gridsquare (string)")
-                check(re.match(r"^[A-R]{2}\d{2}$", body.get("gridsquare", "")),
-                      "W1AW gridsquare matches 4-char Maidenhead pattern "
-                      f"(got {body.get('gridsquare')!r})")
-                check(isinstance(body.get("latitude"), float),
-                      "W1AW latitude is float")
-                check(isinstance(body.get("longitude"), float),
-                      "W1AW longitude is float")
-                # W1AW is at ARRL HQ in Newington, CT: CQ Zone 5 (Eastern N. America),
-                # ITU Zone 8 (Eastern USA).
-                check(body.get("cq_zone") == 5,
-                      f"W1AW cq_zone == 5 (got {body.get('cq_zone')!r})")
-                check(body.get("itu_zone") == 8,
-                      f"W1AW itu_zone == 8 (got {body.get('itu_zone')!r})")
-                check(body.get("source") == "callook",
-                      "W1AW payload has source=callook")
-                check("status" not in body,
-                      "W1AW payload has no 'status' key (only VALID reaches the record)")
-                check("fetched_at" in body, "W1AW payload has fetched_at")
-                check(re.match(r"^\d{4}-\d{2}-\d{2}$", body.get("grant_date", "")),
-                      "W1AW grant_date matches YYYY-MM-DD")
+                check(status == 200, f"cold W1AW -> 200 (got {status})")
+                check(body.get("callsign") == "W1AW",
+                      f"W1AW callsign (got {body.get('callsign')!r})")
+                check(body.get("name") == "JOSHUA D VILLWOCK",
+                      f"W1AW name built from components "
+                      f"(got {body.get('name')!r})")
+                check(body.get("license_type") == "person",
+                      "W1AW license_type=person")
+                check(body.get("license_class") == "extra",
+                      "W1AW license_class=extra")
+                check(body.get("source") == "fcc",
+                      "W1AW source=fcc")
+                check("fetched_at" in body,
+                      "W1AW payload has fetched_at")
+                check("DALLAS, OR 97338" in (body.get("address_line2") or ""),
+                      f"W1AW address_line2 shaped for client parse "
+                      f"(got {body.get('address_line2')!r})")
+                m = STATE_IN_ADDRESS_RE.search(body.get("address_line2", ""))
+                check(m and m.group(1) == "OR",
+                      f"W1AW client regex extracts OR (got "
+                      f"{m.group(1) if m else None!r})")
+                check(isinstance(body.get("latitude"), float)
+                      and body["latitude"] == 44.979441,
+                      "W1AW latitude is float 44.979441")
+                check(isinstance(body.get("longitude"), float)
+                      and body["longitude"] == -123.337862,
+                      "W1AW longitude is float -123.337862")
+                check(body.get("cq_zone") == 3,
+                      f"W1AW cq_zone == 3 (Dallas, OR; got "
+                      f"{body.get('cq_zone')!r})")
+                check(body.get("itu_zone") == 6,
+                      f"W1AW itu_zone == 6 (Dallas, OR; got "
+                      f"{body.get('itu_zone')!r})")
+                check(re.match(r"^\d{4}-\d{2}-\d{2}$",
+                               body.get("grant_date", "")),
+                      f"W1AW grant_date is YYYY-MM-DD "
+                      f"(got {body.get('grant_date')!r})")
                 print(f"  ({cold_ms:.0f}ms cold)")
 
-                # ---- warm VALID ----
+                # ---- warm re-hit (FCC always recomputes; check it stays fast) ----
                 t0 = time.monotonic()
-                status2, body2 = await post_lookup(session, KNOWN_VALID_CLUB)
+                status2, body2 = await post_lookup(session, "W1AW")
                 warm_ms = (time.monotonic() - t0) * 1000
-                check(status2 == 200, f"warm {KNOWN_VALID_CLUB} -> 200")
-                check(body2.get("fetched_at") == body.get("fetched_at"),
-                      "warm hit returns identical fetched_at (cache hit)")
+                check(status2 == 200, f"warm W1AW -> 200 (got {status2})")
+                check(body2.get("callsign") == "W1AW",
+                      "warm W1AW callsign")
                 check(warm_ms < cold_ms / 2,
-                      f"warm hit ({warm_ms:.0f}ms) faster than cold ({cold_ms:.0f}ms)")
-                # Zones round-trip through the cache (same ints as the cold hit).
-                check(body2.get("cq_zone") == body.get("cq_zone"),
-                      "warm W1AW cq_zone matches cold")
-                check(body2.get("itu_zone") == body.get("itu_zone"),
-                      "warm W1AW itu_zone matches cold")
+                      f"warm W1AW ({warm_ms:.0f}ms) faster than cold "
+                      f"({cold_ms:.0f}ms)")
                 print(f"  ({warm_ms:.0f}ms warm)")
 
-                # ---- suffix normalization ----
-                status3, body3 = await post_lookup(session, KNOWN_VALID_CLUB + "/P")
-                check(status3 == 200, f"{KNOWN_VALID_CLUB}/P -> 200")
-                check(body3.get("callsign") == KNOWN_VALID_CLUB,
-                      "suffix stripped before lookup")
+                # ---- suffix normalization (W1AW/P) ----
+                print("suffix normalization (W1AW/P):")
+                status, body = await post_lookup(session, "W1AW/P")
+                check(status == 200,
+                      f"W1AW/P -> 200 (got {status})")
+                check(body.get("callsign") == "W1AW",
+                      "suffix stripped before FCC lookup")
 
-                # ---- cold INVALID ----
-                status4, body4 = await post_lookup(session, KNOWN_INVALID)
-                check(status4 == 404, f"cold {KNOWN_INVALID} -> 404")
-                check("error" in body4, "404 body has error field")
+                # ---- cold Amateur Club (W7CLB) ----
+                print("cold Amateur Club (W7CLB):")
+                status, body = await post_lookup(session, "W7CLB")
+                check(status == 200, f"W7CLB -> 200 (got {status})")
+                check(body.get("license_type") == "club",
+                      "W7CLB license_type=club")
+                check(body.get("license_class") is None,
+                      "W7CLB no license_class")
+                check(body.get("name") == "TEST RADIO CLUB",
+                      "W7CLB name from entity_name")
+                check(body.get("trustee_callsign") == "W7TRU",
+                      "W7CLB trustee_callsign")
+                check(body.get("trustee_name") == "TEST TRUSTEE",
+                      "W7CLB trustee_name")
 
-                # ---- warm INVALID ----
-                t0 = time.monotonic()
-                status5, _ = await post_lookup(session, KNOWN_INVALID)
-                warm_invalid_ms = (time.monotonic() - t0) * 1000
-                check(status5 == 404, f"warm {KNOWN_INVALID} -> 404")
-                check(warm_invalid_ms < 50,
-                      f"warm INVALID is fast ({warm_invalid_ms:.0f}ms)")
+                # ---- PO-box-only licensee (N0BOX) ----
+                print("PO-box-only (N0BOX):")
+                status, body = await post_lookup(session, "N0BOX")
+                check(status == 200, f"N0BOX -> 200 (got {status})")
+                check(body.get("address_line1") == "PO BOX 123",
+                      f"N0BOX address_line1 synthesized (got "
+                      f"{body.get('address_line1')!r})")
 
-                # ---- supersession walk ----
-                # KG7WKU is a previous call of K1MI: Callook returns the
-                # current license, so KG7WKU gets a 404. K1MI is warmed
-                # in the process, so the next K1MI POST is fast.
-                t0 = time.monotonic()
-                sp_status, sp_body = await post_lookup(session, KNOWN_PREVIOUS)
-                sp_ms = (time.monotonic() - t0) * 1000
-                check(sp_status == 404,
-                      f"cold {KNOWN_PREVIOUS} (previous call) -> 404 "
-                      f"(got {sp_status})")
-                check("error" in sp_body,
-                      f"{KNOWN_PREVIOUS} 404 body has error field")
+                # ---- NULL coordinates (N0GEO) ----
+                print("NULL coordinates (N0GEO):")
+                status, body = await post_lookup(session, "N0GEO")
+                check(status == 200, f"N0GEO -> 200 (got {status})")
+                check(body.get("latitude") is None,
+                      f"N0GEO latitude is None (got "
+                      f"{body.get('latitude')!r})")
+                check(body.get("longitude") is None,
+                      f"N0GEO longitude is None (got "
+                      f"{body.get('longitude')!r})")
+                check(body.get("cq_zone") is None,
+                      f"N0GEO cq_zone is None (got "
+                      f"{body.get('cq_zone')!r})")
+                check(body.get("itu_zone") is None,
+                      f"N0GEO itu_zone is None (got "
+                      f"{body.get('itu_zone')!r})")
 
-                # Now K1MI — the KG7WKU lookup above should have warmed
-                # K1MI's cache row (since the returned record's callsign
-                # was K1MI, and the ok row is cached under the returned
-                # callsign). This lookup should therefore be fast (a pure
-                # cache hit, no upstream call).
-                t0 = time.monotonic()
-                k_status, k_body = await post_lookup(session, KNOWN_VALID_PERSON)
-                k_ms = (time.monotonic() - t0) * 1000
-                check(k_status == 200, f"{KNOWN_VALID_PERSON} -> 200")
-                check(k_body.get("callsign") == KNOWN_VALID_PERSON,
-                      f"{KNOWN_VALID_PERSON} payload has correct callsign")
-                check(k_body.get("license_type") == "person",
-                      f"{KNOWN_VALID_PERSON} is license_type=person")
-                check(k_body.get("license_class") == "extra",
-                      f"{KNOWN_VALID_PERSON} is license_class=extra (lowercased)")
-                check(k_body.get("previous_callsign") == KNOWN_PREVIOUS,
-                      f"{KNOWN_VALID_PERSON} carries previous_callsign={KNOWN_PREVIOUS}")
-                check(k_body.get("frn") == "0024933376",
-                      f"{KNOWN_VALID_PERSON} frn matches")
-                check(re.match(r"^\d{4}-\d{2}-\d{2}$", k_body.get("expiry_date", "")),
-                      f"{KNOWN_VALID_PERSON} expiry_date matches YYYY-MM-DD")
-                # K1MI is in Oregon: CQ Zone 3 (Western N. America),
-                # ITU Zone 6 (Pacific USA).
-                check(k_body.get("cq_zone") == 3,
-                      f"{KNOWN_VALID_PERSON} cq_zone == 3 (got {k_body.get('cq_zone')!r})")
-                check(k_body.get("itu_zone") == 6,
-                      f"{KNOWN_VALID_PERSON} itu_zone == 6 (got {k_body.get('itu_zone')!r})")
-                check(k_ms < 200,
-                      f"{KNOWN_VALID_PERSON} lookup is fast (warmed by {KNOWN_PREVIOUS}): {k_ms:.0f}ms")
+                # ---- cold unknown call ----
+                print("cold unknown call:")
+                status, body = await post_lookup(session, "ZZZZZZ")
+                check(status == 404, f"unknown ZZZZZZ -> 404 (got {status})")
+                check("error" in body,
+                      "404 body has error field")
 
-                # Warm KG7WKU — the not_found row was written under the
-                # queried key, so this should be a fast cache hit.
-                t0 = time.monotonic()
-                wstatus, _ = await post_lookup(session, KNOWN_PREVIOUS)
-                warm_prev_ms = (time.monotonic() - t0) * 1000
-                check(wstatus == 404, f"warm {KNOWN_PREVIOUS} -> 404")
-                check(warm_prev_ms < 50,
-                      f"warm {KNOWN_PREVIOUS} is fast ({warm_prev_ms:.0f}ms)")
+                # ---- previous_callsign value (not in the table) ----
+                print("previous_callsign value:")
+                status, body = await post_lookup(session, "KG7WKU")
+                check(status == 404,
+                      f"previous_callsign value KG7WKU -> 404 (got {status})")
+                check("error" in body,
+                      "404 body has error field")
 
-                # ---- bad input ----
-                bad_status, _ = await post_lookup(session, "")
-                check(bad_status == 400, "empty callsign -> 400")
+                # ---- bad input: empty ----
+                print("bad input:")
+                status, body = await post_lookup(session, "")
+                check(status == 400, f"empty -> 400 (got {status})")
 
-                # ---- coalescing ----
-                # Two concurrent cold POSTs for a fresh callsign. The
-                # 1 req/sec gate plus the shared future means only one
-                # upstream hit fires; both clients get the same result.
-                # We use a callsign we haven't hit yet to force cold.
-                fresh = "AA1AA"
+                # ---- bad input: non-JSON ----
+                status, _ = await post_raw(session, b"not json")
+                check(status == 400, f"non-JSON body -> 400 (got {status})")
+
+                # ---- bad input: missing callsign ----
+                async with session.post(BASE + "/api/lookup",
+                                        json={"foo": "bar"},
+                                        timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    status = resp.status
+                check(status == 400, f"missing callsign -> 400 (got {status})")
+
+                # ---- coalescing: two concurrent POSTs share one drive ----
+                print("coalescing:")
+                fresh = "K1MI"  # a callsign we haven't looked up yet
                 t0 = time.monotonic()
                 (s1, b1), (s2, b2) = await asyncio.gather(
                     post_lookup(session, fresh),
                     post_lookup(session, fresh),
                 )
                 coalesce_ms = (time.monotonic() - t0) * 1000
-                check(s1 == 200 and s2 == 200, "both coalesced lookups 200")
-                check(b1.get("fetched_at") == b2.get("fetched_at"),
-                      "coalesced clients see identical fetched_at")
+                check(s1 == 200 and s2 == 200,
+                      f"both coalesced lookups 200 (got {s1}, {s2})")
+                check(b1.get("callsign") == fresh
+                      and b2.get("callsign") == fresh,
+                      "coalesced clients both get the right call")
                 print(f"  (coalesce round-trip {coalesce_ms:.0f}ms)")
 
-            print(f"\n{checks} checks passed")
+                # ---- K1MI (no previous) ----
+                print("Individual no previous (K1MI):")
+                status, body = await post_lookup(session, "K1MI")
+                check(status == 200, f"K1MI -> 200 (got {status})")
+                check(body.get("callsign") == "K1MI", "K1MI callsign")
+                check(body.get("license_type") == "person",
+                      "K1MI license_type=person")
+                check(body.get("license_class") == "general",
+                      "K1MI license_class=general")
+                check(body.get("previous_callsign") is None,
+                      f"K1MI previous_callsign is None (got "
+                      f"{body.get('previous_callsign')!r})")
         finally:
             stop_server(proc)
     finally:
         cleanup(tmp)
+
+
+async def main():
+    preclean()
+    # Offline unit checks first — catch drift in TTL constants, coerce(),
+    # and the fcc adapter's row -> canonical mapping without needing the
+    # server.
+    print("unit: TTL policy:")
+    check_ttl_policy()
+    print("unit: coerce() contract:")
+    check_coerce()
+    print("unit: fcc adapter:")
+    check_fcc_unit()
+
+    print("\nend-to-end against the live server:")
+    fixture_path = Path(tempfile.mkdtemp(prefix="haml-fcc-fixture-")) / "fcc.sqlite"
+    try:
+        build_fixture(fixture_path)
+        await run_e2e(fixture_path, missing_db=False)
+        await run_e2e(fixture_path, missing_db=True)
+    finally:
+        cleanup(fixture_path.parent)
+
+    print(f"\n{checks} checks passed")
 
 
 if __name__ == "__main__":

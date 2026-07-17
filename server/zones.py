@@ -2,8 +2,8 @@
 
 Derives amateur radio zone numbers from coordinates using vendored GeoJSON
 boundary data. Loaded lazily on first call to keep cold-start cost out of
-the import path: modules that merely `import zones` (callook) don't pay for
-the JSON parse until at least one lookup fires.
+the import path: modules that merely `import zones` (e.g. an offline
+provider) don't pay for the JSON parse until at least one lookup fires.
 
 Point-in-polygon uses even-odd ray-casting on each polygon's outer ring plus
 holes. Each feature is bbox-prefiltered, so the per-point cost scales with

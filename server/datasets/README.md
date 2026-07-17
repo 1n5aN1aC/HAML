@@ -57,3 +57,28 @@ from the upstream repository, verify license has not changed, and replace the
 files in this directory.
 
 - Vendored: 2026-05-13
+
+## `fcc_amateur.sqlite`
+
+The local FCC ULS operator dataset that `server/fcc.py` reads on every
+callsign lookup. ~826k active US amateur licenses, one row per callsign.
+
+- **Source**: FCC Universal Licensing System weekly data dump
+  (`l_amat.zip` from <https://www.fcc.gov/ulrs>). The raw pipe-delimited
+  extract is converted into this sqlite by an out-of-repo importer script
+- **Schema** (table `operators`, with a unique index on `callsign`):
+  - `callsign` TEXT PRIMARY KEY
+  - `applicant_type` TEXT  — `Individual` / `Amateur Club` / `Military Recreation` / `Government Entity`
+  - `first_name` TEXT, `middle_initial` TEXT, `last_name` TEXT, `name_suffix` TEXT
+  - `entity_name` TEXT  — populated for non-individual applicants
+  - `operator_class` TEXT, `previous_operator_class` TEXT  — single-letter codes (`A`/`E`/`G`/`N`/`P`/`T`)
+  - `previous_callsign` TEXT, `trustee_callsign` TEXT, `trustee_name` TEXT, `attention_line` TEXT
+  - `street_address` TEXT, `po_box` TEXT, `city` TEXT, `state` TEXT, `zip_code` TEXT
+  - `frn` TEXT
+  - `grant_date` TEXT, `expired_date` TEXT  — ISO `YYYY-MM-DD`
+  - `gridsquare` TEXT  — 4-char Maidenhead field grid
+  - `coordinates` TEXT  — `"lat,lon"` pre-geocoded by the importer
+- **Server config**: path overridable via `fcc_db_path` in the server
+  config JSON. Default is `datasets/fcc_amateur.sqlite` (resolved
+  relative to the server dir). A missing file is non-fatal: the server
+  prints a warning at boot and lookups return 502.

@@ -9,9 +9,9 @@ import sqlite3
 
 from aiohttp import web
 
-import callook
 import db
 import events
+import lookup
 import lookup_cache
 import templates
 
@@ -150,9 +150,13 @@ async def get_chat(request):
 LONGPOLL_TIMEOUT_S = 15
 
 async def post_lookup(request):
-    """Look up a callsign via the upstream provider, returning the cached or fresh result.
+    """Look up a callsign, returning the cached or fresh result.
     The 200 response body is the canonical record from `lookup_record`:
     The client can trust its field names, types, and value sets without validating.
+
+    Primary provider is the local FCC ULS sqlite — instant, offline, one indexed query per call.
+    The cache layer + long-poll handler shape is kept for a future online fallback (QRZ/HamQTH for non-US calls);
+    today the cache read path never hits and the long-poll ceiling only matters if a future provider is wired in.
 
     Cache-first, then long-poll for misses:
       - cache hit ok         -> 200 + canonical record, instant
@@ -163,7 +167,7 @@ async def post_lookup(request):
 
     Two concurrent POSTs for the same callsign share a single upstream hit.
 
-    TTLs (see lookup_cache):
+    TTLs (see lookup_cache, reserved for future online providers):
       - ok, clean   -> 365 days
       - ok, dirty   -> 15 min  (one or more fields failed coercion)
       - not_found   -> 30 days
@@ -174,7 +178,7 @@ async def post_lookup(request):
     except json.JSONDecodeError:
         return json_error(400, "body must be JSON")
     raw = body.get("callsign") if isinstance(body, dict) else None
-    callsign = callook.normalize_callsign(raw or "")
+    callsign = lookup.normalize_callsign(raw or "")
     if not callsign:
         return json_error(400, "callsign must be a non-empty string")
 
@@ -189,7 +193,7 @@ async def post_lookup(request):
         return json_error(502, cached["error"] or "upstream lookup failed")
 
     # Cache miss: coalesce, schedule, await under the long-poll ceiling.
-    future = callook.schedule(request.app, callsign)
+    future = lookup.schedule(request.app, callsign)
     # asyncio.shield keeps wait_for() from cancelling the shared future on timeout:
     # the _drive task keeps running, writes a cache row, and concurrent/late clients still get the result instead of a CancelledError.
     try:

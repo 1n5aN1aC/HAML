@@ -1,7 +1,15 @@
+﻿# Pytho stuff:
 .venv/
 __pycache__/
 *.pyc
-server/data/
-node_modules/
+
+# Vite stuff:
 client/dist/
+node_modules/
+
+# AI Stuff:
 .claude/
+
+# Live event state:
+server/data/
+server/datasets/fcc_amateur.sqlite

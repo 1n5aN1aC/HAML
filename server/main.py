@@ -13,8 +13,9 @@ from aiohttp import web
 
 import api_rest
 import api_ws
-import callook
 import events
+import fcc
+import lookup
 import lookup_cache
 from config import load_config
 
@@ -25,12 +26,17 @@ async def _close_cache(app):
     conn = app.get("lookup_cache")
     if conn is not None:
         conn.close()
+    # fcc_db is opened read-only in setup; close it on shutdown so a unit test's scratch dir can be removed cleanly.
+    fcc_db = app.get("fcc_db")
+    if fcc_db is not None:
+        fcc_db.close()
 
 # Build the main application instance.
 def build_app(cfg):
     app = web.Application()
     app["cfg"] = cfg
-    callook.setup(app)
+    fcc.setup(app)
+    lookup.setup(app)
     app["lookup_cache"] = lookup_cache.open_cache(
         cfg["data_dir"] / "lookup_cache.db"
     )

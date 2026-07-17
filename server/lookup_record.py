@@ -1,7 +1,7 @@
 """Canonical callsign-lookup record: strict, provider-neutral storage shape.
 
 One home for the field set, the per-field coercers, and the timestamp format that the cache layer writes.
-Providers (Callook today, QRZ/HamQTH tomorrow) adapt their raw JSON into the keys defined in `FIELDS`;
+Providers (FCC today, QRZ/HamQTH tomorrow) adapt their raw payload into the keys defined in `FIELDS`;
 `coerce()` is the single place that turns whatever-the-upstream-sent into our vocabulary:
 
   - empty string  -> None
@@ -47,7 +47,6 @@ FIELDS = (
     "frn",
     "grant_date",
     "expiry_date",
-    "last_action_date",
 )
 
 
@@ -110,12 +109,25 @@ def _coerce_float(value):
 
 
 def _coerce_iso_date(value):
-    """MM/DD/YYYY -> YYYY-MM-DD. None on parse failure (dirty)."""
+    """YYYY-MM-DD passthrough; MM/DD/YYYY -> YYYY-MM-DD. None on parse failure (dirty).
+
+    The FCC ULS dataset stores dates in ISO form already; Callook used
+    MM/DD/YYYY. Accept both so adapters don't have to pre-normalize and
+    a row that came from either upstream coerces cleanly.
+    """
     if not isinstance(value, str):
         return None
     s = value.strip()
     if not s:
         return None
+    # ISO 8601 date (YYYY-MM-DD).
+    #   Accept it as-is after a length+shape check, so we don't let an unparseable string round-trip through
+    #   datetime.fromisoformat and raise — strptime is the strict path.
+    if len(s) == 10 and s[4] == "-" and s[7] == "-":
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").date().isoformat()
+        except ValueError:
+            return None
     try:
         return datetime.strptime(s, "%m/%d/%Y").date().isoformat()
     except ValueError:
@@ -187,7 +199,6 @@ _COERCERS = {
     "frn": _coerce_str,
     "grant_date": _coerce_iso_date,
     "expiry_date": _coerce_iso_date,
-    "last_action_date": _coerce_iso_date,
 }
 
 
