@@ -256,6 +256,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     if (!callsign) return
     setValues((prev) => mergeUntouched(prev, touched, lookupPatch(callsign)))
     rememberPatch(callsign).then((remember) => {
+      // Race guard, same as the server lookup: if the callsign was edited, cleared (Escape),
+      // or submitted while the Dexie scan was in flight, this patch belongs to the old station — drop it.
+      if (callsignLiveRef.current !== callsign) return
       // touchedRef, not the closure's touched: the Dexie scan resolves after
       // this render, and fields typed into meanwhile must win.
       setValues((prev) => mergeUntouched(prev, touchedRef.current, remember))
