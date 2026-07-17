@@ -5,6 +5,7 @@
 #
 import asyncio
 import json
+import math
 import sqlite3
 
 from aiohttp import web
@@ -149,9 +150,40 @@ async def get_chat(request):
 
 LONGPOLL_TIMEOUT_S = 15
 
+# Earth radius in miles — same constant as the client's distanceMiles
+# (callparser.js), so the two readouts agree.
+_EARTH_RADIUS_MI = 3958.8
+
+
+def _with_distance(app, record):
+    """Return the record plus a `distance` key: whole-mile Haversine distance
+    from the active event's operating position (config.location) to the
+    record's coordinates, or null when either end is missing.
+
+    Distance is event-relative, so it is stamped on the response here and
+    never stored in the canonical record or the cache — a cached row must
+    stay correct when a different event becomes active.
+    """
+    event = app.get("event") or {}
+    loc = (event.get("config") or {}).get("location")
+    lat, lon = record.get("latitude"), record.get("longitude")
+    distance = None
+    if loc and lat is not None and lon is not None:
+        phi1 = math.radians(loc["latitude"])
+        phi2 = math.radians(lat)
+        d_phi = math.radians(lat - loc["latitude"])
+        d_lam = math.radians(lon - loc["longitude"])
+        a = (math.sin(d_phi / 2) ** 2
+             + math.cos(phi1) * math.cos(phi2) * math.sin(d_lam / 2) ** 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = round(_EARTH_RADIUS_MI * c)
+    return dict(record, distance=distance)
+
+
 async def post_lookup(request):
     """Look up a callsign, returning the cached or fresh result.
-    The 200 response body is the canonical record from `lookup_record`:
+    The 200 response body is the canonical record from `lookup_record`, plus
+    a request-time `distance` field (see _with_distance):
     The client can trust its field names, types, and value sets without validating.
 
     Primary provider is the local FCC ULS sqlite — instant, offline, one indexed query per call.
@@ -186,7 +218,8 @@ async def post_lookup(request):
     cached = lookup_cache.get(cache_conn, callsign)
     if cached is not None:
         if cached["status"] == lookup_cache.STATUS_OK:
-            return web.json_response(json.loads(cached["payload"]))
+            return web.json_response(
+                _with_distance(request.app, json.loads(cached["payload"])))
         if cached["status"] == lookup_cache.STATUS_NOT_FOUND:
             return json_error(404, "callsign not found")
         # status == error
@@ -202,7 +235,7 @@ async def post_lookup(request):
     except asyncio.TimeoutError:
         return json_error(408, "lookup timed out")
     if result["status"] == lookup_cache.STATUS_OK:
-        return web.json_response(result["payload"])
+        return web.json_response(_with_distance(request.app, result["payload"]))
     if result["status"] == lookup_cache.STATUS_NOT_FOUND:
         return json_error(404, "callsign not found")
     return json_error(502, result["error"] or "upstream lookup failed")

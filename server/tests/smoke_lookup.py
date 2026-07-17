@@ -506,6 +506,31 @@ def check_coerce():
           f"legacy MM/DD/YYYY dates -> no bad_fields (got {legacy_bad})")
 
 
+def check_distance_unit():
+    """Verify api_rest._with_distance stamps a request-time distance on the
+    record: whole miles when both the event location and the record coords
+    exist, null otherwise, and never mutates the input record."""
+    import api_rest
+    record = {"callsign": "W1AW", "latitude": 44.979441, "longitude": -123.337862}
+    loc_app = {"event": {"config": {
+        "location": {"latitude": 45.5152, "longitude": -122.6784}}}}
+
+    out = api_rest._with_distance(loc_app, record)
+    check(out["distance"] == 49,
+          f"Portland -> Dallas OR == 49 mi (got {out['distance']!r})")
+    check("distance" not in record,
+          "_with_distance leaves the input record unmodified")
+
+    out = api_rest._with_distance(loc_app, {"latitude": None, "longitude": None})
+    check(out["distance"] is None, "no record coords -> distance is None")
+
+    out = api_rest._with_distance({"event": {"config": {"location": None}}}, record)
+    check(out["distance"] is None, "no event location -> distance is None")
+
+    out = api_rest._with_distance({}, record)
+    check(out["distance"] is None, "no active event -> distance is None")
+
+
 def check_fcc_unit():
     """Drive the FCC adapter directly against a scratch fixture, without
     the server / HTTP layer. Locks in the row -> canonical mapping and
@@ -678,7 +703,12 @@ def _make_minimal_event_db(tmp):
     conn.execute("INSERT INTO meta VALUES ('event_uuid', 'test-uuid')")
     conn.execute("INSERT INTO meta VALUES ('event_name', 'smoke-lookup')")
     conn.execute("INSERT INTO meta VALUES ('station_callsign', 'TEST')")
-    conn.execute("INSERT INTO meta VALUES ('config', '{}')")
+    # Operating position: Portland, OR. W1AW's fixture coords are Dallas, OR
+    # — 49 miles away by the shared Haversine formula — so the e2e can
+    # assert an exact `distance` in the lookup response.
+    conn.execute(
+        """INSERT INTO meta VALUES ('config',
+           '{"location": {"latitude": 45.5152, "longitude": -122.6784}}')""")
     conn.commit()
     conn.close()
     (tmp / "state.json").write_text(
@@ -768,6 +798,10 @@ async def run_e2e(fcc_db_path, missing_db=False):
                                body.get("grant_date", "")),
                       f"W1AW grant_date is YYYY-MM-DD "
                       f"(got {body.get('grant_date')!r})")
+                # Event location is Portland, OR; W1AW is Dallas, OR.
+                check(body.get("distance") == 49,
+                      f"W1AW distance == 49 mi from event location "
+                      f"(got {body.get('distance')!r})")
                 print(f"  ({cold_ms:.0f}ms cold)")
 
                 # ---- warm re-hit (FCC always recomputes; check it stays fast) ----
@@ -826,6 +860,9 @@ async def run_e2e(fcc_db_path, missing_db=False):
                 check(body.get("cq_zone") is None,
                       f"N0GEO cq_zone is None (got "
                       f"{body.get('cq_zone')!r})")
+                check(body.get("distance") is None,
+                      f"N0GEO distance is None without coords (got "
+                      f"{body.get('distance')!r})")
                 check(body.get("itu_zone") is None,
                       f"N0GEO itu_zone is None (got "
                       f"{body.get('itu_zone')!r})")
@@ -904,6 +941,8 @@ async def main():
     check_ttl_policy()
     print("unit: coerce() contract:")
     check_coerce()
+    print("unit: distance stamping:")
+    check_distance_unit()
     print("unit: fcc adapter:")
     check_fcc_unit()
 
