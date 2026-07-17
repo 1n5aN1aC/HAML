@@ -256,7 +256,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     if (!callsign) return
     setValues((prev) => mergeUntouched(prev, touched, lookupPatch(callsign)))
     rememberPatch(callsign).then((remember) => {
-      setValues((prev) => mergeUntouched(prev, touched, remember))
+      // touchedRef, not the closure's touched: the Dexie scan resolves after
+      // this render, and fields typed into meanwhile must win.
+      setValues((prev) => mergeUntouched(prev, touchedRef.current, remember))
     })
   }
 
