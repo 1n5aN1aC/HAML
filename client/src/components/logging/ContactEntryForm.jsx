@@ -412,9 +412,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               }
               setCallsign(next)
               setDupe(null)
-              // (Re)start the idle debounce that fires fireServerLookup 500ms after typing settles
+              // (Re)start the idle debounce that fires fireServerLookup 100ms after typing settles
               if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
-              idleTimerRef.current = setTimeout(() => fireServerLookup(next), 500)
+              idleTimerRef.current = setTimeout(() => fireServerLookup(next), 100)
             }}
             onBlur={() => {
               // No lookup here: Idle debounce from last keystroke survives blur and fires on its own.
