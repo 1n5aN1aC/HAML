@@ -273,6 +273,10 @@ body {
 /* Band-conflict warning: another station is on our band (LoggingTab). */
 .status-bar select.band-conflict { border-color: var(--theme-warning); }
 .status-bar .band-conflict-warning { color: var(--theme-warning); font-weight: 600; }
+/* Bands another live station is on, marked inside the open band dropdown.
+   Option styling renders in Chromium/Firefox; Safari uses the native picker
+   and ignores it — same limitation the old app had. */
+.status-bar select option.band-in-use { background-color: var(--theme-conflict-bg); }
 
 .conn-ok { color: var(--theme-success); }
 .conn-down { color: var(--theme-danger); }

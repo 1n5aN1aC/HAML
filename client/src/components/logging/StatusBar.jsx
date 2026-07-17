@@ -6,7 +6,9 @@ import { sanitizeText } from '../../text-input.js'
 const DEFAULT_MODE = (modes) =>
   modes.includes('Phone') ? 'Phone' : (modes[0] || '')
 
-export default function StatusBar({ session, onSession, config, exchange, conflicts = [] }) {
+export default function StatusBar({
+  session, onSession, config, exchange, conflicts = [], bandsInUse = new Set(),
+}) {
   const set = (key) => (e) => onSession({ ...session, [key]: e.target.value })
   const setAlphanumeric = (key) => (e) =>
     onSession({ ...session, [key]: sanitizeText(e.target.value) })
@@ -61,7 +63,13 @@ export default function StatusBar({ session, onSession, config, exchange, confli
           onChange={set('band')}
         >
           {['Off-Air', ...config.bands].map((b) => (
-            <option key={b} value={b}>{b}</option>
+            <option
+              key={b}
+              value={b}
+              className={bandsInUse.has(b) ? 'band-in-use' : ''}
+            >
+              {b}
+            </option>
           ))}
         </select>
       </label>

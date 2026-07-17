@@ -43,6 +43,19 @@ export default function LoggingTab({
             serverNow - s.last_seen_at <= 61,  //Exclude stale clients.  Had to increase to 61 because browsers throttle timer to 1 minute in background tabs.
         )
 
+  // Bands other live stations are on, marked inside the band dropdown so the
+  // operator sees occupied bands while choosing (same staleness cutoff).
+  const bandsInUse = new Set(
+    stations
+      .filter(
+        (s) =>
+          s.client_uuid !== clientUuid &&
+          s.band !== 'Off-Air' &&
+          serverNow - s.last_seen_at <= 61,
+      )
+      .map((s) => s.band),
+  )
+
   return (
     <>
       <StatusBar
@@ -51,6 +64,7 @@ export default function LoggingTab({
         config={config}
         exchange={exchange}
         conflicts={conflicts}
+        bandsInUse={bandsInUse}
       />
       <div className="status-bar-separator" />
       <main className="panes">
