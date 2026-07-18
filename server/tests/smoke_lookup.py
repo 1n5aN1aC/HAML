@@ -715,6 +715,116 @@ def check_fcc_unit():
         shutil.rmtree(scratch, ignore_errors=True)
 
 
+def check_callparser_unit():
+    """Drive the CallParser adapter directly with the repo's committed
+    Prefix.lst. Locks in the raw -> canonical mapping: zones as ints,
+    dxcc int (leading-zero-safe), coords floats, all US-only fields None.
+
+    The callparser module's `init()` is process-global and idempotent
+    (a successful load short-circuits subsequent calls), so we exercise
+    the missing-file setup FIRST — before any successful load — to keep
+    the not-ready assertion faithful to real boot semantics.
+    """
+    import lookup_callparser
+
+    real_path = SERVER_DIR / "datasets" / "Prefix.lst"
+    check(real_path.exists(),
+          f"real Prefix.lst exists at {real_path}")
+
+    # ---- not-ready setup FIRST: lookup returns STATUS_NOT_FOUND, not ERROR.
+    # The chain treats not-ready the same as a miss so the caller's prior
+    # FCC status decides the response (FCC error + CP not-ready = 502;
+    # FCC miss + CP not-ready = 404). Must run before any successful load
+    # because callparser.init() short-circuits on a process-global
+    # _loaded flag — once a successful load has happened, a bad-path
+    # setup() can't reproduce the not-ready state.
+    class _AppNR(dict):
+        pass
+    app_nr = _AppNR()
+    app_nr["cfg"] = {"prefix_lst_path": "C:/nonexistent/Prefix.lst"}
+    lookup_callparser.setup(app_nr)
+    check(app_nr.get("callparser_ready") is False,
+          "callparser.setup() with a missing file -> not ready")
+    result = lookup_callparser.lookup(app_nr, "G4ABC")
+    check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
+          f"not-ready G4ABC -> STATUS_NOT_FOUND "
+          f"(got {result['status']!r})")
+    check(result["error"] == "",
+          "not-ready G4ABC -> empty error string")
+
+    # ---- now load the real fixture ----
+    class _App(dict):
+        pass
+    app = _App()
+    app["cfg"] = {"prefix_lst_path": str(real_path)}
+    lookup_callparser.setup(app)
+    check(app.get("callparser_ready") is True,
+          "callparser.setup() loads the committed Prefix.lst")
+
+    # ---- G4ABC (England) ----
+    result = lookup_callparser.lookup(app, "G4ABC")
+    check(result["status"] == lookup_cache.STATUS_OK,
+          f"G4ABC -> STATUS_OK (got {result['status']!r})")
+    rec = result["payload"]
+    check(set(rec.keys()) == set(lookup_record.FIELDS),
+          "G4ABC output keys == FIELDS exactly")
+    check(rec["callsign"] == "G4ABC", "G4ABC callsign")
+    check(rec["country"] == "England", f"G4ABC country=England (got {rec['country']!r})")
+    check(rec["continent"] == "EU", f"G4ABC continent=EU (got {rec['continent']!r})")
+    check(isinstance(rec["cq_zone"], int) and rec["cq_zone"] == 14,
+          f"G4ABC cq_zone is int 14 (got {rec['cq_zone']!r})")
+    check(isinstance(rec["itu_zone"], int) and rec["itu_zone"] == 27,
+          f"G4ABC itu_zone is int 27 (got {rec['itu_zone']!r})")
+    check(isinstance(rec["dxcc"], int) and rec["dxcc"] == 223,
+          f"G4ABC dxcc is int 223 (got {rec['dxcc']!r})")
+    check(isinstance(rec["latitude"], float) and rec["latitude"] > 0,
+          f"G4ABC latitude is positive float (got {rec['latitude']!r})")
+    check(isinstance(rec["longitude"], float) and rec["longitude"] < 0,
+          f"G4ABC longitude is negative float (got {rec['longitude']!r})")
+    # Sparseness: everything not in the prefix DB must be a clean None,
+    # not a dirty "" — otherwise coerce() would have flagged it.
+    check(rec["name"] is None,
+          f"G4ABC name is None (got {rec['name']!r})")
+    check(rec["state"] is None,
+          f"G4ABC state is None (got {rec['state']!r})")
+    check(rec["address_line1"] is None,
+          f"G4ABC address_line1 is None (got {rec['address_line1']!r})")
+    check(rec["license_type"] is None,
+          f"G4ABC license_type is None (got {rec['license_type']!r})")
+    check(rec["gridsquare"] is None,
+          f"G4ABC gridsquare is None (got {rec['gridsquare']!r})")
+    check(rec["frn"] is None,
+          f"G4ABC frn is None (got {rec['frn']!r})")
+    # Source/fetched_at stamped by the adapter.
+    check(rec["source"] == "callparser",
+          f"G4ABC source=callparser (got {rec['source']!r})")
+    check(rec.get("fetched_at"),
+          "G4ABC fetched_at stamped")
+
+    # ---- EA8/W1AW: portable prefix resolves via CP ----
+    result = lookup_callparser.lookup(app, "EA8/W1AW")
+    check(result["status"] == lookup_cache.STATUS_OK,
+          f"EA8/W1AW -> STATUS_OK (got {result['status']!r})")
+    rec = result["payload"]
+    check(rec["country"] == "Canary Is.",
+          f"EA8/W1AW country=Canary Is. (got {rec['country']!r})")
+    # Canary Is. ADIF is "029" in Prefix.lst — must coerce to int 29
+    # through _coerce_zone(1, 999) (which uses float() then int()).
+    check(isinstance(rec["dxcc"], int) and rec["dxcc"] == 29,
+          f"EA8/W1AW dxcc is int 29 from '029' (got {rec['dxcc']!r})")
+
+    # ---- garbage calls CP can't parse -> STATUS_NOT_FOUND ----
+    for garbage in ("123ABC", "X", "ZZZZZZ"):
+        result = lookup_callparser.lookup(app, garbage)
+        check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
+              f"{garbage} -> STATUS_NOT_FOUND "
+              f"(got {result['status']!r})")
+        check(result["payload"] == {},
+              f"{garbage} -> empty payload")
+        check(result["error"] == "callsign not found",
+              f"{garbage} -> standard 'callsign not found' error")
+
+
 # --- end-to-end against the live server ------------------------------------
 def _make_minimal_event_db(tmp):
     """Write a minimal event DB into tmp/events/ and a state.json pointing
@@ -759,15 +869,19 @@ def _make_minimal_event_db(tmp):
         json.dumps({"active": "events/test.db"}))
 
 
-def _make_config(tmp, fcc_db_path):
-    return tmp / "config.json", json.dumps({
+def _make_config(tmp, fcc_db_path, prefix_lst_path=None):
+    cfg = {
         "host": "127.0.0.1", "port": PORT,
         "data_dir": str(tmp), "admin_password": "test-pw",
         "fcc_db_path": str(fcc_db_path),
-    })
+    }
+    if prefix_lst_path is not None:
+        cfg["prefix_lst_path"] = str(prefix_lst_path)
+    return tmp / "config.json", json.dumps(cfg)
 
 
-async def run_e2e(fcc_db_path, missing_db=False):
+async def run_e2e(fcc_db_path, prefix_lst_path=None,
+                  missing_db=False, missing_prefix_lst=False):
     preclean()
     tmp = Path(tempfile.mkdtemp(prefix="haml-lookup-"))
     try:
@@ -775,7 +889,15 @@ async def run_e2e(fcc_db_path, missing_db=False):
             fcc_path = tmp / "does_not_exist.sqlite"
         else:
             fcc_path = fcc_db_path
-        config_path, body = _make_config(tmp, fcc_path)
+        if prefix_lst_path is None and not missing_prefix_lst:
+            # Default to the committed fixture so the chain has DX coverage.
+            prefix_lst_path = SERVER_DIR / "datasets" / "Prefix.lst"
+        if missing_prefix_lst:
+            cp_path = tmp / "does_not_exist_Prefix.lst"
+        else:
+            cp_path = prefix_lst_path
+        config_path, body = _make_config(tmp, fcc_path,
+                                         prefix_lst_path=cp_path)
         config_path.write_text(body)
         _make_minimal_event_db(tmp)
 
@@ -783,14 +905,54 @@ async def run_e2e(fcc_db_path, missing_db=False):
         try:
             async with aiohttp.ClientSession() as session:
                 if missing_db:
-                    print("missing-DB config -> 502:")
+                    if missing_prefix_lst:
+                        # Both hops absent: today's 502 path is preserved
+                        # exactly (FCC error + CP not-ready => original
+                        # FCC result returned).
+                        print("missing-DB + missing-CP -> 502:")
+                        status, b = await post_lookup(session, "W1AW")
+                        check(status == 502,
+                              f"missing-DB+missing-CP W1AW -> 502 "
+                              f"(got {status})")
+                        check("unavailable" in b.get("error", "").lower(),
+                              f"502 mentions unavailability "
+                              f"(got {b.get('error')!r})")
+                        return
+                    # FCC dataset absent, CP loaded: CP hop handles every
+                    # prefix-DB-resolvable callsign. W1AW IS resolvable
+                    # by CP (prefix 'W' -> United States), so it returns
+                    # 200 with source="callparser". A truly garbage call
+                    # that neither hop resolves preserves the 502
+                    # (FCC error returned verbatim).
+                    print("missing-DB config -> CP fallback:")
                     status, b = await post_lookup(session, "W1AW")
+                    check(status == 200,
+                          f"missing-DB W1AW resolves via CP -> 200 "
+                          f"(got {status})")
+                    check(b.get("source") == "callparser",
+                          f"missing-DB W1AW source=callparser "
+                          f"(got {b.get('source')!r})")
+                    check(b.get("country") == "United States of America",
+                          f"missing-DB W1AW country (got {b.get('country')!r})")
+                    # Resolvable DX call.
+                    status, b = await post_lookup(session, "G4ABC")
+                    check(status == 200,
+                          f"missing-DB G4ABC (resolvable via CP) -> 200 "
+                          f"(got {status})")
+                    check(b.get("source") == "callparser",
+                          f"missing-DB G4ABC source=callparser "
+                          f"(got {b.get('source')!r})")
+                    check(b.get("country") == "England",
+                          f"missing-DB G4ABC country=England "
+                          f"(got {b.get('country')!r})")
+                    # An unresolvable garbage call keeps the 502 visible:
+                    # FCC error returned verbatim because CP also missed.
+                    status, b = await post_lookup(session, "123ABC")
                     check(status == 502,
-                          f"missing-DB W1AW -> 502 (got {status})")
-                    check("error" in b,
-                          "missing-DB 502 body has error field")
+                          f"missing-DB 123ABC (CP-miss) -> 502 "
+                          f"(got {status})")
                     check("unavailable" in b.get("error", "").lower(),
-                          f"502 error mentions unavailability "
+                          f"502 mentions unavailability "
                           f"(got {b.get('error')!r})")
                     return
 
@@ -933,14 +1095,6 @@ async def run_e2e(fcc_db_path, missing_db=False):
                 check("error" in body,
                       "404 body has error field")
 
-                # ---- previous_callsign value (not in the table) ----
-                print("previous_callsign value:")
-                status, body = await post_lookup(session, "KG7WKU")
-                check(status == 404,
-                      f"previous_callsign value KG7WKU -> 404 (got {status})")
-                check("error" in body,
-                      "404 body has error field")
-
                 # ---- bad input: empty ----
                 print("bad input:")
                 status, body = await post_lookup(session, "")
@@ -985,6 +1139,116 @@ async def run_e2e(fcc_db_path, missing_db=False):
                 check(body.get("previous_callsign") is None,
                       f"K1MI previous_callsign is None (got "
                       f"{body.get('previous_callsign')!r})")
+
+                # ---- DX call -> CallParser hop ----
+                # G4ABC is not in the FCC fixture; the FCC hop misses
+                # and CallParser fills in DXCC-level fields. The chain
+                # must NOT regress on the FCC fixture: W1AW's US fields
+                # are still served by the FCC hop (FCC wins on OK).
+                print("DX call via CallParser (G4ABC):")
+                status, body = await post_lookup(session, "G4ABC")
+                check(status == 200, f"G4ABC -> 200 (got {status})")
+                check(body.get("source") == "callparser",
+                      f"G4ABC source=callparser "
+                      f"(got {body.get('source')!r})")
+                check(body.get("callsign") == "G4ABC", "G4ABC callsign")
+                check(body.get("country") == "England",
+                      f"G4ABC country=England "
+                      f"(got {body.get('country')!r})")
+                check(body.get("continent") == "EU",
+                      f"G4ABC continent=EU "
+                      f"(got {body.get('continent')!r})")
+                check(body.get("cq_zone") == 14,
+                      f"G4ABC cq_zone=14 (England; got "
+                      f"{body.get('cq_zone')!r})")
+                check(body.get("itu_zone") == 27,
+                      f"G4ABC itu_zone=27 (England; got "
+                      f"{body.get('itu_zone')!r})")
+                check(body.get("dxcc") == 223,
+                      f"G4ABC dxcc=223 (England ADIF; got "
+                      f"{body.get('dxcc')!r})")
+                check(isinstance(body.get("latitude"), float),
+                      f"G4ABC latitude is float (got "
+                      f"{type(body.get('latitude')).__name__})")
+                check(isinstance(body.get("longitude"), float),
+                      f"G4ABC longitude is float (got "
+                      f"{type(body.get('longitude')).__name__})")
+                # Sparseness: CP fills DXCC-level fields only. US-only
+                # fields the entry form uses for fills must be null so
+                # the client null-checks them out cleanly.
+                check(body.get("name") is None,
+                      f"G4ABC name is None (got {body.get('name')!r})")
+                check(body.get("address_line1") is None,
+                      f"G4ABC address_line1 is None (got "
+                      f"{body.get('address_line1')!r})")
+                check(body.get("address_line2") is None,
+                      f"G4ABC address_line2 is None (got "
+                      f"{body.get('address_line2')!r})")
+                check(body.get("state") is None,
+                      f"G4ABC state is None (got {body.get('state')!r})")
+                check(body.get("license_type") is None,
+                      f"G4ABC license_type is None (got "
+                      f"{body.get('license_type')!r})")
+                check(body.get("license_class") is None,
+                      f"G4ABC license_class is None (got "
+                      f"{body.get('license_class')!r})")
+                # distance stamped by _with_distance from entity-center coords.
+                check(isinstance(body.get("distance"), int)
+                      and body["distance"] > 0,
+                      f"G4ABC distance is positive int "
+                      f"(got {body.get('distance')!r})")
+                # Source/fetched_at stamped by the adapter (cache layer
+                # is bypassed for CP results).
+                check("fetched_at" in body,
+                      "G4ABC payload has fetched_at")
+
+                # ---- FCC still wins on its own fixture (no regression) ----
+                print("FCC fixture call (W1AW) - still source=fcc:")
+                status, body = await post_lookup(session, "W1AW")
+                check(status == 200, f"W1AW -> 200 (got {status})")
+                check(body.get("source") == "fcc",
+                      f"W1AW source=fcc even with CP loaded "
+                      f"(got {body.get('source')!r})")
+                check(body.get("name") == "JOSHUA D VILLWOCK",
+                      f"W1AW name still from FCC components (got "
+                      f"{body.get('name')!r})")
+
+                # ---- CallParser rejects a callsign that has no prefix
+                # match (digit-leading, too short, etc). FCC hop also
+                # misses (not in fixture) -> CP miss -> 404. The chain
+                # returns the ORIGINAL FCC result on a miss so today
+                # behavior is preserved.
+                print("CallParser miss -> 404:")
+                status, body = await post_lookup(session, "123ABC")
+                check(status == 404, f"123ABC -> 404 (got {status})")
+                check("error" in body, "404 body has error field")
+
+                # ---- Portable suffix resolves via CallParser ----
+                # EA8/W1AW: prefix DB parses "EA8" as the prefix
+                # (Canary Is.) and ignores the W1AW trailing call
+                # (CallParser's _compare_ending rules). FCC doesn't
+                # see this row in the fixture -> CP fills.
+                print("Portable suffix via CallParser (EA8/W1AW):")
+                status, body = await post_lookup(session, "EA8/W1AW")
+                check(status == 200, f"EA8/W1AW -> 200 (got {status})")
+                check(body.get("source") == "callparser",
+                      f"EA8/W1AW source=callparser "
+                      f"(got {body.get('source')!r})")
+                check(body.get("country") == "Canary Is.",
+                      f"EA8/W1AW country=Canary Is. "
+                      f"(got {body.get('country')!r})")
+                check(body.get("continent") == "AF",
+                      f"EA8/W1AW continent=AF "
+                      f"(got {body.get('continent')!r})")
+                check(body.get("cq_zone") == 33,
+                      f"EA8/W1AW cq_zone=33 (Canary Is.; got "
+                      f"{body.get('cq_zone')!r})")
+                check(body.get("itu_zone") == 36,
+                      f"EA8/W1AW itu_zone=36 (Canary Is.; got "
+                      f"{body.get('itu_zone')!r})")
+                check(body.get("dxcc") == 29,
+                      f"EA8/W1AW dxcc=29 (Canary Is. ADIF; got "
+                      f"{body.get('dxcc')!r})")
         finally:
             stop_server(proc)
     finally:
@@ -1004,13 +1268,20 @@ async def main():
     check_distance_unit()
     print("unit: fcc adapter:")
     check_fcc_unit()
+    print("unit: callparser adapter:")
+    check_callparser_unit()
 
     print("\nend-to-end against the live server:")
     fixture_path = Path(tempfile.mkdtemp(prefix="haml-fcc-fixture-")) / "fcc.sqlite"
     try:
         build_fixture(fixture_path)
+        # Real Prefix.lst + FCC fixture: the new e2e CP cases run here.
         await run_e2e(fixture_path, missing_db=False)
+        # Missing-DB, real Prefix.lst: CP must rescue every resolvable call.
         await run_e2e(fixture_path, missing_db=True)
+        # Missing-DB + missing-CP: behavior matches today's exactly
+        # (FCC error returned verbatim when CP also can't help).
+        await run_e2e(fixture_path, missing_db=True, missing_prefix_lst=True)
     finally:
         cleanup(fixture_path.parent)
 

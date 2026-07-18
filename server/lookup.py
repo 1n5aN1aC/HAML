@@ -2,9 +2,9 @@
 
 Holds the coalescing machinery (one asyncio task per active lookup, shared
 future for concurrent callers) and the provider chain seam. Today the chain
-is a single hop — `lookup_fcc.lookup()` — but future online providers (QRZ,
-HamQTH, …) append below, own their own HTTP sessions / rate gates, and
-write results into `lookup_cache` themselves.
+is FCC → CallParser; a future online provider (QRZ, HamQTH, …) appends
+between them, owns its own HTTP sessions / rate gates, and writes results
+into `lookup_cache` itself.
 
 What lives here vs in a provider module:
   here: normalize_callsign, inflight futures, _drive, schedule, setup
@@ -17,6 +17,7 @@ provider chain is invisible above this line.
 import asyncio
 
 import lookup_cache
+import lookup_callparser
 import lookup_fcc
 
 
@@ -24,8 +25,9 @@ import lookup_fcc
 # Uppercased and stripped of the suffixes the dispatcher treats as
 # non-DXCC-meaningful: /P, /M, /MM, /QRP, /ANT, plus the trailing /
 # that the formatter may leave behind. The list is local (`_CALLSIGN_SUFFIXES`
-# below); when a server-side CallParser fallback is added later, its strip-list
-# must stay in lock-step with this one.
+# below); CallParser keeps its own richer formatter inside callparser.py,
+# but stripping these suffixes here keeps the cache key + every provider
+# consistent (a /MM-stripped key won't match a /MM-stripped CP result, etc.).
 _CALLSIGN_SUFFIXES = ("/P", "/M", "/MM", "/QRP", "/ANT")
 def normalize_callsign(raw):
     """Returns the normalized form, or '' when nothing usable remains."""
@@ -40,15 +42,22 @@ def normalize_callsign(raw):
 
 
 # --- provider chain --------------------------------------------------------
-# Today: FCC offline, the only provider. Hits the local sqlite at the
-# path the server was configured with; miss is a 404; missing DB is 502.
+# Today: FCC offline (US) → CallParser offline (everything else). FCC wins
+# when both hops resolve; a CallParser hit only fires on an FCC miss or
+# error. FCC is offline-primary: a miss is the truth, never a fallback to
+# a paid upstream — saves both latency and money on the common US-call
+# case. CallParser is the prefix-DB fallback that gives DXCC-level answers
+# for non-US calls, and degrades gracefully (skip) when its data file is
+# absent.
 #
 # To add an online provider (QRZ, HamQTH) for non-US calls:
-#   1. append a call here after the FCC hop, gated on a miss/error
+#   1. append a call here between the FCC and CallParser hops
 #   2. have it call lookup_cache.put() to warm the cache for next time
 #   3. own its own aiohttp.ClientSession, rate gate, and HTTP error handling
-# FCC is offline-primary: a miss is the truth, never a fallback to a paid
-# upstream — saves both latency and money on the common US-call case.
+#   4. on its own OK/definitive result, return early; on miss, fall through
+#      to callparser. CallParser results are NEVER cached (the prefix DB
+#      is fast enough that a cache row buys nothing) — when the online hop
+#      lands, it is the only layer in the chain that writes lookup_cache.
 def _run_lookup(app, callsign):
     # Wrap provider exceptions so the coalesced future still resolves with a result
     try:
@@ -59,10 +68,18 @@ def _run_lookup(app, callsign):
             "payload": {},
             "error": f"{type(exc).__name__}: {exc}",
         }
-    # The chain seam: when a future online provider is added, it slots in
-    # here. e.g.:
-    #   if result["status"] == lookup_cache.STATUS_NOT_FOUND:
-    #       return qrz.lookup(app, callsign)
+    # The chain seam: future online provider slots in here (returns early
+    # on its own OK; on miss falls through to callparser; writes its own
+    # cache row). Until it lands, callparser is the second hop on FCC
+    # miss AND error — so a server without the FCC dataset degrades to
+    # prefix-only answers instead of 502.
+    if result["status"] in (lookup_cache.STATUS_NOT_FOUND, lookup_cache.STATUS_ERROR):
+        cp = lookup_callparser.lookup(app, callsign)
+        if cp["status"] == lookup_cache.STATUS_OK:
+            return cp
+        # CP also missed/errored: return the original FCC result so the
+        # caller sees today's behavior exactly (FCC miss + CP miss = 404;
+        # FCC error + CP miss/error = 502 — DB breakage stays visible).
     return result
 
 # --- coalescing futures ----------------------------------------------------

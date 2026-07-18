@@ -16,6 +16,7 @@ import api_ws
 import events
 import lookup
 import lookup_cache
+import lookup_callparser
 import lookup_fcc
 from config import load_config
 
@@ -30,12 +31,14 @@ async def _close_cache(app):
     fcc_db = app.get("fcc_db")
     if fcc_db is not None:
         fcc_db.close()
+    # callparser is an in-memory structure loaded at setup; nothing to close.
 
 # Build the main application instance.
 def build_app(cfg):
     app = web.Application()
     app["cfg"] = cfg
     lookup_fcc.setup(app)
+    lookup_callparser.setup(app)
     lookup.setup(app)
     app["lookup_cache"] = lookup_cache.open_cache(
         cfg["data_dir"] / "lookup_cache.db"

@@ -8,6 +8,7 @@ DEFAULTS = {
     "data_dir": "data",       # Contains template & event state. (relative to server/)
     "admin_password": "haml", # Password for the admin REST endpoints
     "fcc_db_path": "datasets/fcc_amateur.sqlite", # Path to the local FCC ULS sqlite
+    "prefix_lst_path": "datasets/Prefix.lst",     # Path to the VE3NEA CallParser Prefix.lst
 }
 
 
@@ -36,4 +37,9 @@ def load_config(path=None):
     data_dir.mkdir(parents=True, exist_ok=True)
     # Resolve fcc_db_path the same way (without mkdir — see helper docstring).
     cfg["fcc_db_path"] = _resolve_relative_to_server(cfg["fcc_db_path"])
+    # Same story for prefix_lst_path: file is committed and required at
+    # runtime, but a missing/garbled load must warn-and-continue at setup
+    # rather than crash the server (the lookup_callparser adapter mirrors
+    # fcc.setup() in being boot-time fault-tolerant).
+    cfg["prefix_lst_path"] = _resolve_relative_to_server(cfg["prefix_lst_path"])
     return cfg
