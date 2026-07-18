@@ -151,7 +151,7 @@ def _build_record(row):
         "state": state, # 2-digit USPS code
         "county": row["county"] or "",
         "country": row["dxcc_entity"] or "",
-        "continent": "",  # Not in the FCC dataset yet; importer must add the column.
+        "continent": row["continent"] or "",
         "latitude": latitude,
         "longitude": longitude,
         "gridsquare": row["gridsquare"] or "",

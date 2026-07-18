@@ -616,8 +616,8 @@ def check_fcc_unit():
               f"W1AW county from DB column (got {rec['county']!r})")
         check(rec["country"] == "United States",
               f"W1AW country from DB column (got {rec['country']!r})")
-        check(rec["continent"] is None,
-              f"W1AW continent stubbed to None for now (got {rec['continent']!r})")
+        check(rec["continent"] == "NA",
+              f"W1AW continent from DB column (got {rec['continent']!r})")
         check(rec["dxcc"] == 291,
               f"W1AW dxcc from DB column (got {rec['dxcc']!r})")
         check(rec["latitude"] == 44.979441, f"W1AW latitude (got {rec['latitude']!r})")
@@ -827,8 +827,8 @@ async def run_e2e(fcc_db_path, missing_db=False):
                 check(body.get("country") == "United States",
                       f"W1AW country is 'United States' "
                       f"(got {body.get('country')!r})")
-                check(body.get("continent") is None,
-                      f"W1AW continent stubbed to None for now "
+                check(body.get("continent") == "NA",
+                      f"W1AW continent is 'NA' "
                       f"(got {body.get('continent')!r})")
                 check(body.get("dxcc") == 291,
                       f"W1AW dxcc is 291 (got {body.get('dxcc')!r})")
