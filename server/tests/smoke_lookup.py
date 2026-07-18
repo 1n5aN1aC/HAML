@@ -100,7 +100,10 @@ CREATE TABLE operators (
   expired_date          TEXT,
   gridsquare            TEXT,
   coordinates           TEXT,
-  county                TEXT
+  county                TEXT,
+  country               TEXT,
+  continent             TEXT,
+  dxcc                  INTEGER
 );
 """
 
@@ -134,6 +137,9 @@ FCC_FIXTURE = [
         "gridsquare": "CN84hx",
         "coordinates": "44.979441,-123.337862",
         "county": "Polk",
+        "country": "United States",
+        "continent": "NA",
+        "dxcc": 291,
     },
     # K1MI: Individual, has coords, no previous call. Used to prove the
     # previous_callsign field surfaces when set, and absent otherwise.
@@ -154,6 +160,9 @@ FCC_FIXTURE = [
         "gridsquare": "CN85",
         "coordinates": "45.5152,-122.6784",
         "county": "Multnomah",
+        "country": "United States",
+        "continent": "NA",
+        "dxcc": 291,
     },
     # W7CLB: Amateur Club with trustee. License_class is empty for clubs;
     # trustee_callsign populates the trustee fields the client displays.
@@ -174,6 +183,9 @@ FCC_FIXTURE = [
         "gridsquare": "CN85",
         "coordinates": "45.5152,-122.6784",
         "county": "Multnomah",
+        "country": "United States",
+        "continent": "NA",
+        "dxcc": 291,
     },
     # N0BOX: PO-box-only licensee (no street_address). The adapter must
     # synthesize "PO BOX {po_box}" so the entry form has something usable.
@@ -194,6 +206,9 @@ FCC_FIXTURE = [
         "gridsquare": "CN84",
         "coordinates": "44.0521,-123.0868",
         "county": "Lane",
+        "country": "United States",
+        "continent": "NA",
+        "dxcc": 291,
     },
     # N0GEO: NULL coordinates. latitude/longitude/zones must all be None.
     {
@@ -213,6 +228,9 @@ FCC_FIXTURE = [
         "gridsquare": "",
         "coordinates": "",
         "county": "",
+        "country": "",
+        "continent": "",
+        "dxcc": None,
     },
 ]
 
@@ -395,6 +413,7 @@ def check_coerce():
         "frn": "0024933376",
         "grant_date": "2024-03-19",  # ISO form — used to be a dirty field
         "expiry_date": "2034-03-19",
+        "dxcc": "291",  # numeric string from upstream; coercer -> 291
         "fetched_at": "2026-07-16T20:11:04.123+00:00",
         "source": "fcc",
         "junk": "ignore me",
@@ -424,6 +443,9 @@ def check_coerce():
     check(record["gridsquare"] == "CN84",
           f"full fixture -> gridsquare truncated to 4 chars "
           f"(got {record['gridsquare']!r})")
+    check(record["dxcc"] == 291,
+          f"full fixture -> dxcc numeric string coerced to int "
+          f"(got {record['dxcc']!r})")
 
     # Lowercase input must be uppercased and accepted as clean.
     lower_input = {**full_input, "gridsquare": "cn84mo"}
@@ -487,6 +509,7 @@ def check_coerce():
         "latitude": "abc",          # bad float
         "longitude": "",            # empty -> clean None
         "grant_date": "not a date", # bad date
+        "dxcc": 99999,              # out of range -> dirty
     }
     record, bad = lookup_record.coerce(garbage_input)
     check(set(record.keys()) == set(lookup_record.FIELDS),
@@ -494,8 +517,9 @@ def check_coerce():
     check(record["latitude"] is None, "garbage fixture -> latitude is None")
     check(record["longitude"] is None, "garbage fixture -> longitude is None")
     check(record["grant_date"] is None, "garbage fixture -> grant_date is None")
-    check(set(bad) == {"latitude", "grant_date"},
-          f"garbage fixture -> bad_fields == {{latitude, grant_date}} (got {bad})")
+    check(record["dxcc"] is None, "garbage fixture -> dxcc is None")
+    check(set(bad) == {"latitude", "grant_date", "dxcc"},
+          f"garbage fixture -> bad_fields == {{latitude, grant_date, dxcc}} (got {bad})")
 
     # Backwards compat: legacy Callook-style MM/DD/YYYY dates must still
     # coerce to YYYY-MM-DD — a Callook row in the cache must read back
@@ -590,10 +614,12 @@ def check_fcc_unit():
               f"W1AW state is the 2-letter code (got {rec['state']!r})")
         check(rec["county"] == "Polk",
               f"W1AW county from DB column (got {rec['county']!r})")
-        check(rec["country"] is None,
-              f"W1AW country is None for now (got {rec['country']!r})")
-        check(rec["continent"] is None,
-              f"W1AW continent is None for now (got {rec['continent']!r})")
+        check(rec["country"] == "United States",
+              f"W1AW country from DB column (got {rec['country']!r})")
+        check(rec["continent"] == "NA",
+              f"W1AW continent from DB column (got {rec['continent']!r})")
+        check(rec["dxcc"] == 291,
+              f"W1AW dxcc from DB column (got {rec['dxcc']!r})")
         check(rec["latitude"] == 44.979441, f"W1AW latitude (got {rec['latitude']!r})")
         check(rec["longitude"] == -123.337862,
               f"W1AW longitude (got {rec['longitude']!r})")
@@ -647,6 +673,12 @@ def check_fcc_unit():
               f"N0GEO itu_zone is None (got {rec['itu_zone']!r})")
         check(rec["county"] is None,
               f"N0GEO empty county coerces to None (got {rec['county']!r})")
+        check(rec["country"] is None,
+              f"N0GEO empty country coerces to None (got {rec['country']!r})")
+        check(rec["continent"] is None,
+              f"N0GEO empty continent coerces to None (got {rec['continent']!r})")
+        check(rec["dxcc"] is None,
+              f"N0GEO NULL dxcc coerces to None (got {rec['dxcc']!r})")
 
         # ---- unknown callsign ----
         result = fcc.lookup(app, "ZZZZZZ")
@@ -792,10 +824,14 @@ async def run_e2e(fcc_db_path, missing_db=False):
                       f"W1AW state field is 'OR' (got {body.get('state')!r})")
                 check(body.get("county") == "Polk",
                       f"W1AW county is 'Polk' (got {body.get('county')!r})")
-                check(body.get("country") is None,
-                      f"W1AW country is null (got {body.get('country')!r})")
-                check(body.get("continent") is None,
-                      f"W1AW continent is null (got {body.get('continent')!r})")
+                check(body.get("country") == "United States",
+                      f"W1AW country is 'United States' "
+                      f"(got {body.get('country')!r})")
+                check(body.get("continent") == "NA",
+                      f"W1AW continent is 'NA' "
+                      f"(got {body.get('continent')!r})")
+                check(body.get("dxcc") == 291,
+                      f"W1AW dxcc is 291 (got {body.get('dxcc')!r})")
                 check(isinstance(body.get("latitude"), float)
                       and body["latitude"] == 44.979441,
                       "W1AW latitude is float 44.979441")
@@ -880,6 +916,15 @@ async def run_e2e(fcc_db_path, missing_db=False):
                 check(body.get("itu_zone") is None,
                       f"N0GEO itu_zone is None (got "
                       f"{body.get('itu_zone')!r})")
+                check(body.get("country") is None,
+                      f"N0GEO country is None (got "
+                      f"{body.get('country')!r})")
+                check(body.get("continent") is None,
+                      f"N0GEO continent is None (got "
+                      f"{body.get('continent')!r})")
+                check(body.get("dxcc") is None,
+                      f"N0GEO dxcc is None (got "
+                      f"{body.get('dxcc')!r})")
 
                 # ---- cold unknown call ----
                 print("cold unknown call:")
