@@ -149,7 +149,7 @@ def _build_record(row):
         "address_line2": address_line2,
         "address_attn": row["attention_line"] or "",
         "state": state, # 2-digit USPS code
-        "county": "",   # Not implemented yet.
+        "county": row["county"] or "",
         "country": "",  # Not implemented yet.
         "continent": "",  # Not implemented yet.
         "latitude": latitude,

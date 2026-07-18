@@ -99,7 +99,8 @@ CREATE TABLE operators (
   grant_date            TEXT,
   expired_date          TEXT,
   gridsquare            TEXT,
-  coordinates           TEXT
+  coordinates           TEXT,
+  county                TEXT
 );
 """
 
@@ -132,6 +133,7 @@ FCC_FIXTURE = [
         "grant_date": "2024-03-19", "expired_date": "2034-03-19",
         "gridsquare": "CN84hx",
         "coordinates": "44.979441,-123.337862",
+        "county": "Polk",
     },
     # K1MI: Individual, has coords, no previous call. Used to prove the
     # previous_callsign field surfaces when set, and absent otherwise.
@@ -151,6 +153,7 @@ FCC_FIXTURE = [
         "grant_date": "2020-01-01", "expired_date": "2030-01-01",
         "gridsquare": "CN85",
         "coordinates": "45.5152,-122.6784",
+        "county": "Multnomah",
     },
     # W7CLB: Amateur Club with trustee. License_class is empty for clubs;
     # trustee_callsign populates the trustee fields the client displays.
@@ -170,6 +173,7 @@ FCC_FIXTURE = [
         "grant_date": "2000-01-01", "expired_date": "2030-01-01",
         "gridsquare": "CN85",
         "coordinates": "45.5152,-122.6784",
+        "county": "Multnomah",
     },
     # N0BOX: PO-box-only licensee (no street_address). The adapter must
     # synthesize "PO BOX {po_box}" so the entry form has something usable.
@@ -189,6 +193,7 @@ FCC_FIXTURE = [
         "grant_date": "2010-01-01", "expired_date": "2030-01-01",
         "gridsquare": "CN84",
         "coordinates": "44.0521,-123.0868",
+        "county": "Lane",
     },
     # N0GEO: NULL coordinates. latitude/longitude/zones must all be None.
     {
@@ -207,6 +212,7 @@ FCC_FIXTURE = [
         "grant_date": "2010-01-01", "expired_date": "2030-01-01",
         "gridsquare": "",
         "coordinates": "",
+        "county": "",
     },
 ]
 
@@ -582,8 +588,8 @@ def check_fcc_unit():
               "W1AW extracted state is in the client's accepted set")
         check(rec["state"] == "OR",
               f"W1AW state is the 2-letter code (got {rec['state']!r})")
-        check(rec["county"] is None,
-              f"W1AW county is None for now (got {rec['county']!r})")
+        check(rec["county"] == "Polk",
+              f"W1AW county from DB column (got {rec['county']!r})")
         check(rec["country"] is None,
               f"W1AW country is None for now (got {rec['country']!r})")
         check(rec["continent"] is None,
@@ -639,6 +645,8 @@ def check_fcc_unit():
               f"N0GEO cq_zone is None (got {rec['cq_zone']!r})")
         check(rec["itu_zone"] is None,
               f"N0GEO itu_zone is None (got {rec['itu_zone']!r})")
+        check(rec["county"] is None,
+              f"N0GEO empty county coerces to None (got {rec['county']!r})")
 
         # ---- unknown callsign ----
         result = fcc.lookup(app, "ZZZZZZ")
@@ -782,8 +790,8 @@ async def run_e2e(fcc_db_path, missing_db=False):
                       f"{m.group(1) if m else None!r})")
                 check(body.get("state") == "OR",
                       f"W1AW state field is 'OR' (got {body.get('state')!r})")
-                check(body.get("county") is None,
-                      f"W1AW county is null (got {body.get('county')!r})")
+                check(body.get("county") == "Polk",
+                      f"W1AW county is 'Polk' (got {body.get('county')!r})")
                 check(body.get("country") is None,
                       f"W1AW country is null (got {body.get('country')!r})")
                 check(body.get("continent") is None,
