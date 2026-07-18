@@ -258,6 +258,7 @@ export default function ContactModal({ contact, config, clientUuid, onClose }) {
               ))}
             </select>
           </label>
+          <hr className="entry-separator" />
           <div className="entry-break" />
           {templateFields.map(renderField)}
           {modalBuiltins.length > 0 && <hr className="entry-separator" />}
