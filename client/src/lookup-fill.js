@@ -2,12 +2,18 @@
 // operator's local data can't produce (a DXCC prefix lookup can't tell you
 // someone's name, grid square, or state). The record shape is fixed by
 // `FIELDS` in server/lookup_record.py — every key always present, null when
-// absent, enums lowercased, lat/lon floats, dates ISO — so this module
-// trusts field names/types and only null-checks each value it consumes.
-// Returns `{}` for anything unusable so callers can merge it blindly.
+// absent, enums lowercased, lat/lon floats, dates ISO, state a 2-letter USPS
+// code or null — so this module trusts field names/types and only null-checks
+// (or in state's case, code-validates) each value it consumes. Returns `{}`
+// for anything unusable so callers can merge it blindly.
 //
 // Provider-agnostic: no upstream name appears anywhere here. The record is
 // the contract; whichever adapter the server talks to today is irrelevant.
+//
+// State: the server's canonical-record layer has already coerced `state` to
+// a 2-letter USPS code (or null), accepting both codes and spelled-out names
+// upstream. The client only needs to gate against the entry field's accepted
+// codes so a Canadian province or foreign value never lands invalid.
 //
 // Gridsquare: The server's canonical-record layer already truncates, uppercases, and pattern-validates it.
 // (4-char Maidenhead field grid or null).
@@ -24,11 +30,6 @@
 export function isPlausibleCallsign(s) {
   return typeof s === 'string' && s.length >= 3 && /\d/.test(s)
 }
-
-// US/Canadian ZIP suffix on the address — pulls the 2-letter state out of
-// "PORTLAND, OR 97201". Absent addresses or addresses with state in
-// different positions simply don't match, returning null.
-const STATE_IN_ADDRESS_RE = /\b([A-Z]{2})\s+\d{5}\b/
 
 // State codes the entry field's validation accepts (mirrors
 // BUILTINS.state.validation.pattern in builtin-fields.js). Inline so this
@@ -56,13 +57,11 @@ function firstTokenTitleCased(name) {
   return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase()
 }
 
-// 2-letter state from the address_line2 ZIP, or null when the line isn't
-// shaped like one or the code isn't on the entry field's accepted list.
-function stateFromAddress(record) {
-  if (!record.address_line2) return null
-  const m = String(record.address_line2).match(STATE_IN_ADDRESS_RE)
-  if (!m) return null
-  const code = m[1]
+// 2-letter state straight off the canonical record, or null when absent or not on the entry field's accepted list.
+// The server has already coerced codes and spelled-out names to the USPS form; only the entry-field gate remains.
+function stateFromRecord(record) {
+  const code = record.state
+  if (!code) return null
   return VALID_STATES.has(code) ? code : null
 }
 
@@ -81,7 +80,7 @@ export function lookupPatchFromRecord(record) {
   }
   // The server has already coerced gridsquare to a 4-char uppercase grid.
   if (record.gridsquare) patch.gridsquare = record.gridsquare
-  const s = stateFromAddress(record)
+  const s = stateFromRecord(record)
   if (s) patch.state = s
   if (record.county) patch.county = record.county
   // Guarded like state: the record's continent is a free string, so only a
