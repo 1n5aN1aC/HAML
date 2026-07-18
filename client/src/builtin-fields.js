@@ -60,10 +60,6 @@ export const BUILTINS = {
   county: {
     label: 'County', max_length: 30, validation: null,
   },
-  frequency: {
-    label: 'Frequency', max_length: 10,
-    validation: { pattern: '(?:[1-9]\\d{0,3}|0)\\.\\d{3}', message: 'Frequency in MHz, like 14.250' },
-  },
   rst_sent: {
     label: 'RST Sent', max_length: 3,
     validation: { pattern: '[1-5][1-9]\\d?', message: 'RST like 59 or 599' },
@@ -74,6 +70,10 @@ export const BUILTINS = {
   },
   name: {
     label: 'Name', max_length: 20, validation: null,
+  },
+  frequency: {
+    label: 'Frequency', max_length: 10,
+    validation: { pattern: '(?:[1-9]\\d{0,3}|0)\\.\\d{3}', message: 'Frequency in MHz, like 14.250' },
   },
 }
 
