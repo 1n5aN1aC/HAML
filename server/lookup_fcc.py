@@ -12,7 +12,7 @@ import sqlite3
 
 import lookup_cache
 import lookup_record
-import zones
+import lookup_zones
 
 SOURCE = "fcc"
 
@@ -197,7 +197,7 @@ def lookup(app, callsign):
     # Derive CQ + ITU zones from the coordinates when we have them.
     # Only-fill-if-null:
     if record.get("latitude") is not None and record.get("longitude") is not None:
-        derived = zones.derive(record["latitude"], record["longitude"])
+        derived = lookup_zones.derive(record["latitude"], record["longitude"])
         if record.get("itu_zone") is None:
             record["itu_zone"] = derived["itu_zone"]
         if record.get("cq_zone") is None:
