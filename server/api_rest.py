@@ -186,6 +186,9 @@ async def post_lookup(request):
     The client can trust its field names, types, and value sets without validating.
 
     Primary provider is the local FCC ULS sqlite — instant, offline, one indexed query per call.
+    On an FCC miss or error the chain falls through to the CallParser prefix DB
+    (see lookup._run_lookup), which answers with DXCC-level fields only —
+    source "callparser", never cached.
     The cache layer + long-poll handler shape is kept for a future online fallback (QRZ/HamQTH for non-US calls);
     today the cache read path never hits and the long-poll ceiling only matters if a future provider is wired in.
 

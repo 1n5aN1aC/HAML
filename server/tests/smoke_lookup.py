@@ -1,7 +1,9 @@
-"""End-to-end smoke test for the callsign-lookup feature (offline, FCC-backed).
+"""End-to-end smoke test for the callsign-lookup feature (offline:
+FCC-backed with a CallParser prefix-DB fallback).
 
 Stdlib-only. Spawns the real server on a scratch port with a scratch data
-dir + a scratch FCC ULS fixture sqlite, then walks POST /api/lookup:
+dir + a scratch FCC ULS fixture sqlite + the repo's committed Prefix.lst,
+then walks POST /api/lookup:
 
   - cold Individual: 200 with composed name "FIRST M LAST", license_type
     "person", address_line2 matching the client's state regex, derived
@@ -11,18 +13,26 @@ dir + a scratch FCC ULS fixture sqlite, then walks POST /api/lookup:
   - cold Amateur Club: 200, license_type "club", entity_name
   - PO-box-only licensee: address_line1 == "PO BOX 123"
   - NULL coordinates: 200, latitude/longitude None, zones None
-  - cold unknown call: 404
-  - previous_callsign value (not in the table): 404
+  - cold unknown call (no prefix match either): 404
+  - DX call (G4ABC, not in the FCC fixture): 200 via CallParser —
+    source "callparser", DXCC-level fields only, US-only fields null,
+    distance from entity-center coords
+  - FCC still wins on its own fixture rows (source stays "fcc")
+  - portable prefix (EA8/W1AW): 200 via CallParser, Canary Is.
   - bad input (empty): 400
   - bad input (non-JSON): 400
-  - missing-DB config: 502
+  - missing-DB config: prefix-resolvable calls (incl. US) now 200 via
+    CallParser; a call neither hop resolves keeps the 502 visible
+  - missing-DB + missing-Prefix.lst config: 502 (today's behavior exactly)
   - coalescing: two concurrent POSTs for the same cold callsign only
     resolve once
   - unit checks: TTL policy, coerce() contract (incl. ISO date acceptance),
-    fcc adapter row -> canonical mapping
+    fcc adapter row -> canonical mapping, callparser adapter hit ->
+    canonical mapping (incl. not-ready setup semantics)
 
 No internet access required. The fixture sqlite is built in scratch,
-not the real 192MB dataset.
+not the real 192MB dataset; the prefix DB is the small committed
+server/datasets/Prefix.lst.
 
 Run: python server/tests/smoke_lookup.py
 """
