@@ -567,7 +567,7 @@ def check_fcc_unit():
     """Drive the FCC adapter directly against a scratch fixture, without
     the server / HTTP layer. Locks in the row -> canonical mapping and
     the zone-derivation path."""
-    import fcc
+    import lookup_fcc
     scratch = Path(tempfile.mkdtemp(prefix="haml-fcc-unit-"))
     try:
         fcc_path = scratch / "fcc.sqlite"
@@ -577,14 +577,14 @@ def check_fcc_unit():
             pass
         app = _App()
         app["cfg"] = {"fcc_db_path": str(fcc_path)}
-        fcc.setup(app)
+        lookup_fcc.setup(app)
         check(app.get("fcc_db") is not None,
               "fcc.setup() opens the DB on a valid file")
         check(app.get("fcc_db_path") == str(fcc_path),
               "fcc.setup() stashes the resolved path")
 
         # ---- W1AW: Individual, has previous_callsign, has coords ----
-        result = fcc.lookup(app, "W1AW")
+        result = lookup_fcc.lookup(app, "W1AW")
         check(result["status"] == lookup_cache.STATUS_OK,
               "W1AW -> STATUS_OK")
         rec = result["payload"]
@@ -641,7 +641,7 @@ def check_fcc_unit():
               "W1AW output keys == FIELDS exactly")
 
         # ---- W7CLB: Amateur Club, has trustee ----
-        result = fcc.lookup(app, "W7CLB")
+        result = lookup_fcc.lookup(app, "W7CLB")
         check(result["status"] == lookup_cache.STATUS_OK,
               "W7CLB -> STATUS_OK")
         rec = result["payload"]
@@ -653,14 +653,14 @@ def check_fcc_unit():
         check(rec["trustee_name"] == "TEST TRUSTEE", "W7CLB trustee_name")
 
         # ---- N0BOX: PO-box-only licensee ----
-        result = fcc.lookup(app, "N0BOX")
+        result = lookup_fcc.lookup(app, "N0BOX")
         rec = result["payload"]
         check(result["status"] == lookup_cache.STATUS_OK, "N0BOX -> STATUS_OK")
         check(rec["address_line1"] == "PO BOX 123",
               f"N0BOX address_line1 synthesized (got {rec['address_line1']!r})")
 
         # ---- N0GEO: NULL coordinates ----
-        result = fcc.lookup(app, "N0GEO")
+        result = lookup_fcc.lookup(app, "N0GEO")
         rec = result["payload"]
         check(result["status"] == lookup_cache.STATUS_OK, "N0GEO -> STATUS_OK")
         check(rec["latitude"] is None,
@@ -681,7 +681,7 @@ def check_fcc_unit():
               f"N0GEO NULL dxcc coerces to None (got {rec['dxcc']!r})")
 
         # ---- unknown callsign ----
-        result = fcc.lookup(app, "ZZZZZZ")
+        result = lookup_fcc.lookup(app, "ZZZZZZ")
         check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
               "unknown call -> STATUS_NOT_FOUND")
         check(result["payload"] == {},
@@ -696,12 +696,12 @@ def check_fcc_unit():
                 pass
             app2 = _App2()
             app2["cfg"] = {"fcc_db_path": str(scratch2 / "absent.sqlite")}
-            fcc.setup(app2)
+            lookup_fcc.setup(app2)
             check(app2.get("fcc_db") is None,
                   "fcc.setup() with a missing file -> app['fcc_db'] is None")
             check(app2.get("fcc_db_path") == str(scratch2 / "absent.sqlite"),
                   "fcc.setup() still stashes the resolved path on missing file")
-            result = fcc.lookup(app2, "W1AW")
+            result = lookup_fcc.lookup(app2, "W1AW")
             check(result["status"] == lookup_cache.STATUS_ERROR,
                   "missing-DB lookup -> STATUS_ERROR")
             check("unavailable" in result["error"].lower(),

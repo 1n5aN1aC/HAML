@@ -14,9 +14,9 @@ from aiohttp import web
 import api_rest
 import api_ws
 import events
-import fcc
 import lookup
 import lookup_cache
+import lookup_fcc
 from config import load_config
 
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
@@ -35,7 +35,7 @@ async def _close_cache(app):
 def build_app(cfg):
     app = web.Application()
     app["cfg"] = cfg
-    fcc.setup(app)
+    lookup_fcc.setup(app)
     lookup.setup(app)
     app["lookup_cache"] = lookup_cache.open_cache(
         cfg["data_dir"] / "lookup_cache.db"

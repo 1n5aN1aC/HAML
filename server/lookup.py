@@ -2,7 +2,7 @@
 
 Holds the coalescing machinery (one asyncio task per active lookup, shared
 future for concurrent callers) and the provider chain seam. Today the chain
-is a single hop — `fcc.lookup()` — but future online providers (QRZ,
+is a single hop — `lookup_fcc.lookup()` — but future online providers (QRZ,
 HamQTH, …) append below, own their own HTTP sessions / rate gates, and
 write results into `lookup_cache` themselves.
 
@@ -16,8 +16,8 @@ provider chain is invisible above this line.
 """
 import asyncio
 
-import fcc
 import lookup_cache
+import lookup_fcc
 
 
 # Normalize a raw callsign into the cache key + the value we send upstream.
@@ -52,7 +52,7 @@ def normalize_callsign(raw):
 def _run_lookup(app, callsign):
     # Wrap provider exceptions so the coalesced future still resolves with a result
     try:
-        result = fcc.lookup(app, callsign)
+        result = lookup_fcc.lookup(app, callsign)
     except Exception as exc:
         return {
             "status": lookup_cache.STATUS_ERROR,

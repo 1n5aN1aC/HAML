@@ -60,7 +60,7 @@ files in this directory.
 
 ## `fcc_amateur.sqlite`
 
-The local FCC ULS operator dataset that `server/fcc.py` reads on every
+The local FCC ULS operator dataset that `server/lookup_fcc.py` reads on every
 callsign lookup. ~826k active US amateur licenses, one row per callsign.
 
 - **Source**: FCC Universal Licensing System weekly data dump
