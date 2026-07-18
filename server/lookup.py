@@ -21,9 +21,11 @@ import lookup_cache
 
 
 # Normalize a raw callsign into the cache key + the value we send upstream.
-# Uppercased and stripped of the suffixes CallParser treats as
-# non-DXCC-meaningful (Q7): /P, /M, /MM, /QRP, /ANT, plus the trailing /
-# that the formatter may leave behind.
+# Uppercased and stripped of the suffixes the dispatcher treats as
+# non-DXCC-meaningful: /P, /M, /MM, /QRP, /ANT, plus the trailing /
+# that the formatter may leave behind. The list is local (`_CALLSIGN_SUFFIXES`
+# below); when a server-side CallParser fallback is added later, its strip-list
+# must stay in lock-step with this one.
 _CALLSIGN_SUFFIXES = ("/P", "/M", "/MM", "/QRP", "/ANT")
 def normalize_callsign(raw):
     """Returns the normalized form, or '' when nothing usable remains."""
@@ -118,8 +120,6 @@ def schedule(app, callsign):
         loop.create_task(_drive(app, callsign, future))
     return future
 
-# setup(): inflight dict only. The aiohttp.ClientSession / rate gate /
-# supersession logic that used to live in callook.py were Callook-specific
-# and return with an online provider; nothing to migrate here.
+# setup(): inflight dict only.
 def setup(app):
     app["inflight_lookups"] = {}

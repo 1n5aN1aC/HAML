@@ -1,90 +1,84 @@
 // Built-in contact fields: a fixed roster every contact can carry regardless
 // of the event's template (server/db.py BUILTIN_FIELDS mirrors this name list;
-// a smoke test keeps the two honest). Templates declare one ordered `fields`
-// list mixing custom field definitions and built-in references; each item
-// opts into the callsign entry box (`entry`) and/or the history list
-// (`history`) via two required booleans, and row/array order is the one order
-// shared by both. This module is the display registry: labels, widths,
-// validation patterns, and which built-ins auto-fill from the CallParser
-// lookup.
+// a smoke test keeps the two honest).
+// 
+// Templates declare one ordered `fields` list mixing custom field definitions
+// and built-in references; each item opts into the callsign entry box (`entry`)
+// and/or the history list (`history`) via two required booleans,
+// and row/array order is the one order shared by both.
+// 
+// This module is the display registry: labels, widths, and
+// validation patterns only — ALL autofill (country, continent, distance,
+// zones, state, county, gridsquare, name) flows through `lookup-fill.js`
+// against the server `POST /api/lookup` response.
 
-// name -> { label, max_length, validation:{pattern,message}|null, autofill }
-// autofill is the CallParser hit key whose value pre-fills the field, or null.
+// name -> { label, max_length, validation:{pattern,message}|null }
 export const BUILTINS = {
   country: {
-    label: 'Country', max_length: 40, validation: null, autofill: 'territory',
+    label: 'Country', max_length: 40, validation: null,
   },
   itu_zone: {
-    label: 'ITU Zone', max_length: 2, autofill: null,
+    label: 'ITU Zone', max_length: 2,
     validation: { pattern: '[1-9]|[1-8]\\d|90', message: 'ITU zone 1–90' },
   },
   cq_zone: {
-    label: 'CQ Zone', max_length: 2, autofill: null,
+    label: 'CQ Zone', max_length: 2,
     validation: { pattern: '[1-9]|[1-3]\\d|40', message: 'CQ zone 1–40' },
   },
   continent: {
-    label: 'Continent', max_length: 2, autofill: 'continent',
+    label: 'Continent', max_length: 2,
     validation: {
       pattern: 'AF|AN|AS|EU|NA|OC|SA',
       message: 'Continent must be AF, AN, AS, EU, NA, OC, or SA',
     },
   },
   gridsquare: {
-    label: 'Grid', max_length: 4, autofill: null,
+    label: 'Grid', max_length: 4,
     validation: {
       pattern: '[A-R]{2}\\d{2}',
       message: 'Maidenhead grid like CN84',
     },
   },
   distance: {
-    label: 'Distance (km)', max_length: 5, autofill: null,
+    label: 'Distance (km)', max_length: 5,
     validation: { pattern: '\\d{1,5}', message: 'Whole kilometers, like 79' },
   },
   state: {
-    label: 'State', max_length: 2, autofill: null,
+    label: 'State', max_length: 2,
     validation: {
       pattern: 'AB|AK|AL|AR|AZ|BC|CA|CO|CT|DC|DE|DX|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MB|MD|ME|MI|MN|MO|MS|MT|NB|NC|ND|NE|NH|NJ|NL|NM|NS|NT|NU|NV|NY|OH|OK|ON|OR|PA|PE|QC|RI|SC|SD|SK|TN|TX|UT|VA|VT|WA|WI|WV|WY|YT',
       message: 'State must be the 2-letter code',
     },
   },
   section: {
-    label: 'Section', max_length: 3, autofill: null,
+    label: 'Section', max_length: 3,
     validation: {
       pattern: 'AB|AK|AL|AR|AZ|BC|CO|CT|DE|DX|EB|EMA|ENY|EPA|EWA|GA|GH|IA|ID|IL|IN|KS|KY|LA|LAX|MB|MDC|ME|MI|MN|MO|MS|MT|MX|NB|NC|ND|NE|NFL|NH|NL|NLI|NM|NNJ|NNY|NS|NTX|NV|OH|OK|ONE|ONN|ONS|OR|ORG|PAC|PE|PR|QC|RI|SB|SC|SCV|SD|SDG|SF|SFL|SJV|SK|SNJ|STX|SV|TER|TN|UT|VA|VI|VT|WCF|WI|WMA|WNY|WPA|WTX|WV|WWA|WY',
       message: 'Improper Section',
     },
   },
   county: {
-    label: 'County', max_length: 30, validation: null, autofill: null,
+    label: 'County', max_length: 30, validation: null,
   },
   frequency: {
-    label: 'Frequency', max_length: 10, autofill: null,
+    label: 'Frequency', max_length: 10,
     validation: { pattern: '(?:[1-9]\\d{0,3}|0)\\.\\d{3}', message: 'Frequency in MHz, like 14.250' },
   },
   rst_sent: {
-    label: 'RST Sent', max_length: 3, autofill: null,
+    label: 'RST Sent', max_length: 3,
     validation: { pattern: '[1-5][1-9]\\d?', message: 'RST like 59 or 599' },
   },
   rst_received: {
-    label: 'RST Rcvd', max_length: 3, autofill: null,
+    label: 'RST Rcvd', max_length: 3,
     validation: { pattern: '[1-5][1-9]\\d?', message: 'RST like 59 or 599' },
   },
   name: {
-    label: 'Name', max_length: 20, validation: null, autofill: null,
+    label: 'Name', max_length: 20, validation: null,
   },
 }
 
 // Registry order — drives the edit modal's "remaining built-ins" section.
 export const BUILTIN_ORDER = Object.keys(BUILTINS)
-
-// The built-ins pre-filled from the CallParser prefix lookup. Stored on every
-// contact (template or not); live-filled in the entry box when visible.
-// The zones (itu_zone/cq_zone) are deliberately NOT here: a US call area
-// doesn't encode where the station is (vanity calls, operators who moved),
-// so the prefix database's zone guess is wrong often enough to be worse than
-// nothing. They fill exclusively from the server lookup's coordinate-derived
-// values (lookup-fill.js) and stay blank when it has no record.
-export const AUTO_FIELDS = ['country', 'continent']
 
 export function isBuiltin(name) {
   return Object.prototype.hasOwnProperty.call(BUILTINS, name)

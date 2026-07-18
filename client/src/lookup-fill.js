@@ -1,6 +1,5 @@
-// Maps a canonical callsign-lookup record into the entry-form fills that the
-// operator's local data can't produce (a DXCC prefix lookup can't tell you
-// someone's name, grid square, or state). The record shape is fixed by
+// Maps a canonical callsign-lookup record into the entry-form fills that
+// the operator's local data can't produce. The record shape is fixed by
 // `FIELDS` in server/lookup_record.py — every key always present, null when
 // absent, enums lowercased, lat/lon floats, dates ISO, state a 2-letter USPS
 // code or null — so this module trusts field names/types and only null-checks
@@ -18,17 +17,18 @@
 // Gridsquare: The server's canonical-record layer already truncates, uppercases, and pattern-validates it.
 // (4-char Maidenhead field grid or null).
 //
+// Country: a free-text field on the entry form (max_length 40, no validation
+// pattern), so no code-gate is needed — anything the server returns fills as-is.
+//
 // Zones (itu_zone, cq_zone): The server's canonical-record layer already coerces these to integers or null.
-// This patch is the ONLY zone autofill — the CallParser prefix lookup deliberately doesn't
-// fill zones (a US call area doesn't encode station location; see AUTO_FIELDS in
-// builtin-fields.js), so a null here means the field simply stays blank.
+// This patch is the ONLY zone autofill; a null here means the field simply stays blank.
 
-// True when the text looks like a callsign the lookup might know about — at
-// least 3 characters and contains a digit. US callsigns always have a digit;
-// most other countries' do too. The server rejects anything that isn't real,
-// so the gate here is just plausibility.
+// True when the text looks like a callsign the lookup might know about.
+// At least 2 trimmed characters — a 1-char or blank input is wasted server
+// work, and a 404 on any garbage is cheap. The server still rejects anything
+// that isn't a real callsign, so the gate here is just plausibility, not validity.
 export function isPlausibleCallsign(s) {
-  return typeof s === 'string' && s.length >= 3 && /\d/.test(s)
+  return typeof s === 'string' && s.trim().length >= 2
 }
 
 // State codes the entry field's validation accepts (mirrors
@@ -65,7 +65,7 @@ function stateFromRecord(record) {
   return VALID_STATES.has(code) ? code : null
 }
 
-// { name?, gridsquare?, state?, county?, continent?, distance?, itu_zone?, cq_zone? } —
+// { name?, country?, gridsquare?, state?, county?, continent?, distance?, itu_zone?, cq_zone? } —
 // only the keys the entry form knows how to fill from a server lookup, only
 // when the record carries a usable value. Clubs, military, and RACES
 // (license_type !== 'person') deliberately skip the name fill; a null/missing
@@ -78,6 +78,9 @@ export function lookupPatchFromRecord(record) {
     const n = firstTokenTitleCased(record.name)
     if (n) patch.name = n
   }
+  // Country is a free-text field on the entry form (max_length 40, no validation
+  // pattern), so no code-gate — anything the server returns fills as-is.
+  if (record.country) patch.country = record.country
   // The server has already coerced gridsquare to a 4-char uppercase grid.
   if (record.gridsquare) patch.gridsquare = record.gridsquare
   const s = stateFromRecord(record)

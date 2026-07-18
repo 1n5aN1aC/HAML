@@ -75,12 +75,12 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   - `previous_callsign` TEXT, `trustee_callsign` TEXT, `trustee_name` TEXT, `attention_line` TEXT
   - `street_address` TEXT, `po_box` TEXT, `city` TEXT, `state` TEXT, `zip_code` TEXT
   - `frn` TEXT
-  - `grant_date` TEXT, `expired_date` TEXT  — ISO `YYYY-MM-DD`
+  - `grant_date` TEXT, `expiry_date` TEXT   — ISO `YYYY-MM-DD`
   - `gridsquare` TEXT  — 4-char Maidenhead field grid
   - `coordinates` TEXT  — `"lat,lon"` pre-geocoded by the importer
-  - `country` TEXT     — country name (e.g. `"United States"`)
+  - `dxcc_entity` TEXT — DXCC entity name (e.g. `"United States"`, `"Alaska"`, `"Northern Mariana Islands"`). Served to clients as the `country` field.
   - `continent` TEXT   — 2-letter continent code (e.g. `"NA"`)
-  - `dxcc` INTEGER     — ARRL DXCC entity code (e.g. `291` for US)
+  - `dxcc_id` INTEGER  — ARRL DXCC entity code (e.g. `291` for US). Served to clients as the `dxcc` field.
 - **Server config**: path overridable via `fcc_db_path` in the server
   config JSON. Default is `datasets/fcc_amateur.sqlite` (resolved
   relative to the server dir). A missing file is non-fatal: the server

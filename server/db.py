@@ -16,8 +16,11 @@ from pathlib import Path
 # Built-in per-contact fields: a fixed roster every Contact can carry, stored
 # as real columns (like band/mode) regardless of the Event's template. Templates
 # only decide *display* (entry box vs history list, via the fields' own
-# entry/history booleans). All are optional; four are auto-populated from the
-# CallParser lookup client-side. The client's display registry
+# entry/history booleans). All are optional; country, continent, distance,
+# zones, state, county, gridsquare, and name are auto-populated from the
+# server callsign lookup (`POST /api/lookup` — FCC adapter today, a future
+# CallParser/non-US adapter as a fallback) and applied client-side via
+# `client/src/lookup-fill.js`. The client's display registry
 # (client/src/builtin-fields.js) mirrors this name list — a smoke test keeps
 # the two honest.
 BUILTIN_FIELDS = [

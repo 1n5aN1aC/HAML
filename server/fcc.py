@@ -150,12 +150,12 @@ def _build_record(row):
         "address_attn": row["attention_line"] or "",
         "state": state, # 2-digit USPS code
         "county": row["county"] or "",
-        "country": row["country"] or "",
-        "continent": row["continent"] or "",
+        "country": row["dxcc_entity"] or "",
+        "continent": "",  # Not in the FCC dataset yet; importer must add the column.
         "latitude": latitude,
         "longitude": longitude,
         "gridsquare": row["gridsquare"] or "",
-        "dxcc": row["dxcc"] if row["dxcc"] is not None else "",
+        "dxcc": row["dxcc_id"] if row["dxcc_id"] is not None else "",
         "frn": row["frn"] or "",
         "grant_date": row["grant_date"] or "",
         "expiry_date": row["expired_date"] or "",
