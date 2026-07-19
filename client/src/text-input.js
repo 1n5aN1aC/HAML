@@ -6,3 +6,12 @@
 export function sanitizeText(value) {
   return value.replace(/[^a-zA-Z0-9,_.\/-]/g, '')
 }
+
+// Sanitize for fields that hold prose rather than log data (the `comment`
+// built-in; `freetext: true` in the registry). Spaces, punctuation, and
+// non-ASCII all survive — only control and format characters are dropped, each
+// run collapsing to one space so a pasted "line1\r\nline2" lands as
+// "line1 line2" in what is still a single-line input.
+export function sanitizeFreeText(value) {
+  return value.replace(/[\p{Cc}\p{Cf}]+/gu, ' ')
+}

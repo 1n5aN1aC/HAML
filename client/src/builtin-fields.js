@@ -82,8 +82,12 @@ export const BUILTINS = {
     label: 'Frequency', max_length: 10,
     validation: { pattern: '(?:[1-9]\\d{0,3}|0)\\.\\d{3}', message: 'Frequency in MHz, like 14.250' },
   },
+  // The one prose field: `freetext` exempts it from the uppercase/strip
+  // sanitize every other field gets, and from Space-as-next-field in the entry
+  // row. Both of those exist because log data never contains spaces; a comment
+  // is the exception that proves it.
   comment: {
-    label: 'Comment', max_length: 200, validation: null,
+    label: 'Comment', max_length: 200, validation: null, freetext: true,
   },
 }
 
@@ -103,6 +107,7 @@ export function builtinFieldDef(name) {
     label: b.label,
     max_length: b.max_length,
     validation: b.validation ?? undefined,
+    freetext: b.freetext ?? false,
     required: false,
     remember: false,
     default: '',

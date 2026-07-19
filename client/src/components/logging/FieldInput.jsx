@@ -7,7 +7,7 @@
 //    Fresh typing before the first blur is never punished.
 //    Empty values stay uncolored (emptiness is the 'required' flag's job, enforced at submit).
 import { forwardRef, useState } from 'react'
-import { sanitizeText } from '../../text-input.js'
+import { sanitizeText, sanitizeFreeText } from '../../text-input.js'
 
 // full-match semantics, same as contact-validation.js
 function matches(pattern, value) {
@@ -59,7 +59,13 @@ const FieldInput = forwardRef(function FieldInput(
       value={value}
       placeholder={placeholder}
       maxLength={field.max_length}
-      onChange={(e) => onChange(sanitizeText(e.target.value).toUpperCase())}
+      // Log data is uppercased and stripped to callsign-safe characters; a
+      // freetext field (comment) keeps the operator's prose as typed.
+      onChange={(e) => onChange(
+        field.freetext
+          ? sanitizeFreeText(e.target.value)
+          : sanitizeText(e.target.value).toUpperCase(),
+      )}
       onKeyDown={onKeyDown}
       onBlur={handleBlur}
       {...feedback}

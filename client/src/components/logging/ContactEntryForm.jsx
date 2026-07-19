@@ -154,10 +154,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     return `${serverRecord.country} (${mi.toLocaleString()} mi)`
   }, [serverRecord])
 
-  // Fields never contain spaces, so Space doubles as "next field" (wrapping, like Tab) instead of typing a literal space.
+  // Log fields never contain spaces, so Space doubles as "next field" (wrapping, like Tab) instead of typing a literal space.
+  // A freetext field (comment) opts out via allowSpace and takes the literal space; Tab still moves on.
   // Escape in any entry field resets the whole form and returns focus to the callsign box.
-  function handleFieldNav(e, index, order) {
-    if (e.key === ' ') {
+  function handleFieldNav(e, index, order, allowSpace = false) {
+    if (e.key === ' ' && !allowSpace) {
       e.preventDefault()
       order[(index + 1) % order.length]?.focus()
     } else if (e.key === 'Tab') {
@@ -408,7 +409,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
                 )
               }}
               onKeyDown={(e) =>
-                handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current])
+                handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current], f.freetext)
               }
               // leaving section/state derives the counterpart (state <-> section)
               onBlur={
