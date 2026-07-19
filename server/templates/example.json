@@ -31,7 +31,7 @@
     "  rst_sent     RST Sent",
     "  rst_received RST Rcvd",
     "  name         Name",
-    "  notes        Notes       (capped render width; storage 200)",
+    "  comment      Comment     (capped render width; storage 200)",
     "The four auto-filled built-ins are recorded on every contact even when no",
     "template names them; their labels/widths/patterns live in the client, not here."
   ],

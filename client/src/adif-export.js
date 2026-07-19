@@ -60,10 +60,10 @@ export const MODE_ALIASES = {
 }
 
 // Built-in contact column -> ADIF field name. Every built-in has a real ADIF
-// home; `section` is ours-by-another-name (ARRL_SECT), and `notes` goes to
-// COMMENT (ADIF also has a NOTES field, but COMMENT is the one loggers
-// surface most prominently, and its single-line String type matches our
-// single-line 200-char input).
+// home; `section` is ours-by-another-name (ARRL_SECT). ADIF also has a NOTES
+// field, but COMMENT is the one loggers surface most prominently and its
+// single-line String type matches our single-line 200-char input — which is
+// why our own field is named `comment` to match.
 //
 // A built-in missing from this table is NOT dropped — it falls through to
 // APP_HAML_<NAME>, the same fallback custom fields use. That way adding a
@@ -83,7 +83,7 @@ const BUILTIN_ADIF = {
   rst_sent: 'RST_SENT',
   rst_received: 'RST_RCVD',
   name: 'NAME',
-  notes: 'COMMENT',
+  comment: 'COMMENT',
 }
 
 // Custom template fields our shipped templates define, mapped to their real

@@ -44,7 +44,7 @@ const FieldInput = forwardRef(function FieldInput(
   // Width sized to the longest value (max_length + 2), plus a fixed allowance for padding + border.
   // When the label is shown in the box as a placeholder, widens to fit too;
   // In the edit modal the label sits outside the box, so no placeholder is passed and the value alone drives the width.
-  // Capped at 42ch so a long-storage field (e.g. notes, max_length=200) doesn't dominate the entry row.
+  // Capped at 42ch so a long-storage field (e.g. comment, max_length=200) doesn't dominate the entry row.
   const chars = placeholder
     ? Math.max((field.max_length ?? 0) + 2, placeholder.length + 2)
     : (field.max_length ?? 0) + 2

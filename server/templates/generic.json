@@ -14,7 +14,7 @@
       "default": "59"
     },
     {
-      "name": "notes",
+      "name": "comment",
       "entry": true,
       "history": false,
       "remember": false
