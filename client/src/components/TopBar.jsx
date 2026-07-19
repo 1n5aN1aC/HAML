@@ -4,8 +4,8 @@ import { THEMES } from '../themes.js'
 
 const TABS = [
   { id: 'logging', label: 'Logging' },
-  { id: 'radio', label: 'Radio' },
   { id: 'stats', label: 'Stats' },
+  { id: 'settings', label: 'Settings' },
   { id: 'admin', label: 'Admin' },
 ]
 

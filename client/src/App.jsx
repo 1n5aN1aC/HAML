@@ -14,8 +14,8 @@ import TopBar from './components/TopBar.jsx'
 import SettingsModal from './components/SettingsModal.jsx'
 import ImportTab from './components/import/ImportTab.jsx'
 import LoggingTab from './components/logging/LoggingTab.jsx'
-import RadioTab from './components/radio/RadioTab.jsx'
 import StatsTab from './components/stats/StatsTab.jsx'
+import SettingsTab from './components/settings/SettingsTab.jsx'
 import AdminTab from './components/admin/AdminTab.jsx'
 
 const OFF_AIR = 'Off-Air'
@@ -260,8 +260,8 @@ export default function App() {
           onDone={() => setTab('logging')}
         />
       )}
-      {tab === 'radio' && <RadioTab />}
       {tab === 'stats' && <StatsTab />}
+      {tab === 'settings' && <SettingsTab />}
       {tab === 'admin' && <AdminTab />}
     </div>
   )
