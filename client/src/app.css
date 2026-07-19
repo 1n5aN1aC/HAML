@@ -876,3 +876,79 @@ input.v-bad, select.v-bad {
   margin-right: 5px;
   border: 1px solid var(--theme-border-subtle);
 }
+
+/* --- settings + ADIF import -------------------------------------------------- */
+
+/* gear button: same pill as the theme picker, but a plain button */
+.settings-button {
+  color: var(--theme-topbar-text);
+  font: inherit;
+}
+
+.settings-soon { color: var(--theme-text-faint); font-style: italic; }
+
+.import-page { max-width: 720px; }
+.import-page h2 { margin-top: 0; }
+
+.import-section { margin-bottom: 20px; }
+.import-section h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+  color: var(--theme-text-faint);
+}
+
+.import-table { border-collapse: collapse; }
+.import-table td, .import-table th {
+  padding: 4px 14px 4px 0;
+  border-bottom: 1px solid var(--theme-border-subtle);
+  text-align: left;
+  white-space: nowrap;
+}
+.import-table th { font-size: 12px; color: var(--theme-text-faint); }
+.import-value { font-weight: 600; }
+.import-count { color: var(--theme-text-faint); }
+
+.import-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.import-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--theme-text);
+}
+.import-row input, .import-row select {
+  padding: 6px 8px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--theme-halfway);
+  color: var(--theme-text-subtle);
+}
+.import-row input[type="number"] { width: 70px; }
+
+.import-preview { margin-top: 10px; }
+.import-hint { color: var(--theme-text-faint); font-size: 13px; }
+.import-error { color: var(--theme-danger); }
+
+.import-actions { display: flex; gap: 8px; margin-top: 16px; }
+.import-actions button {
+  padding: 7px 14px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  background: var(--theme-surface);
+  font-weight: 600;
+  cursor: pointer;
+}
+.import-actions .btn-primary {
+  background: var(--theme-accent);
+  border-color: var(--theme-accent);
+  color: var(--theme-accent-text);
+}
+.import-actions button:disabled { opacity: 0.5; cursor: default; }
+
+/* normal-case parenthetical after the uppercase import section headings */
+.import-section h2 .import-note {
+  text-transform: none;
+  font-weight: normal;
+}
