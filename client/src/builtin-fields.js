@@ -12,6 +12,13 @@
 // zones, state, county, gridsquare, name) flows through `lookup-fill.js`
 // against the server `POST /api/lookup` response.
 
+// Signal reports come in two shapes, so both RST fields share one pattern:
+// a 3-digit RST (`599`), or a 1-2 digit dB report with optional sign
+// (`0`, `16`, `+5`, `+05`, `-13`) as FT8/JT modes use. The dB alternative
+// subsumes 2-digit RST (`59`), which is why the first branch is 3-digit only.
+const RST = '[1-5][1-9]\\d|[+-]?\\d{1,2}'
+const RST_MESSAGE = 'RST: 59 or 599, or dB like -13 or +05'
+
 // name -> { label, max_length, validation:{pattern,message}|null }
 export const BUILTINS = {
   country: {
@@ -62,11 +69,11 @@ export const BUILTINS = {
   },
   rst_sent: {
     label: 'RST Sent', max_length: 3,
-    validation: { pattern: '[1-5][1-9]\\d?', message: 'RST like 59 or 599' },
+    validation: { pattern: RST, message: RST_MESSAGE },
   },
   rst_received: {
     label: 'RST Rcvd', max_length: 3,
-    validation: { pattern: '[1-5][1-9]\\d?', message: 'RST like 59 or 599' },
+    validation: { pattern: RST, message: RST_MESSAGE },
   },
   name: {
     label: 'Name', max_length: 20, validation: null,
