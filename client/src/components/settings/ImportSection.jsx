@@ -1,4 +1,4 @@
-// ADIF import screen — the invisible `import` tab (reached via Settings).
+// ADIF import — a section of the Settings tab.
 // Everything happens client-side: parse the file, let the importer map
 // modes/bands onto the event's lists, pick the operator identity, correct a
 // wrong source clock, then write the rows to Dexie as pending and let the
@@ -67,7 +67,8 @@ function fieldValue(record, field) {
   return ''
 }
 
-export default function ImportTab({ config, session, clientUuid, onDone }) {
+// onReset re-mounts this section, dropping the loaded file and all mappings.
+export default function ImportSection({ config, session, clientUuid, onReset }) {
   const [file, setFile] = useState(null) // { name, usable: [{record, ms}], bad }
   const [modeMap, setModeMap] = useState({})
   const [bandMap, setBandMap] = useState({})
@@ -230,7 +231,7 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
 
   if (summary) {
     return (
-      <div className="tab-page import-page">
+      <section className="settings-section import-page">
         <h2>ADIF import complete</h2>
         <p>
           Imported <strong>{summary.imported}</strong> contact{summary.imported === 1 ? '' : 's'}
@@ -239,15 +240,15 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
           {summary.bad > 0 && <> · {summary.bad} unparseable record{summary.bad === 1 ? '' : 's'}</>}
         </p>
         <div className="import-actions">
-          <button type="button" className="btn-primary" onClick={onDone}>Done</button>
+          <button type="button" className="btn-primary" onClick={onReset}>Done</button>
         </div>
-      </div>
+      </section>
     )
   }
 
   if (!file) {
     return (
-      <div className="tab-page import-page">
+      <section className="settings-section import-page">
         <h2>Import ADIF as contacts</h2>
         <p>
           Pick an ADIF file (<code>.adi</code> / <code>.adif</code>) exported from another
@@ -259,10 +260,7 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
           onChange={(e) => e.target.files[0] && loadFile(e.target.files[0])}
         />
         {error && <p className="import-error">{error}</p>}
-        <div className="import-actions">
-          <button type="button" onClick={onDone}>Cancel</button>
-        </div>
-      </div>
+      </section>
     )
   }
 
@@ -301,7 +299,7 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
   )
 
   return (
-    <div className="tab-page import-page">
+    <section className="settings-section import-page">
       <h2>Import ADIF as contacts</h2>
       <p>
         <strong>{file.name}</strong>: {file.usable.length} contact
@@ -326,6 +324,8 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
           <label>
             Operator:
             <input
+              className="cs"
+              autoCapitalize="characters"
               value={callsign}
               onChange={(e) => setCallsign(sanitizeText(e.target.value).toUpperCase())}
               maxLength={10}
@@ -334,6 +334,8 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
           <label>
             Initials:
             <input
+              className="cs"
+              autoCapitalize="characters"
               value={initials}
               onChange={(e) => setInitials(sanitizeText(e.target.value).toUpperCase())}
               maxLength={4}
@@ -410,7 +412,7 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
       )}
 
       <div className="import-actions">
-        <button type="button" onClick={onDone}>Cancel</button>
+        <button type="button" onClick={onReset}>Cancel</button>
         <button
           type="button"
           className="btn-primary"
@@ -420,6 +422,6 @@ export default function ImportTab({ config, session, clientUuid, onDone }) {
           Import {importable} contact{importable === 1 ? '' : 's'}
         </button>
       </div>
-    </div>
+    </section>
   )
 }

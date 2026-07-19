@@ -877,15 +877,13 @@ input.v-bad, select.v-bad {
   border: 1px solid var(--theme-border-subtle);
 }
 
-/* --- settings + ADIF import -------------------------------------------------- */
+/* --- settings tab + ADIF import ---------------------------------------------- */
 
-/* gear button: same pill as the theme picker, but a plain button */
-.settings-button {
-  color: var(--theme-topbar-text);
-  font: inherit;
-}
+.settings-page { overflow-y: auto; }
+.settings-page > .settings-section + .settings-section { margin-top: 28px; }
+.settings-page > .settings-section > h2 { margin-top: 0; }
 
-.settings-soon { color: var(--theme-text-faint); font-style: italic; }
+.settings-soon { color: var(--theme-text-faint); font-style: italic; margin: 4px 0; }
 
 .import-page { max-width: 720px; }
 .import-page h2 { margin-top: 0; }
@@ -926,6 +924,8 @@ input.v-bad, select.v-bad {
   color: var(--theme-text-subtle);
 }
 .import-row input[type="number"] { width: 70px; }
+/* callsign/initials: shown uppercase, matching the logging status bar */
+.import-row .cs { text-transform: uppercase; font-weight: 600; }
 
 .import-preview { margin-top: 10px; }
 .import-hint { color: var(--theme-text-faint); font-size: 13px; }

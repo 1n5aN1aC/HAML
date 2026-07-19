@@ -9,7 +9,7 @@ const TABS = [
   { id: 'admin', label: 'Admin' },
 ]
 
-export default function TopBar({ eventName, connected, activeTab, onTab, theme, onTheme, onSettings }) {
+export default function TopBar({ eventName, connected, activeTab, onTab, theme, onTheme }) {
   return (
     <header className="top-bar">
       <div className="brand">
@@ -50,11 +50,6 @@ export default function TopBar({ eventName, connected, activeTab, onTab, theme, 
           ))}
         </select>
       </label>
-      <button type="button" className="theme-picker settings-button" title="Settings" onClick={onSettings}>
-        <span className="theme-picker-icon" aria-hidden="true">
-          ⚙️
-        </span>
-      </button>
     </header>
   )
 }

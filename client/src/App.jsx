@@ -11,8 +11,6 @@ import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage, 
 import { validTheme } from './themes.js'
 import { playChat } from './sounds.js'
 import TopBar from './components/TopBar.jsx'
-import SettingsModal from './components/SettingsModal.jsx'
-import ImportTab from './components/import/ImportTab.jsx'
 import LoggingTab from './components/logging/LoggingTab.jsx'
 import StatsTab from './components/stats/StatsTab.jsx'
 import SettingsTab from './components/settings/SettingsTab.jsx'
@@ -29,7 +27,6 @@ export default function App() {
   const [stations, setStations] = useState([])
   const [chat, setChat] = useState([])
   const [tab, setTab] = useState('logging')
-  const [settingsOpen, setSettingsOpen] = useState(false)
   // Persisted to localStorage (independent of dexie)
   // Also applied in index.html on-load before dexie exists, to prevent a flash
   // on load. The theme list is auto-discovered from themes/*.css (themes.js);
@@ -225,17 +222,7 @@ export default function App() {
         onTab={setTab}
         theme={theme}
         onTheme={changeTheme}
-        onSettings={() => setSettingsOpen(true)}
       />
-      {settingsOpen && (
-        <SettingsModal
-          onClose={() => setSettingsOpen(false)}
-          onImportAdif={() => {
-            setSettingsOpen(false)
-            setTab('import')
-          }}
-        />
-      )}
       {tab === 'logging' && (
         <LoggingTab
           session={session}
@@ -250,18 +237,10 @@ export default function App() {
           onChatResend={handleChatResend}
         />
       )}
-      {/* invisible tab: reached only via Settings → Import ADIF, never listed
-          in the TopBar (so no tab shows active while it's open) */}
-      {tab === 'import' && (
-        <ImportTab
-          config={config}
-          session={session}
-          clientUuid={clientUuid}
-          onDone={() => setTab('logging')}
-        />
-      )}
       {tab === 'stats' && <StatsTab />}
-      {tab === 'settings' && <SettingsTab />}
+      {tab === 'settings' && (
+        <SettingsTab config={config} session={session} clientUuid={clientUuid} />
+      )}
       {tab === 'admin' && <AdminTab />}
     </div>
   )
