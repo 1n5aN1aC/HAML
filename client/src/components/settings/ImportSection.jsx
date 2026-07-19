@@ -3,7 +3,7 @@
 // modes/bands onto the event's lists, pick the operator identity, correct a
 // wrong source clock, then write the rows to Dexie as pending and let the
 // sync engine push them (ADR-0001 — same path as hand-logged contacts).
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'
 import { newUuid } from '../../uuid.js'
@@ -78,6 +78,9 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
   const [existingKeys, setExistingKeys] = useState(new Set())
   const [summary, setSummary] = useState(null) // { imported, dupes, bad }
   const [error, setError] = useState('')
+  // The real <input type=file> is hidden; a styled button clicks it, since the
+  // native control can't be themed like the rest of our buttons.
+  const fileInput = useRef(null)
 
   const modes = useMemo(() => breakdown(file?.usable.map((u) => u.record) ?? [], 'MODE'), [file])
   const bands = useMemo(() => breakdown(file?.usable.map((u) => u.record) ?? [], 'BAND'), [file])
@@ -249,16 +252,32 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
   if (!file) {
     return (
       <section className="settings-section import-page">
-        <h2>Import ADIF as contacts</h2>
-        <p>
-          Pick an ADIF file (<code>.adi</code> / <code>.adif</code>) exported from another
-          logger. Nothing is imported until you review and confirm.
-        </p>
         <input
+          ref={fileInput}
+          className="import-file-input"
           type="file"
           accept=".adi,.adif"
-          onChange={(e) => e.target.files[0] && loadFile(e.target.files[0])}
+          // Clear the value so re-picking the same file after an error still
+          // fires change (the browser suppresses it for an identical value).
+          onChange={(e) => {
+            const f = e.target.files[0]
+            e.target.value = ''
+            if (f) loadFile(f)
+          }}
         />
+        <div className="import-choose-row">
+          <button
+            type="button"
+            className="btn-primary import-choose"
+            onClick={() => fileInput.current.click()}
+          >
+            Import local ADIF as contacts
+          </button>
+          <span className="import-hint">
+            Load an <code>.adi</code> / <code>.adif</code> export from another logger.
+            Nothing is imported until you review and confirm.
+          </span>
+        </div>
         {error && <p className="import-error">{error}</p>}
       </section>
     )

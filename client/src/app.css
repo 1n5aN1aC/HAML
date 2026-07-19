@@ -881,12 +881,33 @@ input.v-bad, select.v-bad {
 
 .settings-page { overflow-y: auto; }
 .settings-page > .settings-section + .settings-section { margin-top: 28px; }
-.settings-page > .settings-section > h2 { margin-top: 0; }
+.settings-page > .settings-section > h2 {
+  font-size: 15px;
+  margin: 0 0 6px;
+}
 
 .settings-soon { color: var(--theme-text-faint); font-style: italic; margin: 4px 0; }
 
 .import-page { max-width: 720px; }
 .import-page h2 { margin-top: 0; }
+
+/* idle state: hidden native file input, driven by the accent button beside it */
+.import-file-input { display: none; }
+/* button with its explanation alongside; wraps to two lines when narrow */
+.import-choose-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.import-choose-row .import-hint { flex: 1; min-width: 240px; }
+.import-choose {
+  flex: none;
+  white-space: nowrap;
+  padding: 7px 14px;
+  border: 1px solid var(--theme-accent);
+  border-radius: 4px;
+  background: var(--theme-accent);
+  color: var(--theme-accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
 
 .import-section { margin-bottom: 20px; }
 .import-section h2 {
