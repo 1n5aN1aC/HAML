@@ -909,6 +909,20 @@ input.v-bad, select.v-bad {
   cursor: pointer;
 }
 
+.import-choose:disabled { opacity: 0.5; cursor: default; }
+
+/* The two export buttons stack; a shared min-width keeps their explanations
+   left-aligned with each other rather than ragged. */
+.export-second-row { margin-top: 10px; }
+.export-section .import-choose { min-width: 232px; }
+
+/* Unlike the contact modal this one can be tall — an event may use a dozen
+   bands — so it scrolls internally instead of overflowing the viewport. */
+.export-modal {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
 .import-section { margin-bottom: 20px; }
 .import-section h2 {
   font-size: 13px;

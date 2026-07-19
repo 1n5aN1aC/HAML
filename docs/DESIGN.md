@@ -23,9 +23,10 @@ over a trusted LAN. Terminology: [CONTEXT.md](./CONTEXT.md). Decisions: [adr/](.
 ## Data model
 
 **Contact** — fixed columns: UUID (client-generated), QSO date/time, created / last-edited
-timestamps, station callsign context, remote callsign, Operator callsign + initials and
-Client UUID of the **last editor**, band, mode, `deleted` flag — plus one JSON column for
-all Template-defined field values. [ADR-0003](./adr/0003-json-field-storage-frozen-event-config.md)
+timestamps, station callsign context, remote callsign, Operator callsign + initials of the
+**logging operator** (the edit modal carries them over, so an editor must retype them to
+take ownership), Client UUID of the **last editor's machine** (overwritten on every edit),
+band, mode, `deleted` flag — plus one JSON column for all Template-defined field values. [ADR-0003](./adr/0003-json-field-storage-frozen-event-config.md)
 
 **Template** (JSON file in `templates/`, built-ins shipped) defines per-contest: extra
 Contact fields (name, label, required, default, order;
@@ -79,6 +80,10 @@ the Template's fields, with entry-time dupe warnings (never blocking).
 
 ## Explicitly deferred
 
-- Cabrillo/ADIF export (data shape is export-capable; endpoint is post-v1)
+- Contest-submission export (Cabrillo, or ADIF shaped to a contest's rules) — the
+  Template's export-mapping slot exists for it but is unimplemented. The **full** ADIF
+  export ships: the Settings tab writes the whole log client-side from the local Dexie
+  copy (`client/src/adif-export.js`), with an operator-driven band/mode mapping onto the
+  ADIF enumerations, so no server endpoint is involved.
 - Contact list search/filtering
 - Any internet-facing deployment (would require a new security decision)

@@ -239,7 +239,12 @@ export default function App() {
       )}
       {tab === 'stats' && <StatsTab />}
       {tab === 'settings' && (
-        <SettingsTab config={config} session={session} clientUuid={clientUuid} />
+        <SettingsTab
+          config={config}
+          event={event}
+          session={session}
+          clientUuid={clientUuid}
+        />
       )}
       {tab === 'admin' && <AdminTab />}
     </div>
