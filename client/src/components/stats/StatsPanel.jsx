@@ -1,5 +1,5 @@
-// Full contact statistics for the Statistics page. Forked from
-// logging/StatsPanel (the logging tab's compact version) so the two can evolve
+// Full contact stats for the Stats page. Forked from
+// CompactStatsPanel (the logging tab's version) so the two can evolve
 // independently — this one is the place for the richer, expanded displays.
 // Both render the same .stats-panel CSS.
 // Live view over Dexie, same pattern as ContactList; a 60s tick keeps the
@@ -10,7 +10,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db.js'
 import { SECTION_NAMES } from '../../sections.js'
 
-export default function StatisticsPanel() {
+export default function StatsPanel() {
   const contacts =
     useLiveQuery(() => db.contacts.filter((c) => !c.deleted).toArray(), []) ?? []
 

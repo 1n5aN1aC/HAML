@@ -15,7 +15,7 @@ import SettingsModal from './components/SettingsModal.jsx'
 import ImportTab from './components/import/ImportTab.jsx'
 import LoggingTab from './components/logging/LoggingTab.jsx'
 import RadioTab from './components/radio/RadioTab.jsx'
-import StatisticsTab from './components/statistics/StatisticsTab.jsx'
+import StatsTab from './components/stats/StatsTab.jsx'
 import AdminTab from './components/admin/AdminTab.jsx'
 
 const OFF_AIR = 'Off-Air'
@@ -261,7 +261,7 @@ export default function App() {
         />
       )}
       {tab === 'radio' && <RadioTab />}
-      {tab === 'stats' && <StatisticsTab />}
+      {tab === 'stats' && <StatsTab />}
       {tab === 'admin' && <AdminTab />}
     </div>
   )

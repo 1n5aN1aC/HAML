@@ -1,8 +1,8 @@
-// QSO rate graph for the Statistics page (stats-top pane): a stacked bar chart
+// QSO rate graph for the Stats page (stats-top pane): a stacked bar chart
 // of QSO/h over the contest span (first contact → last contact), one stack
 // segment per mode. Hand-rolled inline SVG — no charting dependency (ADR-0006),
 // the first SVG we draw ourselves in the client.
-// Live view over Dexie, same pattern as StatisticsPanel. No 60s tick: the
+// Live view over Dexie, same pattern as StatsPanel. No 60s tick: the
 // x-domain runs first→last contact, not "now", so nothing on screen changes
 // with wall-clock time — useLiveQuery already re-renders on every logged/edited
 // contact (which also moves the last-contact edge).
@@ -97,7 +97,7 @@ export default function RateGraph() {
     .map((c) => ({ t: new Date(c.qso_at).getTime(), mode: c.mode || 'Unknown' }))
     .filter((x) => Number.isFinite(x.t))
 
-  // Modes ordered by count descending — same shape as StatisticsPanel's tally;
+  // Modes ordered by count descending — same shape as StatsPanel's tally;
   // this fixes each mode's color and stacking order.
   const modeCounts = {}
   times.forEach((x) => {

@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import MapPanel from '../MapPanel.jsx'
-import StatsPanel from './StatsPanel.jsx'
+import CompactStatsPanel from './CompactStatsPanel.jsx'
 
 const VIEW_KEY = 'haml-map-stats-view'
 
@@ -21,7 +21,7 @@ export default function MapStatsPanel() {
 
   return (
     <div className="map-stats-panel">
-      {view === 'map' ? <MapPanel /> : <StatsPanel />}
+      {view === 'map' ? <MapPanel /> : <CompactStatsPanel />}
       <button
         className="panel-toggle-btn"
         title={view === 'map' ? 'Show Detailed Stats' : 'Back to Map'}

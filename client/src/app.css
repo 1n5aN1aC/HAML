@@ -801,7 +801,7 @@ input.v-bad, select.v-bad {
   border-bottom: 1px solid var(--theme-border);
 }
 
-/* --- statistics tab ----------------------------------------------------------
+/* --- stats tab ----------------------------------------------------------------
    A separate page from the logging tab; it reuses .panes for the flex row,
    gap, and padding, and reuses the StatsPanel / MapPanel components.
    Three cards: contact stats fill the left half; the right half splits into
@@ -820,7 +820,7 @@ input.v-bad, select.v-bad {
   border-radius: var(--panel-radius);
 }
 
-/* band × mode matrix on the statistics page */
+/* band × mode matrix on the stats page */
 .stats-matrix {
   border-collapse: collapse;
   margin: 0 0 8px 1em;   /* indented under its heading, like .indent */

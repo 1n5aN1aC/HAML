@@ -1,6 +1,6 @@
 // Compact contact stats for the logging tab (the "stats" side of the
-// map/stats panel). The Statistics page has its own fork, statistics/StatisticsPanel,
-// so this one can stay lean. Both render the same .stats-panel CSS.
+// map/stats panel). The Stats page has its own fork, StatsPanel, so this one
+// can stay lean. Both render the same .stats-panel CSS.
 // Live view over Dexie, same pattern as ContactList; a 60s tick keeps the
 // time-window numbers honest even when no contacts are being logged.
 
@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db.js'
 
-export default function StatsPanel() {
+export default function CompactStatsPanel() {
   const contacts =
     useLiveQuery(() => db.contacts.filter((c) => !c.deleted).toArray(), []) ?? []
 
