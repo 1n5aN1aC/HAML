@@ -366,14 +366,13 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               callsignLiveRef.current = next
               if (next !== callsign) {
                 // Every callsign text change resets every untouched field, not just remember/auto fills.
-                // Stale server-lookup patches or remember fills from the previous station
-                // Don't carry forward into the next contact.
-                setValues((prev) => clearUntouchedFields(prev, touched, fields, hiddenBuiltins))
+                // Stale server-lookup patches or remember fills from the previous station don't carry forward into the next contact.
+                // Fully emptying the field goes further: ALL fields clear, and leavs no touched flags,
+                const effectiveTouched = next ? touched : new Set()
+                setValues((prev) => clearUntouchedFields(prev, effectiveTouched, fields, hiddenBuiltins))
                 // Drop any cached server record so the country/miles label clears
                 // immediately on edit — the next lookup will repopulate it.
                 setServerRecord(null)
-                // Fully emptying additionally forgets what the operator typed
-                // and clears any leftover error: matches the pre-existing special case.
                 if (!next) {
                   setTouched(new Set())
                   setError('')
