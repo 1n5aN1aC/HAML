@@ -53,6 +53,7 @@ function builtinValues(r) {
     state: r.STATE ?? '',
     county: r.CNTY ?? '',
     country: r.COUNTRY ?? '',
+    comment: r.COMMENT ?? '',
   }
 }
 
