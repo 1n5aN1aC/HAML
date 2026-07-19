@@ -26,6 +26,7 @@ from pathlib import Path
 BUILTIN_FIELDS = [
     "country", "itu_zone", "cq_zone", "continent", "gridsquare", "distance",
     "state", "section", "county", "frequency", "rst_sent", "rst_received", "name",
+    "notes",
 ]
 
 _BUILTIN_COLUMNS = "".join(

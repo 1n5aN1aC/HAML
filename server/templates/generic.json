@@ -15,13 +15,9 @@
     },
     {
       "name": "notes",
-      "label": "Notes",
-      "max_length": 40,
-      "required": false,
-      "remember": true,
-      "default": "",
       "entry": true,
-      "history": true
+      "history": false,
+      "remember": false
     }
   ],
   "bands": ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "1.25m", "70cm", "Other"],

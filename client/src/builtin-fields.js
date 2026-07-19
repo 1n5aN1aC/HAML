@@ -82,6 +82,9 @@ export const BUILTINS = {
     label: 'Frequency', max_length: 10,
     validation: { pattern: '(?:[1-9]\\d{0,3}|0)\\.\\d{3}', message: 'Frequency in MHz, like 14.250' },
   },
+  notes: {
+    label: 'Notes', max_length: 200, validation: null,
+  },
 }
 
 // Registry order — drives the edit modal's "remaining built-ins" section.
