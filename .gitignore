@@ -10,6 +10,7 @@ node_modules/
 # Dev Stuff
 .vscode/
 .claude/
+.kilo/
 
 # Live event state:
 server/data/
