@@ -12,9 +12,13 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db.js'
 
 // Bin-width ladder (minutes). We pick the smallest step that keeps the bar
-// count at or under 50 across the span, so short events get fine detail and
-// long ones stay legible.
+// count at or under 50 across the span, so short events get fine detail and long ones stay legible.
 const BIN_LADDER = [5, 10, 15, 30, 60, 120, 240, 360, 720, 1440]
+
+// How far from the middle of the log a contact may sit before it's treated as a mistyped timestamp
+// Wide enough to cover any real event with room, and small enough that worst-case still bins to a sane bar count on the widest ladder rung.
+const OUTLIER_WINDOW_MS = 30 * 24 * 3_600_000
+
 function pickBinMinutes(spanMs) {
   return (
     BIN_LADDER.find((step) => Math.ceil(spanMs / (step * 60_000)) <= 50) ??
@@ -93,9 +97,18 @@ export default function RateGraph() {
 
   // Contact times (bad timestamps filtered out so they can't poison min/max,
   // same guard ContactList uses for display).
-  const times = contacts
+  const parsed = contacts
     .map((c) => ({ t: new Date(c.qso_at).getTime(), mode: c.mode || 'Unknown' }))
     .filter((x) => Number.isFinite(x.t))
+
+  // Drop timestamps far outside the bulk of the log.
+  // One typo ("0202" for "2022") stretches the x-domain across centuries and the bin count
+  // will grow towards inifinity, the render freezes the tab, on every client the bad row syncs to.
+  // Median as anchor to handle outliers on both sides (typo can be in past or future),
+  // Also it keeps the domain free of wall-clock time, so the graph still only moves when the log does.
+  const sortedTimes = parsed.map((x) => x.t).sort((a, b) => a - b)
+  const median = sortedTimes[Math.floor(sortedTimes.length / 2)]
+  const times = parsed.filter((x) => Math.abs(x.t - median) <= OUTLIER_WINDOW_MS)
 
   // Modes ordered by count descending — same shape as StatsPanel's tally;
   // this fixes each mode's color and stacking order.
