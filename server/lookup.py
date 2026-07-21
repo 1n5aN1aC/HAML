@@ -77,7 +77,9 @@ async def _run_source(source, app, callsign):
         return {
             "status": lookup_cache.STATUS_ERROR,
             "payload": {},
-            "error": f"{source.SOURCE}: {type(exc).__name__}: {exc}",
+            # A module broken enough to raise may never have bound itself,
+            # an AttributeError here would take down the chain this handler exists to protect.
+            "error": f"{getattr(source, 'SOURCE', source.__name__)}: {type(exc).__name__}: {exc}",
         }
 
 # Walk the chain. First OK wins; a miss or an error falls through to the

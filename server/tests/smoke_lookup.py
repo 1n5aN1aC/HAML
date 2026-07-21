@@ -727,6 +727,22 @@ async def check_chain_fallthrough_unit():
               f"chain: a raising source presents as ERROR "
               f"(got {result['error']!r})")
 
+        # ---- ...even a half-written one that never bound SOURCE ----
+        # The error string is built inside the except block; naming the source
+        # there must not be the thing that finally takes the chain down.
+        nameless = type(sys)("stub_nameless")
+        nameless.setup = lambda app: None
+        nameless.lookup = _raise
+        lookup.SOURCES = (nameless, _stub("rescue", lookup_cache.STATUS_OK))
+        result = await lookup._run_lookup(app, "W1AW")
+        check(result["status"] == lookup_cache.STATUS_OK,
+              "chain: a raising source with no SOURCE doesn't take the chain down")
+        lookup.SOURCES = (nameless,)
+        result = await lookup._run_lookup(app, "W1AW")
+        check(result["error"] == "stub_nameless: RuntimeError: kaboom",
+              f"chain: a SOURCE-less source falls back to its module name "
+              f"(got {result['error']!r})")
+
         # ---- an async source is awaited ----
         aio = type(sys)("stub_async")
         aio.SOURCE = "aio"
