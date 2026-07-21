@@ -5,7 +5,6 @@
 #
 import asyncio
 import json
-import math
 import sqlite3
 
 from aiohttp import web
@@ -14,6 +13,7 @@ import db
 import events
 import lookup
 import lookup_cache
+import lookup_postprocess
 import templates
 
 
@@ -150,47 +150,24 @@ async def get_chat(request):
 
 LONGPOLL_TIMEOUT_S = 15
 
-# Mean Earth radius in kilometers.
-_EARTH_RADIUS_KM = 6371.0
-
-
-def _with_distance(app, record):
-    """Return the record plus a `distance` key: Haversine kilometers, rounded down to a whole number
-    From the active event's operating position (config.location) to the record's coordinates.
-    null when missing.
-
-    Distance is event-relative, so it is stamped on the response here and
-    never stored in the canonical record or the cache — a cached row must
-    stay correct when a different event becomes active.
-    """
-    event = app.get("event") or {}
-    loc = (event.get("config") or {}).get("location")
-    lat, lon = record.get("latitude"), record.get("longitude")
-    distance = None
-    if loc and lat is not None and lon is not None:
-        phi1 = math.radians(loc["latitude"])
-        phi2 = math.radians(lat)
-        d_phi = math.radians(lat - loc["latitude"])
-        d_lam = math.radians(lon - loc["longitude"])
-        a = (math.sin(d_phi / 2) ** 2
-             + math.cos(phi1) * math.cos(phi2) * math.sin(d_lam / 2) ** 2)
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        distance = math.floor(_EARTH_RADIUS_KM * c)
-    return dict(record, distance=distance)
-
 
 async def post_lookup(request):
     """Look up a callsign, returning the cached or fresh result.
     The 200 response body is the canonical record from `lookup_record`, plus
-    a request-time `distance` field (see _with_distance):
+    the request-time fields `lookup_postprocess` adds (today: `distance`).
     The client can trust its field names, types, and value sets without validating.
 
-    Primary provider is the local FCC ULS sqlite — instant, offline, one indexed query per call.
-    On an FCC miss or error the chain falls through to the CallParser prefix DB
-    (see lookup._run_lookup), which answers with DXCC-level fields only —
-    source "callparser", never cached.
-    The cache layer + long-poll handler shape is kept for a future online fallback (QRZ/HamQTH for non-US calls);
-    today the cache read path never hits and the long-poll ceiling only matters if a future provider is wired in.
+    The callsign walks the ordered chain in `lookup.SOURCES`; the first
+    source to return OK wins, a miss or error falls through to the next.
+    Today that chain is the offline FCC ULS sqlite, the blank placeholder
+    (always misses — the slot for a future QRZ/HamQTH), and the CallParser
+    prefix DB, which answers with DXCC-level fields only.
+    Neither shipped source is cacheable, so the cache read path never hits
+    and the long-poll ceiling only matters once an online source is wired in.
+
+    Every OK record — cache hit or fresh — is passed through
+    `lookup_postprocess.apply` on the way out, so derived and event-relative
+    fields are identical on both paths and are never frozen into a cache row.
 
     Cache-first, then long-poll for misses:
       - cache hit ok         -> 200 + canonical record, instant
@@ -220,8 +197,8 @@ async def post_lookup(request):
     cached = lookup_cache.get(cache_conn, callsign)
     if cached is not None:
         if cached["status"] == lookup_cache.STATUS_OK:
-            return web.json_response(
-                _with_distance(request.app, json.loads(cached["payload"])))
+            return web.json_response(lookup_postprocess.apply(
+                request.app, json.loads(cached["payload"])))
         if cached["status"] == lookup_cache.STATUS_NOT_FOUND:
             return json_error(404, "callsign not found")
         # status == error
@@ -237,7 +214,8 @@ async def post_lookup(request):
     except asyncio.TimeoutError:
         return json_error(408, "lookup timed out")
     if result["status"] == lookup_cache.STATUS_OK:
-        return web.json_response(_with_distance(request.app, result["payload"]))
+        return web.json_response(
+            lookup_postprocess.apply(request.app, result["payload"]))
     if result["status"] == lookup_cache.STATUS_NOT_FOUND:
         return json_error(404, "callsign not found")
     return json_error(502, result["error"] or "upstream lookup failed")

@@ -1,5 +1,8 @@
-"""End-to-end smoke test for the callsign-lookup feature (offline:
-FCC-backed with a CallParser prefix-DB fallback).
+"""End-to-end smoke test for the callsign-lookup feature.
+
+The lookup chain (`lookup.SOURCES`) is offline today: the FCC ULS sqlite,
+the blank placeholder that always misses, and the CallParser prefix DB.
+Neither shipped source is cacheable, so no lookup writes a cache row.
 
 Stdlib-only. Spawns the real server on a scratch port with a scratch data
 dir + a scratch FCC ULS fixture sqlite + the repo's committed Prefix.lst,
@@ -27,6 +30,8 @@ then walks POST /api/lookup:
   - coalescing: two concurrent POSTs for the same cold callsign only
     resolve once
   - unit checks: TTL policy, coerce() contract (incl. ISO date acceptance),
+    post-processing (zone derivation + distance stamping), source-chain
+    shape + CACHED flags, chain fall-through rules against stub sources,
     fcc adapter row -> canonical mapping, callparser adapter hit ->
     canonical mapping (incl. not-ready setup semantics)
 
@@ -548,29 +553,200 @@ def check_coerce():
           f"legacy MM/DD/YYYY dates -> no bad_fields (got {legacy_bad})")
 
 
-def check_distance_unit():
-    """Verify api_rest._with_distance stamps a request-time distance on the
-    record: whole miles when both the event location and the record coords
-    exist, null otherwise, and never mutates the input record."""
-    import api_rest
+def check_postprocess_unit():
+    """Verify lookup_postprocess.apply() is the single out-bound stage:
+    it derives CQ/ITU zones from coordinates (only-fill-if-null, so a source
+    that already knows its zones wins) and stamps a request-time distance
+    from the active event's operating position. Never mutates the input."""
+    import lookup_postprocess
     record = {"callsign": "W1AW", "latitude": 44.979441, "longitude": -123.337862}
     loc_app = {"event": {"config": {
         "location": {"latitude": 45.5152, "longitude": -122.6784}}}}
 
-    out = api_rest._with_distance(loc_app, record)
+    # ---- distance ----
+    out = lookup_postprocess.apply(loc_app, record)
     check(out["distance"] == 78,
           f"Portland -> Dallas OR == 78 km floored (got {out['distance']!r})")
     check("distance" not in record,
-          "_with_distance leaves the input record unmodified")
+          "apply() leaves the input record unmodified")
 
-    out = api_rest._with_distance(loc_app, {"latitude": None, "longitude": None})
+    out = lookup_postprocess.apply(loc_app, {"latitude": None, "longitude": None})
     check(out["distance"] is None, "no record coords -> distance is None")
 
-    out = api_rest._with_distance({"event": {"config": {"location": None}}}, record)
+    out = lookup_postprocess.apply({"event": {"config": {"location": None}}},
+                                   record)
     check(out["distance"] is None, "no event location -> distance is None")
 
-    out = api_rest._with_distance({}, record)
+    out = lookup_postprocess.apply({}, record)
     check(out["distance"] is None, "no active event -> distance is None")
+
+    # ---- zone derivation (moved here out of the FCC adapter) ----
+    # Dallas, OR is CQ 3, ITU 6. The FCC adapter now hands over a record with
+    # coords and null zones; this stage is what fills them.
+    out = lookup_postprocess.apply({}, dict(record, cq_zone=None, itu_zone=None))
+    check(out["cq_zone"] == 3,
+          f"coords -> cq_zone 3 (Dallas, OR; got {out['cq_zone']!r})")
+    check(out["itu_zone"] == 6,
+          f"coords -> itu_zone 6 (Dallas, OR; got {out['itu_zone']!r})")
+
+    # Only-fill-if-null: CallParser's prefix-DB zones must survive.
+    out = lookup_postprocess.apply({}, dict(record, cq_zone=14, itu_zone=27))
+    check(out["cq_zone"] == 14 and out["itu_zone"] == 27,
+          f"source-supplied zones win over derivation "
+          f"(got {out['cq_zone']!r}/{out['itu_zone']!r})")
+
+    # No coords -> no zones, no crash.
+    out = lookup_postprocess.apply(
+        {}, {"latitude": None, "longitude": None, "cq_zone": None,
+             "itu_zone": None})
+    check(out["cq_zone"] is None and out["itu_zone"] is None,
+          "no coords -> zones stay None")
+
+
+def check_chain_unit():
+    """Verify the source chain's shape and the caching contract.
+
+    The chain is an ordered tuple of modules; order is priority and each
+    module declares whether its OK results may be persisted. Nothing shipped
+    is cacheable, so no lookup should ever write a cache row.
+    """
+    import lookup
+    import lookup_blank
+    import lookup_callparser
+    import lookup_fcc
+
+    check(lookup.SOURCES == (lookup_fcc, lookup_blank, lookup_callparser),
+          f"SOURCES order is fcc -> blank -> callparser "
+          f"(got {[s.SOURCE for s in lookup.SOURCES]})")
+    check([s.CACHED for s in lookup.SOURCES] == [False, True, False],
+          f"CACHED flags are False/True/False "
+          f"(got {[s.CACHED for s in lookup.SOURCES]})")
+    for source in lookup.SOURCES:
+        check(callable(getattr(source, "setup", None)),
+              f"{source.SOURCE} exposes setup()")
+        check(callable(getattr(source, "lookup", None)),
+              f"{source.SOURCE} exposes lookup()")
+
+    # The blank source always misses, with an EMPTY error string — an error
+    # string here would be remembered as the chain's first error and turn
+    # every unresolved lookup into a 502.
+    for call in ("W1AW", "G4ABC", "", "123ABC"):
+        result = lookup_blank.lookup({}, call)
+        check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
+              f"blank source misses on {call!r} (got {result['status']!r})")
+        check(result["error"] == "" and result["payload"] == {},
+              f"blank source {call!r} -> empty error + payload")
+
+
+async def check_chain_fallthrough_unit():
+    """Drive lookup._run_lookup with stub sources to lock in the
+    fall-through rules: first OK wins, misses and errors both advance, the
+    FIRST error is what surfaces when nothing resolves, and only a CACHED
+    source's OK gets written to the cache."""
+    import lookup
+
+    def _stub(name, status, cached=False, error="", payload=None):
+        mod = type(sys)(f"stub_{name}")
+        mod.SOURCE = name
+        mod.CACHED = cached
+        mod.setup = lambda app: None
+        mod.lookup = lambda app, callsign, _s=status, _e=error, _p=payload: {
+            "status": _s, "payload": dict(_p or {}, callsign=callsign),
+            "error": _e}
+        return mod
+
+    scratch = Path(tempfile.mkdtemp(prefix="haml-chain-unit-"))
+    original = lookup.SOURCES
+    try:
+        app = {"lookup_cache": lookup_cache.open_cache(scratch / "cache.db")}
+
+        # ---- first OK wins; a later source never runs ----
+        hit = _stub("hit", lookup_cache.STATUS_OK)
+        never = _stub("never", lookup_cache.STATUS_OK, payload={"name": "NO"})
+        lookup.SOURCES = (_stub("miss", lookup_cache.STATUS_NOT_FOUND),
+                          hit, never)
+        result = await lookup._run_lookup(app, "W1AW")
+        check(result["status"] == lookup_cache.STATUS_OK,
+              "chain: miss -> OK yields OK")
+        check(result["payload"].get("name") is None,
+              "chain: the source after the first OK never runs")
+        check(lookup_cache.stats(app["lookup_cache"])[lookup_cache.STATUS_OK] == 0,
+              "chain: an OK from a non-caching source writes no cache row")
+
+        # ---- a CACHED source's OK is persisted by the dispatcher ----
+        lookup.SOURCES = (_stub("cachehit", lookup_cache.STATUS_OK,
+                                cached=True),)
+        await lookup._run_lookup(app, "K1MI")
+        row = lookup_cache.get(app["lookup_cache"], "K1MI")
+        check(row is not None and row["source"] == "cachehit",
+              f"chain: a CACHED source's OK is written (got {row and row['source']!r})")
+
+        # ---- error falls through; a later OK still wins ----
+        lookup.SOURCES = (_stub("broken", lookup_cache.STATUS_ERROR,
+                                error="dataset unavailable"),
+                          _stub("rescue", lookup_cache.STATUS_OK))
+        result = await lookup._run_lookup(app, "G4ABC")
+        check(result["status"] == lookup_cache.STATUS_OK,
+              "chain: an erroring source doesn't abort the chain")
+
+        # ---- all miss, one errored -> the FIRST error surfaces (502) ----
+        lookup.SOURCES = (_stub("broken", lookup_cache.STATUS_ERROR,
+                                error="dataset unavailable"),
+                          _stub("alsobroken", lookup_cache.STATUS_ERROR,
+                                error="second error"),
+                          _stub("miss", lookup_cache.STATUS_NOT_FOUND))
+        result = await lookup._run_lookup(app, "ZZZZZZ")
+        check(result["status"] == lookup_cache.STATUS_ERROR,
+              "chain: all-miss-with-an-error -> ERROR (502)")
+        check(result["error"] == "dataset unavailable",
+              f"chain: the FIRST error surfaces (got {result['error']!r})")
+
+        # ---- all miss, none errored -> NOT_FOUND (404) ----
+        lookup.SOURCES = (_stub("a", lookup_cache.STATUS_NOT_FOUND),
+                          _stub("b", lookup_cache.STATUS_NOT_FOUND))
+        result = await lookup._run_lookup(app, "ZZZZZZ")
+        check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
+              "chain: all-miss-no-error -> NOT_FOUND (404)")
+
+        # ---- a source that raises presents as ERROR, chain continues ----
+        boom = type(sys)("stub_boom")
+        boom.SOURCE = "boom"
+        boom.CACHED = False
+        boom.setup = lambda app: None
+        def _raise(app, callsign):
+            raise RuntimeError("kaboom")
+        boom.lookup = _raise
+        lookup.SOURCES = (boom, _stub("rescue", lookup_cache.STATUS_OK))
+        result = await lookup._run_lookup(app, "W1AW")
+        check(result["status"] == lookup_cache.STATUS_OK,
+              "chain: a raising source doesn't take the chain down")
+        lookup.SOURCES = (boom,)
+        result = await lookup._run_lookup(app, "W1AW")
+        check(result["status"] == lookup_cache.STATUS_ERROR
+              and "kaboom" in result["error"],
+              f"chain: a raising source presents as ERROR "
+              f"(got {result['error']!r})")
+
+        # ---- an async source is awaited ----
+        aio = type(sys)("stub_async")
+        aio.SOURCE = "aio"
+        aio.CACHED = False
+        aio.setup = lambda app: None
+        async def _async_lookup(app, callsign):
+            return {"status": lookup_cache.STATUS_OK,
+                    "payload": {"callsign": callsign, "source": "aio"},
+                    "error": ""}
+        aio.lookup = _async_lookup
+        lookup.SOURCES = (aio,)
+        result = await lookup._run_lookup(app, "W1AW")
+        check(result["status"] == lookup_cache.STATUS_OK
+              and result["payload"]["source"] == "aio",
+              "chain: an async source's result is awaited, not returned raw")
+
+        app["lookup_cache"].close()
+    finally:
+        lookup.SOURCES = original
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 def check_fcc_unit():
@@ -641,11 +817,14 @@ def check_fcc_unit():
         check(rec["source"] == "fcc", "W1AW source=fcc")
         check(rec.get("fetched_at"),
               "W1AW fetched_at stamped")
-        # Dallas, OR is CQ 3, ITU 6.
-        check(rec["cq_zone"] == 3,
-              f"W1AW cq_zone == 3 (Dallas, OR; got {rec['cq_zone']!r})")
-        check(rec["itu_zone"] == 6,
-              f"W1AW itu_zone == 6 (Dallas, OR; got {rec['itu_zone']!r})")
+        # Zones are NOT derived by the adapter any more — lookup_postprocess
+        # fills them from the coordinates on the way out (see
+        # check_postprocess_unit, which asserts CQ 3 / ITU 6 for these
+        # coords). The adapter must hand them over null.
+        check(rec["cq_zone"] is None,
+              f"W1AW cq_zone left to the post-processor (got {rec['cq_zone']!r})")
+        check(rec["itu_zone"] is None,
+              f"W1AW itu_zone left to the post-processor (got {rec['itu_zone']!r})")
         # output keys must be exactly FIELDS
         check(set(rec.keys()) == set(lookup_record.FIELDS),
               "W1AW output keys == FIELDS exactly")
@@ -673,6 +852,7 @@ def check_fcc_unit():
         result = lookup_fcc.lookup(app, "N0GEO")
         rec = result["payload"]
         check(result["status"] == lookup_cache.STATUS_OK, "N0GEO -> STATUS_OK")
+        # (zones are null for every FCC record now — see W1AW above)
         check(rec["latitude"] is None,
               f"N0GEO latitude is None (got {rec['latitude']!r})")
         check(rec["longitude"] is None,
@@ -1202,7 +1382,7 @@ async def run_e2e(fcc_db_path, prefix_lst_path=None,
                 check(body.get("license_class") is None,
                       f"G4ABC license_class is None (got "
                       f"{body.get('license_class')!r})")
-                # distance stamped by _with_distance from entity-center coords.
+                # distance stamped by lookup_postprocess from entity-center coords.
                 check(isinstance(body.get("distance"), int)
                       and body["distance"] > 0,
                       f"G4ABC distance is positive int "
@@ -1274,8 +1454,12 @@ async def main():
     check_ttl_policy()
     print("unit: coerce() contract:")
     check_coerce()
-    print("unit: distance stamping:")
-    check_distance_unit()
+    print("unit: post-processing (zones + distance):")
+    check_postprocess_unit()
+    print("unit: source chain shape:")
+    check_chain_unit()
+    print("unit: chain fall-through rules:")
+    await check_chain_fallthrough_unit()
     print("unit: fcc adapter:")
     check_fcc_unit()
     print("unit: callparser adapter:")

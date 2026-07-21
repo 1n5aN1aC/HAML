@@ -4,17 +4,20 @@ A pure adapter — no HTTP, no async, no I/O beyond the local sqlite read.
 File is opened read-only at setup time so a misconfigured path never blocks boot.
 On miss or DB unavailable, hand back a {status, payload, error} shape.
 
-The chain seam is left visible in `lookup._run_lookup`: future online
-providers (QRZ, HamQTH) append there, own their own HTTP sessions and
-gates, and write results into the cache. This module writes nothing.
+First source in `lookup.SOURCES`; see `lookup_blank` for the module
+contract. `CACHED = False`: the query is microseconds, so a cache row buys
+no latency, and a stale row would outrank the DB itself. Cache writes are
+the dispatcher's job in any case — this module never touches the cache.
 """
 import sqlite3
 
 import lookup_cache
 import lookup_record
-import lookup_zones
 
 SOURCE = "fcc"
+
+# Offline and instant: nothing to gain from a cache row. See lookup.SOURCES.
+CACHED = False
 
 
 # --- applicant_type -> license_type (canonical enum, lowercased by coerce) --
@@ -70,6 +73,14 @@ def setup(app):
         )
         app["fcc_db"] = None
         app["fcc_db_path"] = str(db_path)
+
+# close(): called from lookup.close() at shutdown. The read-only handle is
+# process-lived otherwise; closing it lets a test's scratch dir be removed.
+def close(app):
+    conn = app.get("fcc_db")
+    if conn is not None:
+        conn.close()
+        app["fcc_db"] = None
 
 # --- row -> canonical mapping ----------------------------------------------
 # coerce() will turns empty strings into None and dirty fields are tracked there.
@@ -162,7 +173,7 @@ def _build_record(row):
     }
 
 # lookup(): one indexed query; sync because the work is microseconds.
-# Returns the {status, payload, error} shape the chain seam expects.
+# Returns the {status, payload, error} shape the chain expects.
 def lookup(app, callsign):
     conn = app.get("fcc_db")
     if conn is None:
@@ -193,15 +204,6 @@ def lookup(app, callsign):
 
     raw = _build_record(row)
     record, bad_fields = lookup_record.coerce(raw)
-
-    # Derive CQ + ITU zones from the coordinates when we have them.
-    # Only-fill-if-null:
-    if record.get("latitude") is not None and record.get("longitude") is not None:
-        derived = lookup_zones.derive(record["latitude"], record["longitude"])
-        if record.get("itu_zone") is None:
-            record["itu_zone"] = derived["itu_zone"]
-        if record.get("cq_zone") is None:
-            record["cq_zone"] = derived["cq_zone"]
 
     # Stamp source + fetched_at here, since the cache layer is bypassed for FCC
     record["source"] = SOURCE

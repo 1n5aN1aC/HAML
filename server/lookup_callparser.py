@@ -5,21 +5,19 @@ parse that callparser.init() does at setup. On miss, hands back
 STATUS_NOT_FOUND; on load failure, setup() flips a flag and lookup()
 becomes a permanent miss (the FCC hop still decides the response).
 
-The chain seam is left visible in `lookup._run_lookup`: future online
-providers (QRZ, HamQTH) append there, own their own HTTP sessions and
-gates, and write results into the cache. This module writes nothing —
-CallParser results are NEVER cached. The reasoning: the prefix DB is
-fast (microseconds, in-memory), so a cache row buys nothing on latency
-and would only shorten the hit path of a never-firing cache lookup.
-A future online provider between FCC and CallParser is the layer that
-writes lookup_cache; this rule (no writes here) is pinned so the
-seam stays honest when the online hop lands.
+Last source in `lookup.SOURCES`; see `lookup_blank` for the module
+contract. `CACHED = False`: the prefix DB is in-memory and answers in
+microseconds, so a cache row buys nothing on latency. Cache writes are the
+dispatcher's job in any case — this module never touches the cache.
 """
 import callparser
 import lookup_cache
 import lookup_record
 
 SOURCE = "callparser"
+
+# In-memory and instant: nothing to gain from a cache row. See lookup.SOURCES.
+CACHED = False
 
 
 # setup(): called from main.build_app.
@@ -64,11 +62,12 @@ def _build_record(callsign, hit):
     return raw
 
 # lookup(): one in-memory call; sync because the work is microseconds.
-# Returns the {status, payload, error} shape the chain seam expects.
+# Returns the {status, payload, error} shape the chain expects.
 def lookup(app, callsign):
     if not app.get("callparser_ready"):
-        # Chain treats this as "this provider has nothing" so the caller's
-        # prior FCC status decides the response. See lookup._run_lookup.
+        # A miss, not an error: the chain treats this as "this source has
+        # nothing", so an earlier source's error (if any) still decides the
+        # response. See lookup._run_lookup.
         return {
             "status": lookup_cache.STATUS_NOT_FOUND,
             "payload": {},
@@ -99,7 +98,7 @@ def lookup(app, callsign):
     record, bad_fields = lookup_record.coerce(raw)
 
     # Stamp source + fetched_at here, since the cache layer is bypassed
-    # (CallParser results are never cached — see module docstring).
+    # (CACHED = False — see module docstring).
     record["source"] = SOURCE
     record["fetched_at"] = lookup_record.now_iso()
 
