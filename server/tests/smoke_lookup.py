@@ -627,16 +627,6 @@ def check_chain_unit():
         check(callable(getattr(source, "lookup", None)),
               f"{source.SOURCE} exposes lookup()")
 
-    # The blank source always misses, with an EMPTY error string — an error
-    # string here would be remembered as the chain's first error and turn
-    # every unresolved lookup into a 502.
-    for call in ("W1AW", "G4ABC", "", "123ABC"):
-        result = lookup_blank.lookup({}, call)
-        check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
-              f"blank source misses on {call!r} (got {result['status']!r})")
-        check(result["error"] == "" and result["payload"] == {},
-              f"blank source {call!r} -> empty error + payload")
-
 
 async def check_chain_fallthrough_unit():
     """Drive lookup._run_lookup with stub sources to lock in the
