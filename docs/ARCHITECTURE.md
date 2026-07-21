@@ -5,23 +5,28 @@ during an event (Field Day, POTA, …) — the web-based, modern successor to th
 workflow. A Python server on a club laptop serves a React client to operator positions
 over a trusted LAN.
 
-Terminology: [GLOSSARY.md](./GLOSSARY.md). Decisions: [adr/](./adr/).
+Terminology: [GLOSSARY.md](./GLOSSARY.md).
 Details: [SERVER.md](./SERVER.md), [CLIENT.md](./CLIENT.md).
 
 ## The pieces
 
-- **Server** — Python + aiohttp (sole dependency), stdlib sqlite3. Holds the authoritative
-  log, answers callsign lookups, relays real-time signals, and serves the built client in
-  production. One database file per Event; exactly one Event runs at a time.
-  [ADR-0002](./adr/0002-one-event-per-database.md),
-  [ADR-0006](./adr/0006-tech-stack.md)
+- **Server** — Python + aiohttp, stdlib sqlite3. Holds the authoritative log, answers
+  callsign lookups, relays real-time signals, and serves the built client in production.
+  One database file per Event; exactly one Event runs at a time.
 - **Client** — React in plain JavaScript, built with Vite. Offline-first: contacts live in
   IndexedDB (via Dexie) and sync in the background, so a logging position keeps working
   through a network drop.
+- **Minimal dependencies** — aiohttp is the server's only third-party package; the client
+  adds Vite, React, and Dexie and nothing else (no TypeScript, no state-management
+  framework, no charting or ADIF libraries). This runs on a club laptop dusted off once a
+  year, where a small dependency tree and dumb code age better.
 - **Trust model** — no authentication; the LAN is the boundary. Anyone can edit or delete
-  any Contact; accountability comes from stamping, not permissions. The Admin page is
-  gated by a shared password — a tripwire, not security.
-  [ADR-0004](./adr/0004-no-auth-trusted-lan.md)
+  any Contact — net control fixing someone else's typo is normal — so accountability comes
+  from stamping, not permissions: every Contact carries the Operator callsign and initials
+  it was logged under, plus the Client UUID of the machine that last edited it. The Admin
+  page is gated by a shared password sent as a header: a tripwire to stop people messing
+  around, explicitly not a security mechanism. Nothing here is safe to expose to the
+  internet; doing so would need a new decision.
 
 ## How client and server talk
 
@@ -36,25 +41,27 @@ load-bearing and duplicate the retry and acknowledgment machinery REST already g
 Presence is likewise heartbeat-based rather than connection-based, and lives in server
 memory only — nobody queries historical presence, and a restart would leave stale rows.
 
-The data loop is offline-first and converges by repetition rather than by protocol
-([ADR-0001](./adr/0001-offline-first-sync-model.md)):
+The data loop is offline-first and converges by repetition rather than by protocol:
 
-1. The client writes new and edited Contacts to IndexedDB as `pending`.
-2. **Push** — an idempotent POST upsert keyed on the client-generated UUID, retried every
-   ~10s while anything is pending. Duplicate sends are harmless.
+1. The client writes new and edited Contacts to IndexedDB as `pending`. UUIDs are
+   client-generated, so a Contact can be created with the server unreachable.
+2. **Push** — an idempotent POST upsert keyed on that UUID, retried every ~10s while
+   anything is pending. Duplicate sends are harmless.
 3. **Pull** — a GET for everything changed since the client's sync cursor, every ~30s and
    immediately on a poke.
 4. **Pull is the acknowledgment** — a Contact becomes `synced` only when the server echoes
    it back, which makes the loop self-healing with no extra ack protocol.
 
-Conflicts resolve last-write-wins on the server only. Deletes are soft — a flag, never a
-removed row. The sync cursor is always a **server-time** timestamp; client clocks are never
-trusted for sync.
+Conflicts resolve last-write-wins on the server only; the client applies whatever a pull
+returns. Two operators editing the same Contact at the same moment is rare enough that
+CRDTs or field-level merge aren't worth carrying. Deletes are soft — a flag, never a removed
+row, which also suits an auditable contest log. The sync cursor is always a **server-time**
+timestamp; client clocks are never trusted for sync.
 
 **Event identity gates all of it.** The client compares its Event UUID against the server's
 at boot and on every `event` message. A mismatch means the server loaded a different Event,
 and the client stops and makes the operator choose rather than mixing or wiping logs on its
-own ([ADR-0002](./adr/0002-one-event-per-database.md)).
+own.
 
 **Callsign lookup** is its own REST endpoint, answered by the server from local datasets and
 a cache that outlives Events. The record shape is the contract; the sources behind it are

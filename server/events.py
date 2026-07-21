@@ -1,5 +1,5 @@
 """Event lifecycle: create from template, list, activate, delete, back up
-(ADR-0002).
+(docs/SERVER.md).
 
 The data directory holds:
   state.json           -> {"active": "events/<file>.db"} (which Event is live)

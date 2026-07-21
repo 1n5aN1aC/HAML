@@ -1,4 +1,4 @@
-// The sync engine (ADR-0001, plan §3.3).
+// The sync engine (docs/ARCHITECTURE.md).
 //
 // Push: fire-and-retry POST of each pending contact, individually. A push
 // response never marks anything synced — the pull is the acknowledgment.
@@ -109,7 +109,7 @@ async function pullPass() {
     for (const contact of contacts) {
       await db.contacts.put({ ...contact, sync_state: 'synced' })
     }
-    // Cursor and clock offset are only ever taken from pull responses (ADR-0001).
+    // Cursor and clock offset are only ever taken from pull responses (docs/SERVER.md, Sync endpoints).
     await kvSet('sync_cursor', server_time)
     await kvSet('clock_offset', ts(server_time) - Date.now())
   })

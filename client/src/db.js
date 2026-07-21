@@ -1,4 +1,4 @@
-// Local Dexie database: the client's own copy of the log (ADR-0001).
+// Local Dexie database: the client's own copy of the log (docs/CLIENT.md).
 // `contacts` mirrors the server row shape plus sync_state (pending | synced).
 // `kv` holds client identity, session, cached event config, and sync cursor.
 
@@ -70,7 +70,7 @@ export async function exportRawEvent() {
   )
 }
 
-// Event switch (ADR-0002): wipe everything that belongs to the old Event.
+// Event switch (docs/CLIENT.md): wipe everything that belongs to the old Event.
 // Client UUID and operator identity survive — the machine and person didn't change.
 export async function wipeEventData() {
   await db.contacts.clear()

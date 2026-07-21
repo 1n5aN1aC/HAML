@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Dev server proxies API + WebSocket traffic to the aiohttp server (ADR-0006).
+// Dev server proxies API + WebSocket traffic to the aiohttp server (docs/CLIENT.md).
 export default defineConfig({
   plugins: [react()],
   server: {

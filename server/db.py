@@ -1,9 +1,9 @@
 """Event database: schema, timestamps, and contact upsert/query logic.
 
-One SQLite file per Event (ADR-0002). All timestamps are ISO-8601 UTC strings
+One SQLite file per Event (docs/SERVER.md). All timestamps are ISO-8601 UTC strings
 normalized to the same format so they compare correctly as strings.
 
-Two clocks live side by side (ADR-0001 + plan note):
+Two clocks live side by side (docs/SERVER.md, Sync endpoints):
   - last_edited  : the LWW conflict clock, supplied by whoever edited
   - synced_at    : server-stamped on every stored change; the pull cursor
 """
@@ -170,7 +170,7 @@ def validate_contact(body):
 
 
 def upsert_contact(conn, contact):
-    """LWW upsert (ADR-0001). Returns True if the row was stored, False if the
+    """LWW upsert (docs/SERVER.md). Returns True if the row was stored, False if the
     incoming edit lost to a newer stored version."""
     row = conn.execute(
         "SELECT created_at, last_edited FROM contacts WHERE uuid = ?",

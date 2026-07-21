@@ -60,7 +60,7 @@ export function lookupCallsign(callsign) {
   })
 }
 
-// --- admin endpoints (ADR-0004: gated by the shared password header) --------
+// --- admin endpoints (gated by the shared password header — docs/ARCHITECTURE.md) --------
 
 const adminHeaders = (password) => ({ 'X-Admin-Password': password })
 

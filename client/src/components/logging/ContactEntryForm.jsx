@@ -1,6 +1,6 @@
 // Entry form: remote callsign + the Event's entry fields (custom fields
 // and built-ins, the template's `fields` items with `entry: true`). Writes
-// straight to Dexie as `pending` (ADR-0001 — local first, sync engine pushes
+// straight to Dexie as `pending` (docs/CLIENT.md — local first, sync engine pushes
 // later). Built-ins are stored as top-level properties on the contact; custom
 // fields live in the `fields` blob.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -177,7 +177,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
 
   // Advisory dupe check, fired when the callsign box loses focus (Tab, Space
   // navigation, or a click elsewhere). Warns but never blocks logging
-  // (ADR-0003). The banner clears when the callsign text changes or on log.
+  // (docs/SERVER.md, Template). The banner clears when the callsign text changes or on log.
   async function checkDuplicate() {
     if (!callsign) return
     const offset = (await kvGet('clock_offset')) ?? 0

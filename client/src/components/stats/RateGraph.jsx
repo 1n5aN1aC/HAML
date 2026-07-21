@@ -1,6 +1,6 @@
 // QSO rate graph for the Stats page (stats-top pane): a stacked bar chart
 // of QSO/h over the contest span (first contact → last contact), one stack
-// segment per mode. Hand-rolled inline SVG — no charting dependency (ADR-0006),
+// segment per mode. Hand-rolled inline SVG — no charting dependency (docs/ARCHITECTURE.md),
 // the first SVG we draw ourselves in the client.
 // Live view over Dexie, same pattern as StatsPanel. No 60s tick: the
 // x-domain runs first→last contact, not "now", so nothing on screen changes

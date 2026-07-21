@@ -1,4 +1,4 @@
-// Advisory duplicate detection (ADR-0003: the client warns at entry time,
+// Advisory duplicate detection (docs/CLIENT.md: the client warns at entry time,
 // never blocks, and the server never enforces uniqueness). Checks every
 // non-deleted contact in the local store — teammates' synced contacts
 // included — against the event's duplicate_type.

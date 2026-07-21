@@ -1,6 +1,6 @@
 // Edit/delete modal for one contact. Saving and deleting are ordinary sync
-// writes (ADR-0001): bump last_edited, mark pending, stamp this machine's
-// Client UUID as last editor (ADR-0004), and let the push/pull loops converge.
+// writes (docs/ARCHITECTURE.md): bump last_edited, mark pending, stamp this machine's
+// Client UUID as last editor (docs/ARCHITECTURE.md), and let the push/pull loops converge.
 import { useEffect, useState } from 'react'
 import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'

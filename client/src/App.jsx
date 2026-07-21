@@ -56,13 +56,13 @@ export default function App() {
   // The sync engine and the WebSocket signal layer run whenever we're on a
   // ready Event. The WebSocket owns the connection indicator; sync does
   // data transfer. The socket also drives presence, chat, pokes, and
-  // event-switch detection (ADR-0005).
+  // event-switch detection (docs/ARCHITECTURE.md).
   useEffect(() => {
     if (state.status !== 'ready') return
     setConnected(state.connected)
     // Offline continuation after an event mismatch: keep logging locally
     // against the old event, but never sync or announce presence — the
-    // server is on a different event now (ADR-0002).
+    // server is on a different event now (docs/CLIENT.md).
     if (state.offline) return
     // The WebSocket owns the connection indicator; sync just does data
     // transfer. Sync push/pull failures no longer flicker the status.
@@ -86,7 +86,7 @@ export default function App() {
       onPoke: pullNow,
       onEvent: async (eventUuid) => {
         // Server switched Events under us: re-run boot, which surfaces the
-        // mismatch warning (ADR-0002) instead of silently mixing logs.
+        // mismatch warning (docs/CLIENT.md) instead of silently mixing logs.
         if (eventUuid !== state.event.event_uuid) setState(await boot())
       },
     })

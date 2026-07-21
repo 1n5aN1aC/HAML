@@ -1,4 +1,4 @@
-// Admin tab: password-gated event/template management (ADR-0004).
+// Admin tab: password-gated event/template management (docs/SERVER.md).
 // The password is held in component state only — never persisted — and every
 // admin call sends it as X-Admin-Password; the server is the real gate.
 import { useState } from 'react'

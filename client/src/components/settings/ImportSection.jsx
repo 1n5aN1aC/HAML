@@ -2,7 +2,7 @@
 // Everything happens client-side: parse the file, let the importer map
 // modes/bands onto the event's lists, pick the operator identity, correct a
 // wrong source clock, then write the rows to Dexie as pending and let the
-// sync engine push them (ADR-0001 — same path as hand-logged contacts).
+// sync engine push them (docs/CLIENT.md — same path as hand-logged contacts).
 import { useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'

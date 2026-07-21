@@ -1,4 +1,4 @@
-"""Template files: reusable contest definitions (ADR-0003).
+"""Template files: reusable contest definitions (docs/SERVER.md).
 
 A template is a JSON file in server/templates/. Creating an Event copies the
 template's content into the Event database, so these files are never read on
@@ -12,7 +12,7 @@ from db import BUILTIN_FIELDS
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
-# How the client decides a Contact is a dupe (advisory only, ADR-0003).
+# How the client decides a Contact is a dupe (advisory only, docs/CLIENT.md).
 DUPLICATE_TYPES = {"band-mode", "any", "band-mode-day", "none"}
 
 TEMPLATE_ID_RE = re.compile(r"^[a-z0-9_-]+$")

@@ -2,8 +2,9 @@
 
 Python + aiohttp (the sole third-party dependency) over stdlib sqlite3, running on a club
 laptop. It holds the authoritative log, answers callsign lookups, relays real-time signals,
-and in production serves the built client's static files.
-[ADR-0006](./adr/0006-tech-stack.md)
+and in production serves the built client's static files — aiohttp covers all three server
+needs, which is why it's the only dependency. Validation is hand-written; the API surface is
+small enough that a framework doesn't pay its way.
 
 High-level picture: [ARCHITECTURE.md](./ARCHITECTURE.md).
 Client side: [CLIENT.md](./CLIENT.md).
@@ -13,8 +14,10 @@ Terminology: [GLOSSARY.md](./GLOSSARY.md).
 
 One database file per Event, and the server runs exactly one Event at a time — the contacts
 table has no `event_id` column, so every query is trivial and archiving an Event is a file
-copy. Switching Events is an explicit administrative action, not a query-time filter.
-[ADR-0002](./adr/0002-one-event-per-database.md)
+copy. Switching Events is an explicit administrative action, not a query-time filter. (The
+conventional alternative — one database with an `event_id` column and an active-Event
+pointer — was rejected: it complicates every query and sync path to support a multi-tenancy
+we don't want, and turns archiving and resetting into delete operations.)
 
 The lookup cache and the reference datasets sit in their own files *outside* the Event
 databases, so they survive Event switches — callsign facts belong to no particular Event.
@@ -27,8 +30,10 @@ Client UUID of the **last editor's machine** (overwritten on every edit), band, 
 `deleted` flag — plus a fixed roster of **built-in field** columns (country, ITU zone, CQ
 zone, continent, gridsquare, distance, state, section, county, frequency, RST sent/received,
 name, comment) and one JSON column holding the Event's *custom* Template fields. The Station
-callsign is Event metadata in the `meta` table, not a per-Contact column.
-[ADR-0003](./adr/0003-json-field-storage-frozen-event-config.md)
+callsign is Event metadata in the `meta` table, not a per-Contact column. Giving each Event
+its own dynamic columns would fit one-DB-per-Event, but making schemas differ between Events
+buys little; the built-ins are the opposite trade, and that's why they work — one fixed set
+of columns, identical everywhere, grown only by additive migration.
 
 The built-in roster is declared once in `server/db.py` (`BUILTIN_FIELDS`) and mirrored by the
 client's display registry (`client/src/builtin-fields.js`), which owns each one's label, max
@@ -52,19 +57,22 @@ Creating an Event copies the Template's configuration into the Event database an
 Event's own **location** — the operating position's latitude/longitude, optional, and the
 reference point for lookup distances. The Event's configuration is **frozen at creation**, so
 clients can cache it per Event UUID indefinitely and there is no config-change sync path at
-all. Later edits to Template files cannot affect a live Event.
+all. Later edits to Template files cannot affect a live Event. Allowing additive mid-Event
+field changes was considered; full immutability was chosen because it removes the
+config-sync problem entirely, at the price of "forgot a field" meaning "make a new Event".
 
 ## Sync endpoints
-
-[ADR-0001](./adr/0001-offline-first-sync-model.md)
 
 - **Push** — POST, an idempotent upsert keyed on the Contact UUID. Duplicate sends are
   harmless. The server never rejects a Contact for being a dupe; dupe checking is client-side
   advisory only.
 - **Pull** — GET everything with `synced_at >= cursor`; the response carries the new cursor.
+  The comparison is inclusive, so boundary rows are re-fetched — harmless, given the upsert.
   `synced_at` is **server-stamped on every stored change**, which is what keeps client clocks
   out of the cursor. `last_edited` is only the conflict clock. A cursor is therefore valid
   only when taken from a pull response (stamped after the query), never from a push response.
+  A server-assigned sequence number would be a sturdier cursor than a timestamp, but it was
+  rejected to keep the server stateless about each client's sync progress.
 - **Conflicts** resolve last-write-wins on `last_edited`, on the server only. Deletes are
   soft: a `deleted` flag plus a `last_edited` bump. Rows are never hard-deleted, which also
   suits an auditable contest log.
@@ -159,8 +167,8 @@ provenance and schemas: [server/datasets/README.md](../server/datasets/README.md
 ## Admin surface
 
 Every admin request carries a shared password as a header — a tripwire to stop people messing
-around, explicitly not a security mechanism
-([ADR-0004](./adr/0004-no-auth-trusted-lan.md)). Behind it: create an Event from a Template;
+around, explicitly not a security mechanism (see [ARCHITECTURE.md](./ARCHITECTURE.md),
+*Trust model*). Behind it: create an Event from a Template;
 activate, back up, or delete a stored Event; create, edit, and delete Template files; inspect
 and clear the callsign-lookup cache; clear the Event's chat history; and inject test contacts.
 

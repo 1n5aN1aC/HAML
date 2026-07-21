@@ -1,6 +1,6 @@
 // Log export — a section of the Settings tab, above the ADIF importer.
 // Everything happens client-side from the local Dexie copy of the log
-// (ADR-0001): this client exports what it has, including contacts still
+// (docs/CLIENT.md): this client exports what it has, including contacts still
 // pending push, so the modal reports both counts and lets the operator judge.
 import { useMemo, useState } from 'react'
 import { db, download, exportRawEvent } from '../../db.js'

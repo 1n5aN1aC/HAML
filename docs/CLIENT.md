@@ -3,7 +3,8 @@
 React in plain JavaScript (no TypeScript), built with Vite — whose dev server proxies API and
 WebSocket traffic to aiohttp during development, and whose production build emits static files
 for aiohttp to serve. IndexedDB access goes through Dexie; state is plain React context and
-hooks, no state-management framework. [ADR-0006](./adr/0006-tech-stack.md)
+hooks, no state-management framework. Charts and ADIF are hand-rolled rather than pulled in
+as libraries.
 
 High-level picture: [ARCHITECTURE.md](./ARCHITECTURE.md). Server side:
 [SERVER.md](./SERVER.md). Terminology: [GLOSSARY.md](./GLOSSARY.md).
@@ -11,8 +12,8 @@ High-level picture: [ARCHITECTURE.md](./ARCHITECTURE.md). Server side:
 ## Local store and sync
 
 The client is **offline-first**: every Contact is written to IndexedDB first and synced in the
-background, so logging survives a network drop.
-[ADR-0001](./adr/0001-offline-first-sync-model.md)
+background, so logging survives a network drop. Contact UUIDs are generated here, which is
+what lets a Contact exist before the server has ever seen it.
 
 New and edited Contacts land as `pending` and are pushed on a ~10s retry until the server
 echoes them back in a pull, which is the only thing that marks them `synced`. Pulls run every
@@ -30,8 +31,7 @@ creation server-side, so there is nothing to re-check.
 ## Event switch
 
 The client compares its Event UUID against the server's at boot and on every `event` message
-from the WebSocket. On mismatch it stops and makes the operator choose
-([ADR-0002](./adr/0002-one-event-per-database.md)):
+from the WebSocket. On mismatch it stops and makes the operator choose:
 
 - **Switch** — wipe every local trace of the old Event (contacts, chat, sync cursor, clock
   offset), then pull the new configuration.
@@ -100,8 +100,7 @@ never enforces uniqueness.
 
 - **Stats** — the fuller statistics view: detailed stats panel, QSO rate graph, section map.
 - **Settings** — client settings and log interchange (below).
-- **Admin** — the password-gated Admin page
-  ([ADR-0004](./adr/0004-no-auth-trusted-lan.md)): Events, Templates, lookup cache, and
+- **Admin** — the password-gated Admin page: Events, Templates, lookup cache, and
   maintenance actions. Also shown on its own when the server has no active Event. What it can
   do is listed in [SERVER.md](./SERVER.md).
 

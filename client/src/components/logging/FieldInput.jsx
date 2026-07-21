@@ -1,4 +1,4 @@
-// One template-defined field input (ADR-0003).
+// One template-defined field input (docs/SERVER.md, Template).
 // Shared by the entry form and the edit modal so fields render identically.
 //
 // Live validation feedback:
