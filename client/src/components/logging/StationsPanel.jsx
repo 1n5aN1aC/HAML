@@ -1,4 +1,4 @@
-// Online stations roster (plan §3.5).
+// Online stations roster (docs/CLIENT.md — Presence and chat).
 // The server sends `last_seen_at` for each station as a wall-clock epoch second;
 // We tick once per second locally and compute the age here, applying the server clock offset (kv: clock_offset)
 // so this client agrees with the server even if its wall clock is skewed.

@@ -67,9 +67,10 @@ def setup(app):
         app["fcc_db"] = conn
         app["fcc_db_path"] = str(db_path)
     except (sqlite3.OperationalError, sqlite3.DatabaseError, OSError) as exc:
+        # Not fatal: the chain falls through to the prefix DB.
         print(
             f"warning: FCC dataset unavailable at {db_path} ({exc}); "
-            "callsign lookup will return 502 until the file is present"
+            "Falling back to other sources"
         )
         app["fcc_db"] = None
         app["fcc_db_path"] = str(db_path)

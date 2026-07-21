@@ -294,7 +294,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       if (isBuiltin(name)) builtins[name] = v
       else customFields[name] = v
     }
-    // QSO time defaults from server-corrected time (clock offset, plan §3.3);
+    // QSO time defaults from server-corrected time (clock offset, docs/CLIENT.md);
     // the offset is written by the sync engine and is absent until first sync.
     const offset = (await kvGet('clock_offset')) ?? 0
     const now = new Date(Date.now() + offset).toISOString()

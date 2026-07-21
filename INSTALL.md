@@ -59,7 +59,7 @@ Open http://localhost
 ## Run the tests
 
 Each smoke test spawns its own server on a scratch port with a scratch data directory, so
-nothing needs to be running first. Run them one at a time, from the repo root:
+nothing needs to be running first.  Run them one at a time, from the repo root:
 
 ```
 python server/tests/smoke.py          # server core: events, sync, admin

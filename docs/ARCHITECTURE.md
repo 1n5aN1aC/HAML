@@ -7,6 +7,7 @@ over a trusted LAN.
 
 Terminology: [GLOSSARY.md](./GLOSSARY.md).
 Details: [SERVER.md](./SERVER.md), [CLIENT.md](./CLIENT.md).
+Wire contract: [API.md](./API.md).
 
 ## The pieces
 
@@ -17,7 +18,8 @@ Details: [SERVER.md](./SERVER.md), [CLIENT.md](./CLIENT.md).
   IndexedDB (via Dexie) and sync in the background, so a logging position keeps working
   through a network drop.
 - **Minimal dependencies** — aiohttp is the server's only third-party package; the client
-  adds Vite, React, and Dexie and nothing else (no TypeScript, no state-management
+  adds Vite, React, and Dexie (with `dexie-react-hooks`, whose `useLiveQuery` is how every
+  panel reads the local log) and nothing else (no TypeScript, no state-management
   framework, no charting or ADIF libraries). This runs on a club laptop dusted off once a
   year, where a small dependency tree and dumb code age better.
 - **Trust model** — no authentication; the LAN is the boundary. Anyone can edit or delete
@@ -46,7 +48,8 @@ The data loop is offline-first and converges by repetition rather than by protoc
 1. The client writes new and edited Contacts to IndexedDB as `pending`. UUIDs are
    client-generated, so a Contact can be created with the server unreachable.
 2. **Push** — an idempotent POST upsert keyed on that UUID, retried every ~10s while
-   anything is pending. Duplicate sends are harmless.
+   anything is pending, backing off exponentially to ~2min while the server is
+   unreachable. Duplicate sends are harmless.
 3. **Pull** — a GET for everything changed since the client's sync cursor, every ~30s and
    immediately on a poke.
 4. **Pull is the acknowledgment** — a Contact becomes `synced` only when the server echoes

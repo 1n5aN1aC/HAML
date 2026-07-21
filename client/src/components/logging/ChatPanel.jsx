@@ -1,4 +1,4 @@
-// Chat panel (plan §3.5): scrolling history + input. Sending requires operator
+// Chat panel (docs/CLIENT.md — Presence and chat): scrolling history + input. Sending requires operator
 // identity (callsign + initials) since every message is stamped with it.
 // Failed sends (socket down / lost in a blip) show a manual resend button.
 import { useEffect, useRef, useState } from 'react'

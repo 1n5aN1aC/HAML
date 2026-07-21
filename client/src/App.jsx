@@ -1,4 +1,4 @@
-// App shell: boot, session gating, and the tabbed layout (plan §3.5).
+// App shell: boot, session gating, and the tabbed layout (docs/CLIENT.md — UI).
 // All background machinery (sync, socket, presence, chat) lives here so
 // it keeps running no matter which tab is shown.
 

@@ -1,5 +1,5 @@
-// Boot sequence (plan §3.2): establish client identity, fetch the active
-// Event, and detect Event switches via the Event UUID (docs/CLIENT.md).
+// Boot sequence: establish client identity, fetch the active Event, and
+// detect Event switches via the Event UUID (docs/CLIENT.md — Event switch).
 import { getEvent } from './api.js'
 import { getClientUuid, kvGet, kvSet, wipeEventData } from './db.js'
 

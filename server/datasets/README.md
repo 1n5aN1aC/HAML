@@ -74,8 +74,10 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   - `operator_class` TEXT, `previous_operator_class` TEXT  — single-letter codes (`A`/`E`/`G`/`N`/`P`/`T`)
   - `previous_callsign` TEXT, `trustee_callsign` TEXT, `trustee_name` TEXT, `attention_line` TEXT
   - `street_address` TEXT, `po_box` TEXT, `city` TEXT, `state` TEXT, `zip_code` TEXT
+  - `county` TEXT
   - `frn` TEXT
-  - `grant_date` TEXT, `expiry_date` TEXT   — ISO `YYYY-MM-DD`
+  - `grant_date` TEXT, `expired_date` TEXT   — ISO `YYYY-MM-DD`. Note the column
+    is `expired_date`; the canonical lookup record calls the field `expiry_date`.
   - `gridsquare` TEXT  — 4-char Maidenhead field grid
   - `coordinates` TEXT  — `"lat,lon"` pre-geocoded by the importer
   - `dxcc_entity` TEXT — DXCC entity name (e.g. `"United States"`, `"Alaska"`, `"Northern Mariana Islands"`). Served to clients as the `country` field.
@@ -83,5 +85,6 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   - `dxcc_id` INTEGER  — ARRL DXCC entity code (e.g. `291` for US). Served to clients as the `dxcc` field.
 - **Server config**: path overridable via `fcc_db_path` in the server
   config JSON. Default is `datasets/fcc_amateur.sqlite` (resolved
-  relative to the server dir). A missing file is non-fatal: the server
-  prints a warning at boot and lookups return 502.
+  relative to the server dir). A missing file is non-fatal: the server prints a
+  warning at boot and lookups fall through to other sources.  A 502 is returned
+  only when nothing below resolves either.

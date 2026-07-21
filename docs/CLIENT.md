@@ -15,7 +15,9 @@ The client is **offline-first**: every Contact is written to IndexedDB first and
 background, so logging survives a network drop. Contact UUIDs are generated here, which is
 what lets a Contact exist before the server has ever seen it.
 
-New and edited Contacts land as `pending` and are pushed on a ~10s retry until the server
+New and edited Contacts land as `pending` and are pushed on a ~10s retry — backing off
+exponentially to ~2min while the server is unreachable, and snapping back to ~10s on the
+first success — until the server
 echoes them back in a pull, which is the only thing that marks them `synced`. Pulls run every
 ~30s and immediately on a server poke. The client applies pulled records **unconditionally** —
 the server is the source of truth, and there is no client-side conflict logic. Accepted risk:
@@ -53,9 +55,11 @@ tab is shown.
 ### Logging tab
 
 Opens with a **status bar**: Operator callsign + initials inputs, band/mode dropdowns, and the
-Event's local exchange. Logging is disabled until identity, band, and mode are filled — the
+Event's local exchange. Logging is disabled until callsign, initials, and band are filled — the
 band dropdown starts on **Off-Air**, a pseudo-band that counts as unfilled and keeps the
-station out of band-conflict checks. Bands other live stations occupy are marked inside the
+station out of band-conflict checks. Mode never gates anything: it starts on the Event's
+'Phone' or, failing that, its first mode, and a saved mode the current Event doesn't list
+falls back the same way. Bands other live stations occupy are marked inside the
 dropdown, and sharing a band with another station raises an inline warning.
 
 **Left pane** (larger): the top half is the Event-wide contact list (rendered window: most
@@ -78,7 +82,8 @@ the entry form: callsign plus the Template's `entry` fields, with entry-time dup
   carry into the next. Only values the field's own validation accepts are filled.
 - **Feedback** — a running UTC/local clock, the looked-up country and distance beside the
   callsign box, and distinct sounds for a normal log, a DX log, a dupe warning, a rejected
-  entry, and an incoming chat message.
+  entry, and an incoming chat message. Distance is always *stored* in kilometers; a display
+  may convert it.
 
 **Right pane**: online stations with band/mode and last-seen (top); a scrolling chat box
 (middle); a panel toggling between the section map and a compact stats readout (bottom). The

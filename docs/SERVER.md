@@ -8,6 +8,7 @@ small enough that a framework doesn't pay its way.
 
 High-level picture: [ARCHITECTURE.md](./ARCHITECTURE.md).
 Client side: [CLIENT.md](./CLIENT.md).
+Every route and message, in detail: [API.md](./API.md).
 Terminology: [GLOSSARY.md](./GLOSSARY.md).
 
 ## Events and databases
@@ -169,7 +170,8 @@ provenance and schemas: [server/datasets/README.md](../server/datasets/README.md
 Every admin request carries a shared password as a header — a tripwire to stop people messing
 around, explicitly not a security mechanism (see [ARCHITECTURE.md](./ARCHITECTURE.md),
 *Trust model*). Behind it: create an Event from a Template;
-activate, back up, or delete a stored Event; create, edit, and delete Template files; inspect
+activate or delete a stored Event; back up the *active* Event (the only one the server holds
+open, so it's the only one it can snapshot); create, edit, and delete Template files; inspect
 and clear the callsign-lookup cache; clear the Event's chat history; and inject test contacts.
 
 When the server has no active Event, there is nothing to serve but this surface — the client
@@ -184,3 +186,7 @@ Three smoke tests in `server/tests/`:
 
 Each spawns its own server on a scratch port with a scratch data directory, so nothing needs to be running first;
 Each prints a check count and exits non-zero on failure. Run them one at a time — see [INSTALL.md](../INSTALL.md).
+
+The data directory is scratch, but Template files are not: `smoke.py` exercises the Template
+endpoints against the real `server/templates/`, writing and then deleting `smoke-*.json`
+there. A run killed mid-flight can leave those files behind; the next run clears them first.
