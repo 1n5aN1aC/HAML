@@ -3,22 +3,11 @@
 // (ADR-0001): this client exports what it has, including contacts still
 // pending push, so the modal reports both counts and lets the operator judge.
 import { useMemo, useState } from 'react'
-import { db } from '../../db.js'
+import { db, download, exportRawEvent } from '../../db.js'
 import {
   ADIF_BANDS, ADIF_MODES, BAND_ALIASES, MODE_ALIASES,
   breakdown, buildAdif, initialMapping,
 } from '../../adif-export.js'
-
-// Trigger a download of `text` as `filename`, the same way App.jsx's
-// local-data export does.
-function download(filename, text) {
-  const blob = new Blob([text], { type: 'text/plain' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(a.href)
-}
 
 export default function ExportSection({ event }) {
   // null when the modal is closed; otherwise the loaded snapshot of the log.
@@ -116,6 +105,18 @@ export default function ExportSection({ event }) {
         <span className="import-hint">
           Will produce a contest-ready file formatted to this event’s template
           export mapping. <em>Not implemented yet.</em>
+        </span>
+      </div>
+
+      <div className="import-choose-row export-second-row">
+        <button type="button" className="btn-primary import-choose" onClick={exportRawEvent}>
+          Export Raw Data
+        </button>
+        <span className="import-hint">
+          Download everything this browser holds for the event — contacts
+          (including deleted ones and any not yet synced), chat, and the event
+          config — as a <code>.json</code> snapshot. For archiving or
+          troubleshooting, not for loading into another logger.
         </span>
       </div>
 

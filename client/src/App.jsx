@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { boot } from './boot.js'
-import { kvGet, kvSet, exportEventData } from './db.js'
+import { kvGet, kvSet, exportRawEvent } from './db.js'
 import { startSync, pullNow } from './sync.js'
 import { startSocket, setPresence } from './socket.js'
 import { loadChat, refreshChat, applyChatBroadcast, sendMessage, resendMessage, clearChat } from './chat.js'
@@ -143,18 +143,6 @@ export default function App() {
     })
   }
 
-  // Download the whole local database (event, contacts, chat) as JSON.
-  async function exportData() {
-    const data = await exportEventData()
-    const name = (data.event?.name || 'event').replace(/[^\w-]+/g, '_')
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `haml-${name}-${data.exported_at.slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
-
   if (state.status === 'loading') {
     return <div className="screen">Connecting...</div>
   }
@@ -196,7 +184,7 @@ export default function App() {
           <button className="btn-secondary" onClick={continueOffline}>
             Continue offline with {state.cached.name}
           </button>
-          <button className="btn-secondary" onClick={exportData}>
+          <button className="btn-secondary" onClick={exportRawEvent}>
             Export local data
           </button>
         </div>

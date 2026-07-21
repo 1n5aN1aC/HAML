@@ -6,7 +6,7 @@ Requirements: Python 3, Node.js
 
 ```
 python -m venv .venv
-.venv\Scripts\activate        # Windows
+.venv\Scripts\activate.ps1    # Windows
 source .venv/bin/activate     # Linux/macOS
 pip install -r server/requirements.txt
 

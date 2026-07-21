@@ -170,6 +170,11 @@ server has no export or import endpoint
   callsign, band, mode, and minute) are skipped, as are rows that can't satisfy one of the
   Event's required fields. Accepted rows are written to IndexedDB as `pending` and reach the
   server over the normal sync path — the same road hand-logged contacts take.
+- **Raw export** (Settings tab) writes a `.json` snapshot of everything the browser holds for the
+  Event — the cached config, the chat, and every contact row as stored, tombstones and unsynced rows
+  included. It isn't an interchange format and nothing reads it back; it exists for archiving and
+  for handing a log to someone who needs to see what the client actually has. The mismatch rescue
+  screen's "Export local data" button produces the same file.
 
 ## Explicitly deferred
 

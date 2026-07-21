@@ -46,6 +46,30 @@ export async function exportEventData() {
   }
 }
 
+// Trigger a browser download of `text` as `filename`.
+export function download(filename, text, mime = 'text/plain') {
+  const blob = new Blob([text], { type: mime })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  // Revoking synchronously after click() has historically cancelled the download in Firefox; 
+  // Defer it past the current task instead.
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 0)
+}
+
+// Download the raw local snapshot: everything Dexie holds, deleted contacts and all. 
+// HAML-RAW_<event name>_<date>.json
+export async function exportRawEvent() {
+  const data = await exportEventData()
+  const name = (data.event?.name || 'event').replace(/[^\w-]+/g, '-')
+  download(
+    `HAML-RAW_${name}_${data.exported_at.slice(0, 10)}.json`,
+    JSON.stringify(data, null, 2),
+    'application/json',
+  )
+}
+
 // Event switch (ADR-0002): wipe everything that belongs to the old Event.
 // Client UUID and operator identity survive — the machine and person didn't change.
 export async function wipeEventData() {
