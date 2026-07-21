@@ -13,9 +13,12 @@ dev server proxies API and WebSocket traffic to aiohttp during development, and 
 production build emits static files for aiohttp to serve. IndexedDB access goes through
 **Dexie**; state is plain React context/hooks, no state-management framework.
 
-Log export (Cabrillo/ADIF) is designed-for but deferred: Templates reserve an optional
-export-mapping slot (empty in v1) so stored data stays export-capable; the export
-endpoint itself is post-v1.
+Log interchange follows the same no-dependency rule: ADIF export and import are both
+hand-written (`client/src/adif-export.js`, `client/src/adif.js`) and run entirely in the
+client against its local Dexie copy, so the server grows neither an endpoint nor a library
+for them ([ADR-0007](./0007-client-side-adif-interchange.md)). Contest-submission export
+(Cabrillo, or ADIF shaped to a contest's rules) is still deferred; Templates reserve an
+optional export-mapping slot for it, unused so far.
 
 ## Considered options
 

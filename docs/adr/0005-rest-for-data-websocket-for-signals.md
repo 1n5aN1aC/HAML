@@ -24,6 +24,13 @@ they make any resend harmless). An outgoing message absent from the post-reconne
 history didn't arrive: it is marked failed in the UI for the operator to resend manually.
 There is no automatic retry queue for chat — that machinery is reserved for Contacts.
 
+Chat is append-only with exactly one exception: the Admin page can clear it. That deletes
+every row in the Event's chat table and broadcasts `chat_cleared`, on which clients drop
+their entire local history — including their own `pending` and `failed` messages, since a
+leftover "failed" bubble would contradict the wipe the admin just performed. There are no
+tombstones and no per-message deletion: the full-history refresh above is already the
+recovery path, so after a clear it simply comes back empty.
+
 ## Considered options
 
 - Contact sync over the WebSocket too — rejected: makes the socket load-bearing and

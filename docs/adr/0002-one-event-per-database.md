@@ -6,9 +6,15 @@ save, and load Event databases, so switching events is an explicit administrativ
 not a query-time filter. This keeps every query trivial, makes archiving an event a file
 copy, and matches the operating model of club logging software (one file per contest).
 
-Clients detect an Event switch via the Event UUID: on mismatch they warn the operator,
-then wipe local state and pull fresh configuration if the operator agrees. There is no
-silent migration of local data between Events.
+Clients detect an Event switch via the Event UUID, comparing it at boot and on every
+`event` message from the WebSocket. On mismatch the client stops and makes the operator
+choose between three options: **switch** (wipe every local trace of the old Event —
+contacts, chat, sync cursor, clock offset — then pull the new configuration), **continue
+offline** (keep logging locally against the cached old Event with sync and presence
+disabled, so nothing is lost and nothing is mixed; a reload brings the choice back), or
+**export local data** (download the cached Event, contacts, and chat as JSON before
+deciding). The Client UUID and the operator's identity survive a switch — the machine and
+the person didn't change. There is no silent migration of local data between Events.
 
 ## Considered options
 
