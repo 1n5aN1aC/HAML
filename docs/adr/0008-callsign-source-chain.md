@@ -34,15 +34,18 @@ take the chain down.
 **Each source declares whether it may be cached; the dispatcher does the
 writing.** `CACHED` is a property of the source, not of the result, and no
 source touches `lookup_cache` itself — one writer, one place the TTL policy
-lives. Both shipped sources are `CACHED = False`: they are offline and answer in
-microseconds, so a row buys nothing on latency and costs correctness, because
-the cache is read once *before* the chain runs. That pre-chain read is
+lives. Both shipped *data* sources — `fcc` and `callparser` — are
+`CACHED = False`: they are offline and answer in microseconds, so a row buys
+nothing on latency and costs correctness, because the cache is read once
+*before* the chain runs. `blank` is `CACHED = True` purely as the worked example
+of a caching source; its write path never actually fires, because it never
+returns an OK. That pre-chain read is
 deliberate — it is what makes a cache worth having — but it means a cached row
 outranks every source above the one that wrote it until the row expires. Paying
 that only for genuinely expensive sources is the point of the flag.
 
-`dirty` is not plumbed through the source result yet. Nothing shipped is
-cacheable, so every write would be clean; when the first real caching source
+`dirty` is not plumbed through the source result yet. No shipped source ever
+writes a cache row, so there is nothing for it to describe; when the first real caching source
 lands, add it to the result shape (both offline adapters already compute
 `bad_fields`) so a half-coerced record gets the 15-minute TTL instead of 365
 days.
