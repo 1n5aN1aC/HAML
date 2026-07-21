@@ -1,4 +1,4 @@
-"""WebSocket layer: presence, chat, and pokes (ADR-0005 — signals only).
+"""WebSocket layer: presence, chat, and pokes (docs/SERVER.md — signals only).
 
 Contact data never travels here. Presence lives purely in server memory and
 liveness is heartbeat recency, never socket state: a station drops off the

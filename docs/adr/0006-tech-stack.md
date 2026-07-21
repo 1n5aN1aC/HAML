@@ -16,7 +16,7 @@ production build emits static files for aiohttp to serve. IndexedDB access goes 
 Log interchange follows the same no-dependency rule: ADIF export and import are both
 hand-written (`client/src/adif-export.js`, `client/src/adif.js`) and run entirely in the
 client against its local Dexie copy, so the server grows neither an endpoint nor a library
-for them ([ADR-0007](./0007-client-side-adif-interchange.md)). Contest-submission export
+for them (see [CLIENT.md](../CLIENT.md), *Log interchange*). Contest-submission export
 (Cabrillo, or ADIF shaped to a contest's rules) is still deferred; Templates reserve an
 optional export-mapping slot for it, unused so far.
 

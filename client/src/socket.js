@@ -1,4 +1,4 @@
-// WebSocket signal layer (ADR-0005): presence heartbeats out; roster, chat
+// WebSocket signal layer (docs/ARCHITECTURE.md): presence heartbeats out; roster, chat
 // broadcasts, pokes, and event notices in. Pure optimization — when the
 // socket is down, sync polling continues, presence goes stale, chat pauses.
 const HEARTBEAT_INTERVAL = 5_000
@@ -46,7 +46,7 @@ export function setPresence(presence) {
 }
 
 // Send a chat message. Returns false when the socket is down — the caller
-// marks the message failed for manual resend (ADR-0005).
+// marks the message failed for manual resend (see docs/CLIENT.md).
 export function sendChat(message) {
   if (!mgr || !isOpen(mgr.ws)) return false
   mgr.ws.send(JSON.stringify({ type: 'chat', ...message }))

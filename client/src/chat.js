@@ -1,4 +1,4 @@
-// Chat client logic (ADR-0005): live messages arrive over the WebSocket; on
+// Chat client logic (docs/CLIENT.md): live messages arrive over the WebSocket; on
 // every (re)connect the entire history is re-fetched over REST and replaces
 // local state — an Event's chat is small enough that cursors aren't worth it.
 // Own sends stay `pending` until the server's broadcast echoes them back; a

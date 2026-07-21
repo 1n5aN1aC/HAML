@@ -1,4 +1,4 @@
-# REST API: data endpoints (ADR-0005 — REST carries data).
+# REST API: data endpoints (docs/ARCHITECTURE.md — REST carries data).
 #
 # Contacts: one record per request, idempotent LWW upsert (ADR-0001).
 # Admin endpoints are gated by the shared password header (ADR-0004).

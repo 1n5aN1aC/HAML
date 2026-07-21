@@ -1,6 +1,5 @@
 BUGS:
 - Filed out, but not submitted contact clears on switching tabs
-- 
 
 Feature:  Event-specific exports
 - POTA Export
@@ -13,10 +12,16 @@ POTA Improvements:
 - P2P should default to "US-"
 - Park decoding support
 
-Mobile Improvements:
-- Fullscreen button
-- Submit button
-- Mobile Layout
+Client:
+  Mobile Improvements:
+    Fullscreen button
+    Submit button
+    Mobile Layout
+  Offline-First PWA
+  Re-submit as Edit with late data
+
+Server:
+  Automatic Backup Feature
 
 Location-based improvements:
 - Data source: Other countries
@@ -37,9 +42,5 @@ Supercheck partial:
 - Contest Supercheck Partial
 
 Digital integration shim
-
-Re-submit as Edit with late data
-
-Offline-first PWA
 
 Add a README

@@ -24,7 +24,7 @@ export async function kvSet(key, value) {
   await db.kv.put({ key, value })
 }
 
-// The Client UUID identifies this machine (see CONTEXT.md).
+// The Client UUID identifies this machine (see GLOSSARY.md).
 // It is generated once and survives event switches — it names the machine, not the event.
 export async function getClientUuid() {
   let uuid = await kvGet('client_uuid')

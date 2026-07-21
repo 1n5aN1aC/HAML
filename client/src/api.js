@@ -1,4 +1,4 @@
-// REST wrappers (ADR-0005: REST carries data).
+// REST wrappers (docs/ARCHITECTURE.md: REST carries data).
 
 // Wrapper around fetch that throws on any non-2xx response.
 // Attaches err.status so callers can distinguish HTTP failures from network errors.
@@ -33,7 +33,7 @@ export function postContact(contact) {
   })
 }
 
-// Fetch the full chat history (connect / blip recovery — ADR-0005).
+// Fetch the full chat history (connect / blip recovery — see docs/CLIENT.md).
 export function getChat() {
   return request('/api/chat')
 }
