@@ -51,10 +51,10 @@ export const MODE_ALIASES = {
   usb: 'SSB',
   lsb: 'SSB',
   ft8: 'FT8',
-  ft4: 'FT4',
   digital: 'MFSK',
   data: 'MFSK',
   // Real ADIF submodes, each unambiguous about its parent mode.
+  ft4: 'MFSK',
   ft2: 'MFSK',
   psk31: 'PSK',
 }
