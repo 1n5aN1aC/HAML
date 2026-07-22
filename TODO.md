@@ -18,7 +18,7 @@ Client:
     Mobile Layout
   Offline-First PWA
   Re-submit as Edit with late data
-  Import ADIF should only apply operator & initial to rows that don't have it.
+  ADIF Import should only apply operator & initial to rows that don't have it.
 
 Server:
   Automatic Backup Feature

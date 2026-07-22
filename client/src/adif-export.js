@@ -127,6 +127,9 @@ function recordTags(contact, { event, bandMap, modeMap }) {
     tag('MODE', modeMap[contact.mode] ?? ''),
     tag('STATION_CALLSIGN', event.station_callsign),
     tag('OPERATOR', contact.operator_callsign),
+    // ADIF has no field for the operator's initials, so we borrow N3FJP's application-defined name
+    // Bare N3FJP_, not APP_N3FJP_:  N3FJP does not follow the spec.
+    tag('N3FJP_INITIALS', contact.operator_initials),
   ]
   // Drive this from the built-in registry, not from BUILTIN_ADIF, so a newly
   // added built-in exports (as APP_HAML_<NAME>) instead of vanishing.
