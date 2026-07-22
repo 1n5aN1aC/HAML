@@ -1,8 +1,9 @@
 // ADIF import — a section of the Settings tab.
 // Everything happens client-side: parse the file, let the importer map
-// modes/bands onto the event's lists, pick the operator identity, correct a
-// wrong source clock, then write the rows to Dexie as pending and let the
-// sync engine push them (docs/CLIENT.md — same path as hand-logged contacts).
+// modes/bands onto the event's lists, take each record's own operator identity
+// (falling back to a typed one for records that name none), correct a wrong
+// source clock, then write the rows to Dexie as pending and let the sync engine
+// push them (docs/CLIENT.md — same path as hand-logged contacts).
 import { useMemo, useRef, useState } from 'react'
 import { db, kvGet } from '../../db.js'
 import { pushNow } from '../../sync.js'
@@ -12,6 +13,10 @@ import { isBuiltin, resolveAllFields } from '../../builtin-fields.js'
 import { parseAdif, recordTimestamp } from '../../adif.js'
 
 const BLANK = '(blank)'
+
+// Operator identity length caps — shared by the file-value reader and the text-box inputs
+const MAX_CALLSIGN = 10
+const MAX_INITIALS = 4
 
 // Distinct values of one ADIF field across the records, with counts.
 // Missing/empty values group under BLANK so they get a mapping row too.
@@ -54,6 +59,16 @@ function builtinValues(r) {
     county: r.CNTY ?? '',
     country: r.COUNTRY ?? '',
     comment: r.COMMENT ?? '',
+  }
+}
+
+// The operator identity a record carries, '' for either half it lacks.
+// OPERATOR is standard ADIF; initials use N3FJP's tag — the same one adif-export.js writes,
+// Sanitized/capped exactly like the typed boxes so a file value and a hand-entered one are indistinguishable downstream.
+function operatorValues(r) {
+  return {
+    callsign: sanitizeText(String(r.OPERATOR ?? '')).toUpperCase().slice(0, MAX_CALLSIGN),
+    initials: sanitizeText(String(r.N3FJP_INITIALS ?? '')).toUpperCase().slice(0, MAX_INITIALS),
   }
 }
 
@@ -101,17 +116,31 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
     const labels = new Set()
     let count = 0
     for (const u of file.usable) {
-      const missing = requiredFields.filter(
+      const unmet = requiredFields.filter(
         (f) => !fieldValue(u.record, f).trim() && !(f.default ?? '').trim(),
       )
-      if (missing.length) {
+      if (unmet.length) {
         count++
-        missing.forEach((f) => labels.add(f.label ?? f.name))
+        unmet.forEach((f) => labels.add(f.label ?? f.name))
       }
     }
     return { count, labels: [...labels] }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, requiredFields])
+
+  // How many usable records name neither operator nor initials themselves?
+  // These rows that will fall back to the text boxes, so each box only appears when non-zero.
+  // Counted over every usable record, like the mode/band breakdowns, not the post-dupe set.
+  const missing = useMemo(() => {
+    let callsign = 0
+    let initials = 0
+    for (const u of file?.usable ?? []) {
+      const id = operatorValues(u.record)
+      if (!id.callsign) callsign++
+      if (!id.initials) initials++
+    }
+    return { callsign, initials }
+  }, [file])
 
   // Each box is independently signed (spinners go negative); the shift is
   // their sum, so -1 days + 30 minutes = 23.5 hours back.
@@ -194,6 +223,9 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
       const key = dupeKey(call, band, mode, iso)
       if (seen.has(key)) continue
       seen.add(key)
+      // Each half of the identity comes from the record if it has it, else the typed fallback.
+      // The server rejects a blank operator/initials, so both must resolve non-empty
+      const identity = operatorValues(record)
       const builtins = builtinValues(record)
       const fields = {}
       if (hasTheirPark && (record.SIG ?? '').trim().toUpperCase() === 'POTA') {
@@ -212,8 +244,8 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
         created_at: now,
         last_edited: now,
         remote_callsign: call,
-        operator_callsign: callsign.trim().toUpperCase(),
-        operator_initials: initials.trim().toUpperCase(),
+        operator_callsign: identity.callsign || callsign.trim().toUpperCase(),
+        operator_initials: identity.initials || initials.trim().toUpperCase(),
         client_uuid: clientUuid,
         band,
         mode,
@@ -286,7 +318,10 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
 
   const mappingComplete =
     modes.every(([v]) => modeMap[v]) && bands.every(([v]) => bandMap[v])
-  const ready = mappingComplete && callsign.trim() && initials.trim()
+  // A text box is only required when some record actually depends on it.
+  const ready = mappingComplete
+    && (!missing.callsign || callsign.trim())
+    && (!missing.initials || initials.trim())
   const importable = file.usable.length - dupeCount - unsyncable.count
 
   const mappingTable = (title, note, pairs, mapping, setMapping, options) => (
@@ -340,28 +375,42 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
 
       <div className="import-section">
         <h2>Log as</h2>
-        <div className="import-row">
-          <label>
-            Operator:
-            <input
-              className="cs"
-              autoCapitalize="characters"
-              value={callsign}
-              onChange={(e) => setCallsign(sanitizeText(e.target.value).toUpperCase())}
-              maxLength={10}
-            />
-          </label>
-          <label>
-            Initials:
-            <input
-              className="cs"
-              autoCapitalize="characters"
-              value={initials}
-              onChange={(e) => setInitials(sanitizeText(e.target.value).toUpperCase())}
-              maxLength={4}
-            />
-          </label>
-        </div>
+        <p className="import-hint">
+          {missing.callsign || missing.initials
+            ? `${file.usable.length - Math.max(missing.callsign, missing.initials)} of `
+              + `${file.usable.length} contacts name their operator in the file. `
+              + 'The rest will be logged as:'
+            : 'Every contact names its operator in the file; each is imported under '
+              + 'its own identity.'}
+        </p>
+        {(missing.callsign > 0 || missing.initials > 0) && (
+          <div className="import-row">
+            {missing.callsign > 0 && (
+              <label>
+                Operator:
+                <input
+                  className="cs"
+                  autoCapitalize="characters"
+                  value={callsign}
+                  onChange={(e) => setCallsign(sanitizeText(e.target.value).toUpperCase())}
+                  maxLength={MAX_CALLSIGN}
+                />
+              </label>
+            )}
+            {missing.initials > 0 && (
+              <label>
+                Initials:
+                <input
+                  className="cs"
+                  autoCapitalize="characters"
+                  value={initials}
+                  onChange={(e) => setInitials(sanitizeText(e.target.value).toUpperCase())}
+                  maxLength={MAX_INITIALS}
+                />
+              </label>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="import-section">
@@ -425,9 +474,14 @@ export default function ImportSection({ config, session, clientUuid, onReset }) 
       )}
       {!ready && (
         <p className="import-hint">
-          {mappingComplete
-            ? 'Enter the operator callsign and initials to import.'
-            : 'Map every mode and band to one of the event’s values to import.'}
+          {!mappingComplete
+            ? 'Map every mode and band to one of the event’s values to import.'
+            : `Enter the operator ${
+              [
+                missing.callsign && !callsign.trim() && 'callsign',
+                missing.initials && !initials.trim() && 'initials',
+              ].filter(Boolean).join(' and ')
+            } to import.`}
         </p>
       )}
 

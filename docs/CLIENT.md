@@ -132,10 +132,15 @@ was actually on the air.
   unmapped falls back to `APP_HAML_<NAME>`, so a newly added built-in or an admin-invented
   custom field can't silently vanish. The record loop iterates the built-in registry and the
   Event's field list rather than each contact's own keys, keeping output column-stable across
-  contacts.
-- **Import** (Settings tab) parses an `.adi`/`.adif` file from another logger, then has the
-  operator choose the operator identity to log under and optionally shift every timestamp
-  (signed days/hours/minutes) to correct a wrong clock on the source machine. Three filters run
+  contacts. The per-QSO operator goes out as `OPERATOR` (callsign) plus `N3FJP_INITIALS`
+  (initials — no ADIF field exists, so we borrow N3FJP's unprefixed tag, which its own loggers
+  emit and read back).
+- **Import** (Settings tab) parses an `.adi`/`.adif` file from another logger. Each record keeps
+  its own operator identity — `OPERATOR` and `N3FJP_INITIALS`, the pair Export writes — so a
+  multi-operator log round-trips without collapsing to one name; a text box supplies each half
+  only for records that omit it, and appears only when some record does. The operator can also
+  shift every timestamp (signed days/hours/minutes) to correct a wrong clock on the source
+  machine. Three filters run
   first, all reported before anything is
   written: records with no callsign or no parseable timestamp are unusable; records matching an
   existing contact on callsign, band, mode, and minute are skipped as duplicates; and records
