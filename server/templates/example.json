@@ -10,7 +10,8 @@
     "  bands          (required) Band choices for the status bar, non-empty.",
     "  modes          (required) Mode choices for the status bar, non-empty.",
     "  duplicate_type (required) How the client warns about dupes, see below.",
-    "  export         (reserved) Export mapping slot, unused in v1 — leave null."
+    "  export         (optional) Contest-submission export, or null for none.",
+    "                 See the export section at the bottom of this file."
   ],
   "name": "Example (documentation)",
 
@@ -102,5 +103,40 @@
   ],
   "duplicate_type": "band-mode",
 
+  "_comment_export": [
+    "The contest-submission export: what the Settings tab's 'Export Event for",
+    "Submission' button produces. null (or absent) leaves that button disabled.",
+    "Nothing here is validated, by this server or by the client — a mistake",
+    "surfaces as the contest sponsor rejecting the file, so copy a working",
+    "template (pota.json) rather than writing one from scratch.",
+    "  format   (required) Names the writer in client/src/submission-export.js.",
+    "           'pota' today; unknown names leave the button disabled.",
+    "  fields   (required) The ENTIRE per-contact record, in output order. Each",
+    "           name resolves in this order: a prompt answer, then event meta",
+    "           ('station_callsign'), then a contact column (remote_callsign,",
+    "           operator_callsign, qso_at, band, mode, or any built-in), then a",
+    "           custom template field. A name that resolves to nothing, or to a",
+    "           blank value, is simply left out of that record — including a",
+    "           name misspelled here, which is why the list is worth re-reading.",
+    "           Some names produce more than one ADIF tag: 'qso_at' writes",
+    "           QSO_DATE and TIME_ON; 'my_park' writes MY_SIG, MY_SIG_INFO and",
+    "           MY_POTA_REF; 'their_park' writes SIG, SIG_INFO and POTA_REF.",
+    "           Each park is written both ways on purpose — the SIG pair is what",
+    "           POTA's uploader reads, the *POTA_REF fields are the dedicated",
+    "           ADIF ones every other consumer understands.",
+    "  prompts  (optional) Questions the export dialog asks the operator, for",
+    "           what the log itself never recorded. Each is an ordinary custom",
+    "           field definition (label / max_length / validation / default /",
+    "           required), rendered and validated exactly like an entry field.",
+    "           Answers are addressable by name from 'fields'. A prompt marked",
+    "           required and left blank is the only thing that blocks an export.",
+    "  band_map (required) Log band  -> the value to write. Must be COMPLETE:",
+    "  mode_map (required) Log mode  -> the value to write. a value the table",
+    "           does not list writes no tag at all, and the dialog warns about",
+    "           it by name and count first. That is deliberate — it is how a",
+    "           catch-all like 'Other', which only the operator can interpret,",
+    "           fails visibly instead of being silently guessed at. Add a band",
+    "           or mode to the lists above and you must add it here too."
+  ],
   "export": null
 }

@@ -2,9 +2,8 @@ BUGS:
 - Filed out, but not submitted contact clears on switching tabs
 
 Feature:  Event-specific exports
-- POTA Export
-- WFD Export
-- FD Export
+- WFD Export  (Cabrillo; needs a `choices` key on prompts, and header emission)
+- FD Export   (same Cabrillo writer)
 
 POTA Improvements:
 - Entry for multiple P2P's
@@ -19,6 +18,7 @@ Client:
     Mobile Layout
   Offline-First PWA
   Re-submit as Edit with late data
+  Import ADIF should only apply operator & initial to rows that don't have it.
 
 Server:
   Automatic Backup Feature
@@ -28,7 +28,7 @@ Location-based improvements:
     Australia (ACMA) – The Register of Radiocommunications Licences (RRL) offers a full CSV data dump updated daily.
 - Data source: HamCall (Buckmaster) ($50)
 - Data source: Other online APIs
-- Server should live-build section, ITU zone, CQ zone from location.
+- Server should live-build Gridsquare, State, ARRL section, ITU zone, CQ zone from location.
 - Server should derive unknown location from Grid/Country
 - Server should overide a location from state / POTA park / etc.
 
@@ -44,3 +44,4 @@ Supercheck partial:
 Digital integration shim
 
 Add a README
+Properly implement version numbers

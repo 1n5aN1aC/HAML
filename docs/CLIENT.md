@@ -149,5 +149,39 @@ was actually on the air.
   for archiving and for handing a log to someone who needs to see what the client actually has.
   The mismatch rescue screen's "Export local data" button produces the same file.
 
-**Deferred**: contest-submission export (Cabrillo, or ADIF shaped to a contest's rules). The
-Settings tab's "Export Event for Submission" button is present but disabled.
+## Submission export
+
+A third Settings button, **Export Event for Submission**, writes the file a contest sponsor
+wants rather than the whole log. It is driven entirely by the Template's `export` block
+(documented in `server/templates/example.json`), which names a writer in
+`client/src/submission-export.js` and supplies its parameters. A Template without one leaves
+the button disabled and says so.
+
+Where the ADIF export asks the operator to resolve every band and mode, this one asks nobody:
+the admin who wrote the Template knew which contest it is, so the mapping tables live there.
+That split is why the two writers stay independent rather than sharing mappings — the same
+`Phone` becomes `SSB` for ADIF and `PH` for a future Cabrillo, and only the Template knows
+which is wanted.
+
+`export.fields` is the **entire** record, in order. Each name resolves against a prompt
+answer, then Event meta, then a contact column, then a custom Template field; a name that
+resolves to nothing is left out of the record, as is one whose value is blank. `band_map` and
+`mode_map` are complete by contract — a log value they don't list writes no tag, and the
+dialog warns about it by name and count first. That is how a catch-all like Field Day's
+`Other`, which only the operator can interpret, fails visibly rather than being guessed at.
+
+What the log never recorded, the dialog asks for: `export.prompts` are ordinary field
+definitions rendered by the same `FieldInput` the entry form uses, so they validate the same
+way, and their answers are addressable from `fields`. POTA asks for the activated park and
+the operator's state. The filename follows the sponsor's convention
+(`K7ABC@US-1234-20260620.adi`) but stays editable, which is what covers the cases the schema
+doesn't model — a park spanning two states, a two-fer, one club position's share of a log.
+
+Nothing validates a Template's export block, on either side. A required prompt left blank is
+the only thing that blocks an export; everything else warns and lets the operator proceed,
+the same stance the entry form takes on dupes.
+
+**Deferred**: Cabrillo, for Field Day and Winter Field Day. The design carries it — the
+ordered `fields` list is a Cabrillo QSO line, and `band_map` becomes band-to-kHz — but it
+would add a `choices` key on prompts for the category dropdowns, and header emission owned by
+the writer.

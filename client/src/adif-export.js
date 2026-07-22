@@ -100,14 +100,15 @@ const encoder = new TextEncoder()
 
 // One <NAME:len>value token, or '' when the value is blank. Blank fields are
 // omitted entirely rather than written as zero-length tags.
-function tag(name, value) {
+// Exported as a primitive for submission-export.js, the other ADIF writer.
+export function tag(name, value) {
   const v = String(value ?? '').trim()
   return v ? `<${name}:${encoder.encode(v).length}>${v}` : ''
 }
 
 // A contact's QSO_DATE + TIME_ON, both UTC. qso_at reaches us in either the
 // client's 'Z' form or the server's '+00:00' form, so parse rather than slice.
-function timeTags(qso_at) {
+export function timeTags(qso_at) {
   const ms = Date.parse(qso_at)
   if (Number.isNaN(ms)) return []
   const iso = new Date(ms).toISOString()
@@ -153,12 +154,13 @@ function recordTags(contact, { event, bandMap, modeMap }) {
   return tags.filter(Boolean)
 }
 
-// The complete .adi file for `contacts` (already filtered and ordered by the
-// caller) as a string.
-export function buildAdif(contacts, { event, bandMap, modeMap }) {
+// The ADIF header block, ending in <EOH> and a blank line. `title` is the
+// free-text line above it, which the spec allows and ignores. Shared with
+// submission-export.js so PROGRAMVERSION is stamped from one place.
+export function adifHeader(title) {
   const created = new Date().toISOString()
-  const header = [
-    `ADIF export from HAML — ${event.name ?? 'event'}`,
+  return [
+    title,
     '',
     [
       tag('ADIF_VER', '3.1.5'),
@@ -170,6 +172,12 @@ export function buildAdif(contacts, { event, bandMap, modeMap }) {
     '<EOH>',
     '',
   ].join('\n')
+}
+
+// The complete .adi file for `contacts` (already filtered and ordered by the
+// caller) as a string.
+export function buildAdif(contacts, { event, bandMap, modeMap }) {
+  const header = adifHeader(`ADIF export from HAML — ${event.name ?? 'event'}`)
   const records = contacts.map(
     (c) => recordTags(c, { event, bandMap, modeMap }).join(' ') + ' <EOR>',
   )

@@ -923,6 +923,21 @@ input.v-bad, select.v-bad {
   overflow-y: auto;
 }
 
+/* Wide enough for the longest sponsor filename without scrolling, since the
+   operator is checking it rather than reading it. */
+.export-filename {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 5px 7px;
+  border: 1px solid var(--theme-border);
+  border-radius: 4px;
+  background: var(--theme-surface);
+  color: inherit;
+  font-size: 13px;
+}
+
+.export-warning { color: var(--theme-danger); }
+
 .import-section { margin-bottom: 20px; }
 .import-section h2 {
   font-size: 13px;

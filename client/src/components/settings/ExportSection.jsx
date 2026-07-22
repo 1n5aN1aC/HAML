@@ -8,10 +8,13 @@ import {
   ADIF_BANDS, ADIF_MODES, BAND_ALIASES, MODE_ALIASES,
   breakdown, buildAdif, initialMapping,
 } from '../../adif-export.js'
+import { FORMATS, exportConfig } from '../../submission-export.js'
+import SubmissionModal from './SubmissionModal.jsx'
 
 export default function ExportSection({ event }) {
   // null when the modal is closed; otherwise the loaded snapshot of the log.
   const [snapshot, setSnapshot] = useState(null) // { contacts, pending }
+  const [submission, setSubmission] = useState(null) // the same, for the other modal
   const [bandMap, setBandMap] = useState({})
   const [modeMap, setModeMap] = useState({})
   const [error, setError] = useState('')
@@ -19,25 +22,40 @@ export default function ExportSection({ event }) {
   const bands = useMemo(() => breakdown(snapshot?.contacts ?? [], 'band'), [snapshot])
   const modes = useMemo(() => breakdown(snapshot?.contacts ?? [], 'mode'), [snapshot])
 
-  async function openModal() {
+  // The Template's submission format, or null when it defines none — which is
+  // what disables the second button and explains itself in its hint.
+  const submissionConfig = exportConfig(event)
+
+  // Deleted rows are dropped silently — a log export means the log as it stands.
+  // Sort by parsed time: qso_at arrives in both the client's 'Z' form and the server's
+  // '+00:00' form, which don't sort as strings.
+  async function loadLog() {
     const all = await db.contacts.toArray()
-    // Deleted rows are dropped silently — a log export means the log as it
-    // stands. Sort by parsed time: qso_at arrives in both the client's 'Z'
-    // form and the server's '+00:00' form, which don't sort as strings.
     const contacts = all
       .filter((c) => !c.deleted)
       .sort((a, b) => Date.parse(a.qso_at) - Date.parse(b.qso_at))
     if (!contacts.length) {
       setError('This event has no contacts to export yet.')
-      return
+      return null
     }
     setError('')
-    setBandMap(initialMapping(breakdown(contacts, 'band'), BAND_ALIASES))
-    setModeMap(initialMapping(breakdown(contacts, 'mode'), MODE_ALIASES))
-    setSnapshot({
+    return {
       contacts,
       pending: contacts.filter((c) => c.sync_state === 'pending').length,
-    })
+    }
+  }
+
+  async function openModal() {
+    const loaded = await loadLog()
+    if (!loaded) return
+    setBandMap(initialMapping(breakdown(loaded.contacts, 'band'), BAND_ALIASES))
+    setModeMap(initialMapping(breakdown(loaded.contacts, 'mode'), MODE_ALIASES))
+    setSnapshot(loaded)
+  }
+
+  async function openSubmission() {
+    const loaded = await loadLog()
+    if (loaded) setSubmission(loaded)
   }
 
   function runExport() {
@@ -99,12 +117,27 @@ export default function ExportSection({ event }) {
       {error && <p className="import-error">{error}</p>}
 
       <div className="import-choose-row export-second-row">
-        <button type="button" className="btn-primary import-choose" disabled>
+        <button
+          type="button"
+          className="btn-primary import-choose"
+          disabled={!submissionConfig}
+          onClick={openSubmission}
+        >
           Export Event for Submission
         </button>
         <span className="import-hint">
-          Will produce a contest-ready file formatted to this event’s template
-          export mapping. <em>Not implemented yet.</em>
+          {submissionConfig ? (
+            <>
+              Download a contest-ready file for{' '}
+              {FORMATS[submissionConfig.format].label}, containing only the fields
+              needed,  For submitting the log, not for archiving it.
+            </>
+          ) : (
+            <>
+              This event defines no submission format, so there is nothing to produce.
+              Set one on template (Admin → Templates): an event picks it up when it is created.
+            </>
+          )}
         </span>
       </div>
 
@@ -119,6 +152,16 @@ export default function ExportSection({ event }) {
           troubleshooting, not for loading into another logger.
         </span>
       </div>
+
+      {submission && (
+        <SubmissionModal
+          event={event}
+          config={submissionConfig}
+          contacts={submission.contacts}
+          pending={submission.pending}
+          onClose={() => setSubmission(null)}
+        />
+      )}
 
       {snapshot && (
         <div

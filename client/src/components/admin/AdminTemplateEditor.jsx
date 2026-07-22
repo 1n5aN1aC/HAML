@@ -148,11 +148,16 @@ export default function AdminTemplateEditor({
               </select>
             </label>
             <label className="template-export">
-              Export mapping
+              Submission export
               <textarea
                 value={form.export}
-                rows={2}
-                placeholder="JSON. This will be used to determine the way to export the log for submittal, but is not implemented yet. Leave blank."
+                rows={12}
+                placeholder={
+                  'JSON describing the contest-ready file this template exports:'
+                  + ' {"format", "fields", "prompts", "band_map", "mode_map"}.'
+                  + ' server/templates/example.json documents every key, and'
+                  + ' pota.json is a working one to copy. Leave blank for none.'
+                }
                 onChange={(e) => update({ export: e.target.value })}
               />
             </label>
