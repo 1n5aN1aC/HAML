@@ -30,6 +30,12 @@
   .entry-form { order: -1; }
   .future-panel-left { display: none; }
 
+  /* focusing the callsign box scrolls the Event's exchange line to the top of
+     the screen (see ContactEntryForm's onFocus), keeping the exchange in view
+     with the entry fields just below it; this offsets that scroll by the sticky
+     top bar's height so the line lands below the bar rather than under it */
+  .status-bar .exchange-label { scroll-margin-top: 96px; }
+
   /* each panel keeps its inner scroll, capped so the column stays navigable */
   .contact-list { max-height: 45vh; overflow-x: auto; }
   .stations-panel { max-height: 30vh; }
@@ -49,8 +55,10 @@
   /* top bar wraps to two rows: brand/event/connection on row 1, the tabs as a
      full-width row 2, and the theme picker pinned to the top-right corner
      (below). order + flex-basis drops the (formerly absolute) tab row below the
-     rest. padding-right reserves the corner the pinned picker sits in. */
-  .top-bar { flex-wrap: wrap; position: sticky; top: 0; z-index: 5; padding-right: 52px; }
+     rest. padding-right reserves the corner the pinned picker sits in.
+     padding-bottom: 0 lets the open-bottomed tabs sit flush on the bottom border
+     (as they do on desktop) instead of floating above it with a gap. */
+  .top-bar { flex-wrap: wrap; position: sticky; top: 0; z-index: 5; padding-right: 52px; padding-bottom: 0; }
   .top-bar .tabs {
     position: static;
     order: 3;
@@ -95,5 +103,18 @@
     width: min(640px, 100vw - 24px);
     max-height: 90dvh;
     overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* the edit-contact modal's fields carry a fixed px width (FieldInput sets it
+     inline), so a wide one (e.g. a comment field) overflows a phone-width modal
+     and, with overflow-y:auto promoting the x-axis to auto too, scrolls it
+     sideways. Let the fields shrink to the modal width instead — min-width:0
+     releases the flex items' content-size floor so they can collapse. */
+  .modal .entry-fields label { min-width: 0; max-width: 100%; }
+  .modal .entry-fields input,
+  .modal .entry-fields select {
+    min-width: 0;
+    max-width: 100% !important;
   }
 }

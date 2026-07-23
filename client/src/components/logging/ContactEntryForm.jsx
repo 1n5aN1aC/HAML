@@ -395,6 +395,19 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             onKeyDown={(e) =>
               handleFieldNav(e, 0, [callsignRef.current, ...fieldRefs.current])
             }
+            onFocus={() => {
+              // Mobile: scroll the Event's exchange line to just under the sticky
+              // top bar, so the operator sees the exchange to give out with the
+              // entry fields right below it (the rest of the status bar scrolls
+              // off the top). scroll-margin-top on the target (mobile.css) offsets
+              // the sticky bar. The exchange lives in StatusBar, a sibling, so
+              // reach it by class rather than threading a ref through App.
+              if (window.matchMedia('(max-width: 840px)').matches) {
+                document
+                  .querySelector('.status-bar .exchange-label')
+                  ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+              }
+            }}
             autoFocus
           />
           {fields.map((f, i) => (
