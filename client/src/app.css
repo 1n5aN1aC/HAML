@@ -32,11 +32,18 @@ body {
 
 /* --- top bar -------------------------------------------------------------- */
 
+/* One row while everything fits; the tabs drop to a row of their own when it
+   doesn't (see .top-bar.stacked below). There is no width breakpoint for this —
+   TopBar.jsx measures the contents and toggles .stacked, because the event name
+   is per-event and no fixed breakpoint is right for every name.
+   padding-bottom: 0 lets the open-bottomed tabs sit flush on the bottom border,
+   in either arrangement — the tabs are always the last row. */
 .top-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  padding: 4px 12px;
+  padding: 4px 12px 0;
   background: var(--theme-topbar);
   color: var(--theme-topbar-text);
   font-size: 13px;
@@ -55,14 +62,27 @@ body {
 .top-bar .brand-icon { width: 28px; height: 28px; display: block; }
 .top-bar .brand-text { font-weight: 600; letter-spacing: 0.5px; color: var(--theme-topbar-text); }
 
+/* in normal flow (not absolutely positioned) so it can take part in the wrap
+   that .stacked relies on. align-self: stretch fills the bar's height and
+   align-items: flex-end drops the pills to the bottom of it, which is what puts
+   their open bottoms flush against the bar's border. */
 .top-bar .tabs {
   display: flex;
   gap: 6px;
-  position: absolute;
-  left: 110px;
-  bottom: 0;
-  top: 0;
+  align-self: stretch;
   align-items: flex-end;
+}
+
+/* Contents no longer fit on one line (measured in TopBar.jsx): the tabs move
+   below the brand / event name / theme picker. `order` sorts them past those
+   three so they land on the second row rather than the first, and flex-basis
+   guarantees them a line to themselves. Flexbox places items into lines in
+   order-modified document order, which is exactly why this can't be done with
+   wrapping alone — unstacked, the tabs must sort *before* the spacer. */
+.top-bar.stacked .tabs {
+  order: 3;
+  flex-basis: 100%;
+  align-self: auto;
 }
 
 /* Tabs derive their colors from the chrome tokens, but a theme may override

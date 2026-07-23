@@ -12,9 +12,7 @@ POTA Improvements:
 - Park decoding support
 
 Client:
-  Mobile:
-    Submit button
-    If height is over x, make fit on screen perfectly.  (tablets)
+  Mobile Submit button
   Offline-First PWA
   Re-submit as Edit with late data
 

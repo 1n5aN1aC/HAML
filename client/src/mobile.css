@@ -1,21 +1,17 @@
-/* Mobile / touch overrides — every responsive @media rule lives here, kept out of app.css for sanity.
-   Imported right after app.css (see main.jsx) so these
-   rules win the cascade over the desktop base on equal specificity.
+/* Mobile / touch overrides — every responsive @media rule lives here, kept out of
+   app.css. Imported right after it (see main.jsx) so these win on equal specificity.
 
-   One breakpoint. A landscape tablet (~1024px) keeps the desktop two-pane
-   layout; at 840px and below the logging screen collapses to a single
-   scrolling column, the top and status bars wrap, controls grow for touch,
-   and the logging tab's mini map/stats panel is hidden. Panels keep their own
-   inner scroll (capped), so this is a dashboard-style column, not one long
-   page. */
+   Tier 1  (<= 840px)                    tablet and below: one scrolling column
+   Tier 1b (601-840px, >= 800px tall)    room to fit the viewport exactly instead
+   Tier 2  (<= 600px)                    phone
+   Touch   (pointer: coarse)             hit areas, independent of width */
+
+/* --- Tier 1: tablet and below --- */
 @media (max-width: 840px) {
-  /* the whole app column scrolls, so the operator status bar scrolls away with
-     the content instead of staying pinned; the top nav bar keeps its place via
-     position: sticky (below) */
+  /* the app scrolls as one page, so the status bar scrolls away with it */
   .app { overflow-y: auto; }
 
-  /* side-by-side panes -> a single column that grows with its content and rides
-     the app-level scroll (no scroll region of its own) */
+  /* side-by-side panes -> a single column that grows with its content */
   .panes {
     flex-direction: column;
     flex: none;
@@ -24,63 +20,31 @@
   .left-pane { min-width: 0; }
   .right-pane { min-width: 0; max-width: none; }
 
-  /* logging first on a phone: entry form above the contact list (the left
-     pane's DOM order is list-then-form, for desktop). The placeholder panel is
-     desktop-only filler, so drop it here rather than leave an empty box. */
+  /* entry form above the contact list (the pane's DOM order is list-then-form) */
   .entry-form { order: -1; }
   .future-panel-left { display: none; }
 
-  /* each panel keeps its inner scroll, capped so the column stays navigable */
+  /* cap each panel so the column stays navigable; they keep their inner scroll */
   .contact-list { max-height: 45vh; overflow-x: auto; }
   .stations-panel { max-height: 30vh; }
-  /* flex:1 is meaningless in a scroll column — pin a usable height so both the
-     message list and the input stay reachable */
-  .chat-panel { flex: none; height: 45vh; }
+  .chat-panel { flex: none; height: 38vh; }
 
-  /* hide only the logging tab's mini map/stats panel; the Stats tab keeps its
-     own map (a separate .stats-bottom .map-panel) */
+  /* the logging tab's mini map only — the Stats tab has its own .map-panel */
   .right-pane > .map-stats-panel { display: none; }
 
-  /* the Stats tab reuses .panes, so it stacks here too; give its cards real
-     heights so they don't collapse to nothing once the row becomes a column */
+  /* the Stats tab reuses .panes, so its cards need heights once the row stacks */
   .stats-page .stats-left,
   .stats-page .stats-right > div { min-height: 60vh; }
 
-  /* top bar wraps to two rows: brand/event/connection on row 1, the tabs as a
-     full-width row 2, and the theme picker pinned to the top-right corner
-     (below). order + flex-basis drops the (formerly absolute) tab row below the
-     rest. padding-right reserves the corner the pinned picker sits in.
-     padding-bottom: 0 lets the open-bottomed tabs sit flush on the bottom border
-     (as they do on desktop) instead of floating above it with a gap.
-     Not sticky on mobile — the whole bar scrolls away with the page to maximize
-     logging space (base .top-bar keeps position: relative, which the pinned
-     theme picker still anchors to). */
-  .top-bar { flex-wrap: wrap; padding-right: 52px; padding-bottom: 0; }
-  .top-bar .tabs {
-    position: static;
-    order: 3;
-    flex-basis: 100%;
-    align-items: center;
-  }
-  .top-bar .tab { padding-top: 8px; padding-bottom: 8px; }
-
-  /* pin the theme picker to the top-right corner, out of the wrapping flow, so
-     it stays put no matter how the rest of row 1 wraps. The .top-bar
-     padding-right above keeps the event name / connection indicator clear of it. */
-  .theme-picker { position: absolute; top: 5px; right: 12px; }
-
-  /* operator status bar wraps; drop the desktop spacing hack after initials.
-     The exchange moves out to its own sticky bar (below), so hide the status
-     bar's copy of it and the now-pointless spacer. */
+  /* status bar wraps; its exchange moves out to .exchange-bar below */
   .status-bar { flex-wrap: wrap; }
   .status-bar .initials { margin-right: 0; }
   .status-bar .spacer { display: none; }
   .status-bar .exchange-label,
   .status-bar .event-exchange { display: none; }
 
-  /* the Event exchange as its own bar: because it's a direct child of the
-     scrolling .app (a sibling of the status bar, not nested in it), it can pin
-     to the top and STAY there after the top bar and status bar scroll off. */
+  /* a direct child of the scrolling .app, so it stays pinned after the top and
+     status bars scroll off */
   .exchange-bar {
     display: flex;
     align-items: center;
@@ -94,7 +58,7 @@
     border-bottom: 1px solid var(--theme-border);
   }
 
-  /* 16px controls stop iOS from zooming the page when a field takes focus */
+  /* 16px stops iOS zooming the page when a field takes focus */
   .status-bar input,
   .status-bar select,
   .entry-fields input,
@@ -106,10 +70,8 @@
     font-size: 16px;
   }
 
-  /* modals fit a phone: no fixed floor, never wider than the viewport, and
-     never taller than it — a long edit-contact form (times + operator + every
-     template field + every built-in) scrolls inside the modal instead of
-     pushing Save/Delete off-screen */
+  /* modals fit the viewport and scroll internally rather than pushing their
+     buttons off-screen */
   .modal {
     min-width: 0;
     width: min(640px, 100vw - 24px);
@@ -118,15 +80,49 @@
     overflow-x: hidden;
   }
 
-  /* the edit-contact modal's fields carry a fixed px width (FieldInput sets it
-     inline), so a wide one (e.g. a comment field) overflows a phone-width modal
-     and, with overflow-y:auto promoting the x-axis to auto too, scrolls it
-     sideways. Let the fields shrink to the modal width instead — min-width:0
-     releases the flex items' content-size floor so they can collapse. */
+  /* FieldInput sets a px width inline; let fields shrink to the modal instead of
+     scrolling it sideways */
   .modal .entry-fields label { min-width: 0; max-width: 100%; }
   .modal .entry-fields input,
   .modal .entry-fields select {
     min-width: 0;
     max-width: 100% !important;
   }
+}
+
+/* --- Tier 1b: tablet with vertical room — fit the viewport exactly ---
+   Refines Tier 1 where there is height to show the whole logging screen at once:
+   no page scroll, panels share the height and scroll internally. The two queries
+   are the knobs — min-width keeps phones out, min-height is the "enough room"
+   test (portrait tablets are 1024px+). */
+@media (min-width: 601px) and (max-width: 840px) and (min-height: 800px) {
+  .app { overflow-y: hidden; }
+  .panes { flex: 1; }
+
+  /* left pane sized by its contents, right pane takes the rest (its base flex:1),
+     so height the entry form gives up reaches the chat instead of being trapped
+     beside it. min-height releases the flex content-size floor. */
+  .left-pane { flex: 0 1 auto; min-height: 0; }
+  .right-pane { min-height: 0; }
+
+  /* lift Tier 1's caps; the base rules govern again and chat takes the leftover */
+  .contact-list { max-height: none; }
+  .stations-panel { max-height: none; }
+  .chat-panel { flex: 1; height: auto; }
+
+  /* cap the form near its desktop footprint (~31px per wrapped row + ~32px trim).
+     min-height: 0 is required — a flex item's content-size floor is a min-, which
+     would otherwise beat the max-height. */
+  .entry-form { flex: none; min-height: 0; max-height: 100px; overflow-y: auto; }
+}
+
+/* --- Tier 2: phone --- additive overrides on top of Tier 1. */
+@media (max-width: 600px) {
+  .chat-panel { height: 35vh; }
+}
+
+/* --- Touch input --- a question about the input device, not the screen: a touch
+   laptop wants these, a narrow desktop window does not. */
+@media (pointer: coarse) {
+  .top-bar .tab { padding-top: 8px; padding-bottom: 8px; }
 }
