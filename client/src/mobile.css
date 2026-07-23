@@ -69,9 +69,6 @@
      padding-right above keeps the event name / connection indicator clear of it. */
   .theme-picker { position: absolute; top: 5px; right: 12px; }
 
-  /* connection indicator hidden on mobile (handled a different way) */
-  .top-bar .conn { display: none; }
-
   /* operator status bar wraps; drop the desktop spacing hack after initials.
      The exchange moves out to its own sticky bar (below), so hide the status
      bar's copy of it and the now-pointless spacer. */

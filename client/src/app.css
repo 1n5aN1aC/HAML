@@ -46,7 +46,6 @@ body {
 
 .top-bar .event-name { font-weight: 600; font-size: 16px; color: var(--theme-topbar-text); }
 .top-bar .spacer { flex: 1; }
-.top-bar .conn { font-weight: 600; }
 
 .top-bar .brand {
   display: flex;
@@ -281,7 +280,6 @@ body {
    and ignores it — same limitation the old app had. */
 .status-bar select option.band-in-use { background-color: var(--theme-conflict-bg); }
 
-.conn-ok { color: var(--theme-success); }
 .conn-down { color: var(--theme-danger); }
 
 /* --- panes ---------------------------------------------------------------- */
@@ -340,6 +338,21 @@ body {
   overflow-y: auto;    /* scrollbar appears when station list exceeds height */
   background: var(--theme-surface);
 }
+/* disconnected placeholder: icon centered and scaled to fit the empty box */
+.stations-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+}
+.stations-empty img {
+  max-width: 60%;
+  max-height: 80%;
+  opacity: 0.6;
+}
+.stations-empty .conn { font-weight: 600; }   /* bold danger-colored "Disconnected" label */
 .chat-panel { flex: 1; min-height: 120px; overflow: hidden; background: var(--theme-surface); }
 /* wrapper that swaps between the map and stats views; carries the card frame
    (see group above) and anchors the toggle button */

@@ -33,12 +33,6 @@ export default function TopBar({ eventName, connected, activeTab, onTab, theme, 
       </nav>
       <span className="spacer" />
       <span className="event-name">{eventName}</span>
-      <span
-        className={connected ? 'conn conn-ok' : 'conn conn-down'}
-        title={connected ? 'Connected to server' : 'Not connected — logging locally'}
-      >
-        ● {connected ? 'Connected' : 'Offline'}
-      </span>
       <label
         className="theme-picker"
         title={`Theme: ${THEMES.find((t) => t.id === theme)?.label ?? theme}`}

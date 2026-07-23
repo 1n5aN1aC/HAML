@@ -36,7 +36,10 @@ export default function StationsPanel({ stations, clientUuid, conflictUuids, ban
   return (
     <div className="stations-panel">
       {stations.length === 0 ? (
-        <p className="placeholder">No stations online</p>
+        <div className="stations-empty">
+          <img src="/favicon-disconnected.svg" alt="" />
+          <span className="conn conn-down">Disconnected from server</span>
+        </div>
       ) : (
         <table className="stations">
           <tbody>
