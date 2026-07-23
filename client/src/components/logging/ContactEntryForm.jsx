@@ -356,6 +356,8 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             className="cs"
             placeholder="Callsign"
             maxLength={10}
+            // Return on a soft keyboard submits the form (it logs the QSO — so "send", not "next".)
+            enterKeyHint="send"
             value={callsign}
             onChange={(e) => {
               // No .toUpperCase() here: transforming the typed text makes React write a value the DOM

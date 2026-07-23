@@ -55,6 +55,8 @@ const FieldInput = forwardRef(function FieldInput(
       className="field-input"
       ref={ref}
       type="text"
+      // Return on a soft keyboard submits the form (it logs the QSO — so "send", not "next".)
+      enterKeyHint="send"
       style={{ width, maxWidth: width }}
       value={value}
       placeholder={placeholder}

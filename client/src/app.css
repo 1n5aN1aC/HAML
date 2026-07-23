@@ -1026,6 +1026,12 @@ input.v-bad, select.v-bad {
   .left-pane { min-width: 0; }
   .right-pane { min-width: 0; max-width: none; }
 
+  /* logging first on a phone: entry form above the contact list (the left
+     pane's DOM order is list-then-form, for desktop). The placeholder panel is
+     desktop-only filler, so drop it here rather than leave an empty box. */
+  .entry-form { order: -1; }
+  .future-panel-left { display: none; }
+
   /* each panel keeps its inner scroll, capped so the column stays navigable */
   .contact-list { max-height: 45vh; overflow-x: auto; }
   .stations-panel { max-height: 30vh; }
@@ -1073,9 +1079,14 @@ input.v-bad, select.v-bad {
     font-size: 16px;
   }
 
-  /* modals fit a phone: no fixed floor, never wider than the viewport */
+  /* modals fit a phone: no fixed floor, never wider than the viewport, and
+     never taller than it — a long edit-contact form (times + operator + every
+     template field + every built-in) scrolls inside the modal instead of
+     pushing Save/Delete off-screen */
   .modal {
     min-width: 0;
     width: min(640px, 100vw - 24px);
+    max-height: 90dvh;
+    overflow-y: auto;
   }
 }
