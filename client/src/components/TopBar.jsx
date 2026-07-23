@@ -13,7 +13,11 @@ export default function TopBar({ eventName, connected, activeTab, onTab, theme, 
   return (
     <header className="top-bar">
       <div className="brand">
-        <img className="brand-icon" src="/favicon.svg" alt="" />
+        <img
+          className="brand-icon"
+          src={connected ? '/favicon.svg' : '/favicon-disconnected.svg'}
+          alt=""
+        />
         <span className="brand-text">HAML</span>
       </div>
       <nav className="tabs">
