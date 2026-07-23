@@ -67,6 +67,15 @@ export default function LoggingTab({
         bandsInUse={bandsInUse}
       />
       <div className="status-bar-separator" />
+      {/* Mobile-only sticky exchange. Rendered here (a sibling of the status
+          bar and .panes, i.e. a direct child of the scrolling .app) rather than
+          inside StatusBar, so position: sticky can pin it to the top and keep it
+          there after the top bar and status bar scroll away. Hidden on desktop,
+          where the exchange stays in the status bar. */}
+      <div className="exchange-bar">
+        <span className="exchange-label">Exchange:</span>
+        <span className="event-exchange">{exchange}</span>
+      </div>
       <main className="panes">
         <section className="left-pane">
           <ContactList config={config} onSelect={setEditing} />

@@ -260,8 +260,11 @@ body {
 .status-bar .callsign { width: 110px; text-transform: uppercase; }
 .status-bar .initials { width: 70px; text-transform: uppercase; margin-right: 45px; }
 .status-bar .spacer { flex: 1; }
-.status-bar .exchange-label { font-weight: 600; margin-right: 6px; }
-.status-bar .event-exchange {
+/* exchange label + value styling, shared by the desktop status bar and the
+   mobile sticky exchange bar (LoggingTab .exchange-bar) — hence not scoped to
+   .status-bar, so both get the border, padding, and faded value look */
+.exchange-label { font-weight: 600; margin-right: 6px; }
+.event-exchange {
   font-size: 16px;
   opacity: 0.7;
   border: 1px solid var(--theme-border);
@@ -800,6 +803,11 @@ input.v-bad, select.v-bad {
 .status-bar-separator {
   border-bottom: 1px solid var(--theme-border);
 }
+
+/* The Event exchange as a standalone bar is a mobile-only device (mobile.css
+   makes it a sticky element that survives the status bar scrolling off). On
+   desktop the exchange lives in the status bar, so this stays hidden. */
+.exchange-bar { display: none; }
 
 /* --- stats tab ----------------------------------------------------------------
    A separate page from the logging tab; it reuses .panes for the flex row,
