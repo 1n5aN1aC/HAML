@@ -1002,3 +1002,80 @@ input.v-bad, select.v-bad {
   text-transform: none;
   font-weight: normal;
 }
+
+/* --- compact / touch layout (tablet portrait + phone) -----------------------
+   One breakpoint. A landscape tablet (~1024px) keeps the desktop two-pane
+   layout; at 840px and below the logging screen collapses to a single
+   scrolling column, the top and status bars wrap, controls grow for touch,
+   and the logging tab's mini map/stats panel is hidden. Panels keep their own
+   inner scroll (capped), so this is a dashboard-style column, not one long
+   page. */
+@media (max-width: 840px) {
+  /* the whole app column scrolls, so the operator status bar scrolls away with
+     the content instead of staying pinned; the top nav bar keeps its place via
+     position: sticky (below) */
+  .app { overflow-y: auto; }
+
+  /* side-by-side panes -> a single column that grows with its content and rides
+     the app-level scroll (no scroll region of its own) */
+  .panes {
+    flex-direction: column;
+    flex: none;
+    overflow: visible;
+  }
+  .left-pane { min-width: 0; }
+  .right-pane { min-width: 0; max-width: none; }
+
+  /* each panel keeps its inner scroll, capped so the column stays navigable */
+  .contact-list { max-height: 45vh; overflow-x: auto; }
+  .stations-panel { max-height: 30vh; }
+  /* flex:1 is meaningless in a scroll column — pin a usable height so both the
+     message list and the input stay reachable */
+  .chat-panel { flex: none; height: 45vh; }
+
+  /* hide only the logging tab's mini map/stats panel; the Stats tab keeps its
+     own map (a separate .stats-bottom .map-panel) */
+  .right-pane > .map-stats-panel { display: none; }
+
+  /* the Stats tab reuses .panes, so it stacks here too; give its cards real
+     heights so they don't collapse to nothing once the row becomes a column */
+  .stats-page .stats-left,
+  .stats-page .stats-right > div { min-height: 60vh; }
+
+  /* top bar wraps to two rows: brand/event/conn/theme on row 1, then the tabs
+     as a full-width row 2. order + flex-basis drops the (formerly absolute)
+     tab row below the rest. */
+  .top-bar { flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  .top-bar .tabs {
+    position: static;
+    order: 3;
+    flex-basis: 100%;
+    align-items: center;
+  }
+  .top-bar .tab { padding-top: 8px; padding-bottom: 8px; }
+
+  /* operator status bar wraps; drop the desktop spacing hack after initials.
+     The flex spacer becomes a full-width, zero-height break so the Exchange
+     label + value wrap together onto their own line. */
+  .status-bar { flex-wrap: wrap; }
+  .status-bar .initials { margin-right: 0; }
+  .status-bar .spacer { flex-basis: 100%; height: 0; }
+
+  /* 16px controls stop iOS from zooming the page when a field takes focus */
+  .status-bar input,
+  .status-bar select,
+  .entry-fields input,
+  .entry-fields select,
+  .chat-form input,
+  .contact-list .search-row input,
+  .modal input,
+  .modal select {
+    font-size: 16px;
+  }
+
+  /* modals fit a phone: no fixed floor, never wider than the viewport */
+  .modal {
+    min-width: 0;
+    width: min(640px, 100vw - 24px);
+  }
+}
