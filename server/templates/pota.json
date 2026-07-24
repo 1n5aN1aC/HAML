@@ -27,10 +27,10 @@
       "required": false,
       "remember": false,
       "default": "",
-      "max_length": 8,
+      "max_length": 44,
       "validation": {
-        "pattern": "[A-Z]{2}-\\d{4,5}",
-        "message": "Park must be a park reference: US-1234"
+        "pattern": "[A-Z]{2}-\\d{4,5}(?:,[A-Z]{2}-\\d{4,5})*",
+        "message": "Park reference(s), comma-separated: US-1234,US-5678"
       },
       "entry": true,
       "history": true
