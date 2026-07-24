@@ -9,7 +9,9 @@ contract. `CACHED = False`: the query is microseconds, so a cache row buys
 no latency, and a stale row would outrank the DB itself. Cache writes are
 the dispatcher's job in any case — this module never touches the cache.
 """
+import os
 import sqlite3
+import time
 
 import lookup_cache
 import lookup_record
@@ -55,6 +57,22 @@ def _open(path):
     conn.row_factory = sqlite3.Row
     return conn
 
+# Staleness warning: when the DB is older than the configured threshold.
+def _warn_if_stale(db_path, max_age_days):
+    if not max_age_days:  # 0 disables the check
+        return
+    try:
+        mtime = os.path.getmtime(db_path)
+    except OSError:
+        return  # File-age unknowable; the open path already warns on a bad file.
+    age_days = (time.time() - mtime) / 86400
+    if age_days > max_age_days:
+        print(
+            f"warning: FCC dataset at {db_path} is {age_days:.1f} days old "
+            f"(threshold {max_age_days}); the FCC ULS dump refreshes weekly, "
+            "consider rebuilding it"
+        )
+
 # setup(): called from main.build_app.
 # Missing/unopenable -> warn, store None.
 # We never raise; the server must boot so the admin endpoints still work.
@@ -66,6 +84,7 @@ def setup(app):
         conn.execute("PRAGMA quick_check").fetchone()
         app["fcc_db"] = conn
         app["fcc_db_path"] = str(db_path)
+        _warn_if_stale(db_path, app["cfg"].get("fcc_db_max_age_days", 0))
     except (sqlite3.OperationalError, sqlite3.DatabaseError, OSError) as exc:
         # Not fatal: the chain falls through to the prefix DB.
         print(

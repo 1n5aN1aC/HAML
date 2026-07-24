@@ -88,3 +88,6 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   relative to the server dir). A missing file is non-fatal: the server prints a
   warning at boot and lookups fall through to other sources.  A 502 is returned
   only when nothing below resolves either.
+- **Staleness warning**: because the FCC dump refreshes weekly and the schema
+  carries no build timestamp, `lookup_fcc.setup()` uses the file's mtime as a
+  proxy for its build date and prints a boot-time warning when it is old.

@@ -7,11 +7,12 @@ from pathlib import Path
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 
 DEFAULTS = {
-    "host": "0.0.0.0",        # Listen on all interfaces
-    "port": 80,               # Port for HAML REST API & WebSocket
-    "data_dir": "data",       # Contains template & event state. (relative to server/)
-    "admin_password": "haml", # Password for the admin REST endpoints
+    "host": "0.0.0.0",                  # Listen interface
+    "port": 80,                         # Port for HAML REST API & WebSocket
+    "data_dir": "data",                 # Directory for template & event state. (relative to server/)
+    "admin_password": "haml",           # Password for the admin REST endpoints
     "fcc_db_path": "datasets/fcc_amateur.sqlite", # Path to the local FCC ULS sqlite
+    "fcc_db_max_age_days": 30,          # Warning if sqlite is older than this
     "prefix_lst_path": "datasets/Prefix.lst",     # Path to the VE3NEA CallParser Prefix.lst
     "auto_backup_interval_minutes": 15, # Automatic backup cadence; 0 disables the loop
 }
