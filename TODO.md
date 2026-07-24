@@ -3,8 +3,6 @@ BUGS:
 
 POTA Improvements:
 - Entry for multiple P2P's
-- P2P auto-dash
-- P2P should default to "US-"
 - Park decoding support
 
 Client:

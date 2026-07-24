@@ -16,7 +16,7 @@ import { BUILTIN_ORDER, isBuiltin, resolveEntryFields } from '../../builtin-fiel
 import { SECTION_TO_STATE, STATE_TO_SECTION } from '../../sections.js'
 import { lookupCallsign } from '../../api.js'
 import { isPlausibleCallsign, lookupPatchFromRecord } from '../../lookup-fill.js'
-import FieldInput from './FieldInput.jsx'
+import FieldInput, { stripAutoPrefix } from './FieldInput.jsx'
 
 // Touch soft keyboards get a per-field Return action:
 // Advance through fields ('next') and submits on the last one ('send')
@@ -297,6 +297,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       values, touched, await rememberPatch(callsign),
     )
     const finalValues = mergeUntouched(merged, touched, crossFillPatch(merged))
+    // Drop any field left holding only its auto prefix (e.g. a focused-but-empty
+    // "US-" their_park): Enter-submit skips the blur that would clear it.
+    for (const name of Object.keys(finalValues)) {
+      finalValues[name] = stripAutoPrefix(name, finalValues[name])
+    }
     const problem = validateContact(
       { remote_callsign: callsign, values: finalValues },
       fields,
@@ -426,6 +431,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
                 ref={(el) => (fieldRefs.current[i] = el)}
                 field={f}
                 value={values[f.name]}
+                autoPrefix
                 enterKeyHint={enterHint(i + 1)}
                 onChange={(v) => {
                   setValues((prev) => ({ ...prev, [f.name]: v }))
