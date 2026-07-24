@@ -10,7 +10,7 @@ import ContactList from './ContactList.jsx'
 import ContactEntryForm from './ContactEntryForm.jsx'
 import StationsPanel from './StationsPanel.jsx'
 import ChatPanel from './ChatPanel.jsx'
-import MapStatsPanel from './MapStatsPanel.jsx'
+import CompactStatsPanel from './CompactStatsPanel.jsx'
 import ContactModal from './ContactModal.jsx'
 
 export default function LoggingTab({
@@ -100,7 +100,7 @@ export default function LoggingTab({
             onResend={onChatResend}
             disabled={!session.callsign.trim() || !session.initials.trim()}
           />
-          <MapStatsPanel />
+          <CompactStatsPanel />
         </aside>
       </main>
       {editing && (

@@ -324,11 +324,10 @@ body {
 }
 
 .right-pane {
-  flex: 1;
+  flex: none;
+  width: 320px;
   display: flex;
   flex-direction: column;
-  min-width: 260px;
-  max-width: 400px;
   gap: var(--panel-gap);
 }
 
@@ -338,7 +337,7 @@ body {
 .future-panel-left,
 .stations-panel,
 .chat-panel,
-.map-stats-panel {
+.right-pane > .stats-panel {
   border: 1px solid var(--theme-border);
   border-radius: var(--panel-radius);
 }
@@ -349,7 +348,7 @@ body {
    chat panel absorbs the leftover. min-height: 0 releases the aspect-ratio's
    automatic minimum so this panel gives up its height first when the column
    runs short — chat/presence keep theirs */
-.right-pane > .map-stats-panel { padding: 0; aspect-ratio: 958 / 592; min-height: 0; }
+.right-pane > .stats-panel { max-height: 280px; min-height: 0; }
 .right-pane h2 { font-size: 13px; text-transform: uppercase; margin: 0 0 4px; color: var(--theme-text-faint); }
 .right-pane .placeholder { color: var(--theme-text-faint); font-style: italic; }
 .stations-panel {
@@ -374,14 +373,6 @@ body {
 }
 .stations-empty .conn { font-weight: 600; }   /* bold danger-colored "Disconnected" label */
 .chat-panel { flex: 1; min-height: 120px; overflow: hidden; background: var(--theme-surface); }
-/* wrapper that swaps between the map and stats views; carries the card frame
-   (see group above) and anchors the toggle button */
-.map-stats-panel {
-  position: relative;
-  overflow: hidden;       /* clips content to the rounded card */
-}
-.map-stats-panel > .map-panel,
-.map-stats-panel > .stats-panel { height: 100%; }
 
 /* appearance only — sizing belongs to the usage site */
 .map-panel {
@@ -399,24 +390,6 @@ body {
 .stats-panel h3 { margin: 0 0 8px; color: var(--theme-accent); }
 .stats-panel p { margin: 0 0 8px; }
 .stats-panel .indent { margin-left: 1em; }
-
-/* map ⇄ stats toggle, bottom-right of the pane (bottom-left is the counter's).
-   Themed and em-sized to match .map-counter. */
-.panel-toggle-btn {
-  position: absolute;
-  bottom: 0.6em;
-  right: 0.6em;
-  padding: 0.4em 0.9em;
-  border: 1px solid var(--theme-border);
-  border-radius: 0.3em;
-  background: var(--theme-surface);
-  color: var(--theme-text);
-  font-size: 1em;
-  font-weight: 600;
-  z-index: 10;
-  cursor: pointer;
-}
-.panel-toggle-btn:hover { background: var(--theme-hover); }
 
 /* Counter + missing-sections popup overlay, bottom-left of the map. All em,
    so a usage site can scale it wholesale: .stats-map .map-panel { font-size: 18px } */

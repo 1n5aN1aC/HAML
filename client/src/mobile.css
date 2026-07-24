@@ -29,8 +29,8 @@
   .stations-panel { max-height: 30dvh; }
   .chat-panel { flex: none; height: 38dvh; }
 
-  /* the logging tab's mini map only — the Stats tab has its own .map-panel */
-  .right-pane > .map-stats-panel { display: none; }
+  /* the logging tab's contact stats panel — the Stats tab has its own stats */
+  .right-pane > .stats-panel { display: none; }
 
   /* the Stats tab reuses .panes, so its cards need heights once the row stacks */
   .stats-page .stats-left,
