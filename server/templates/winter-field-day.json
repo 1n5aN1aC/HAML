@@ -1,0 +1,68 @@
+{
+  "name": "Winter Field Day",
+  "fields": [
+    {
+      "name": "class",
+      "label": "Class",
+      "max_length": 3,
+      "required": true,
+      "remember": true,
+      "default": "",
+      "validation": {
+        "pattern": "\\d{1,2}[HIOM]",
+        "message": "WFD class: # transmitters + H/I/O/M, like 2O"
+      },
+      "entry": true,
+      "history": true
+    },
+    {
+      "name": "section",
+      "entry": true,
+      "history": true,
+      "required": true,
+      "remember": true
+    }
+  ],
+  "bands": [
+    "160m",
+    "80m",
+    "40m",
+    "20m",
+    "15m",
+    "10m",
+    "6m",
+    "2m",
+    "1.25m",
+    "70cm",
+    "33cm",
+    "23cm",
+    "Other"
+  ],
+  "modes": [
+    "Phone",
+    "CW",
+    "Digital"
+  ],
+  "duplicate_type": "band-mode",
+  "export": {
+    "format": "adif",
+    "fields": [
+      "station_callsign",
+      "operator_callsign",
+      "remote_callsign",
+      "qso_at",
+      "band",
+      "mode",
+      "class",
+      "section"
+    ],
+    "tags": {
+      "class": "CLASS"
+    },
+    "mode_map": {
+      "Phone": "PH",
+      "CW": "CW",
+      "Digital": "DG"
+    }
+  }
+}

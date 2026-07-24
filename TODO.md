@@ -1,10 +1,6 @@
 BUGS:
 - Filed out, but not submitted contact clears on switching tabs
 
-Feature:  Event-specific exports
-- WFD Export  (Cabrillo; needs a `choices` key on prompts, and header emission)
-- FD Export   (same Cabrillo writer)
-
 POTA Improvements:
 - Entry for multiple P2P's
 - P2P auto-dash

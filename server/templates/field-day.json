@@ -44,5 +44,34 @@
     "Digital"
   ],
   "duplicate_type": "band-mode",
-  "export": null
+  "export": {
+    "format": "dupesheet",
+    "prompts": [
+      {
+        "name": "my_class",
+        "label": "Your class",
+        "max_length": 3,
+        "required": true,
+        "validation": {
+          "pattern": "\\d{1,2}[A-F]",
+          "message": "Your Field Day class, like 6A"
+        }
+      },
+      {
+        "name": "my_section",
+        "label": "Your section",
+        "max_length": 3,
+        "required": true,
+        "validation": {
+          "pattern": "AB|AK|AL|AR|AZ|BC|CO|CT|DE|DX|EB|EMA|ENY|EPA|EWA|GA|GH|IA|ID|IL|IN|KS|KY|LA|LAX|MB|MDC|ME|MI|MN|MO|MS|MT|MX|NB|NC|ND|NE|NFL|NH|NL|NLI|NM|NNJ|NNY|NS|NTX|NV|OH|OK|ONE|ONN|ONS|OR|ORG|PAC|PE|PR|QC|RI|SB|SC|SCV|SD|SDG|SF|SFL|SJV|SK|SNJ|STX|SV|TER|TN|UT|VA|VI|VT|WCF|WI|WMA|WNY|WPA|WTX|WV|WWA|WY",
+          "message": "Your ARRL/RAC section, like OR"
+        }
+      }
+    ],
+    "mode_map": {
+      "Phone": "PH",
+      "CW": "CW",
+      "Digital": "DIG"
+    }
+  }
 }
