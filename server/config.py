@@ -13,6 +13,8 @@ DEFAULTS = {
     "admin_password": "haml",           # Password for the admin REST endpoints
     "fcc_db_path": "datasets/fcc_amateur.sqlite", # Path to the local FCC ULS sqlite
     "fcc_db_max_age_days": 30,          # Warning if sqlite is older than this
+    "ca_db_path": "datasets/ca_amateur.sqlite",   # Path to the local ISED (Canada) sqlite
+    "ca_db_max_age_days": 30,           # Warning if sqlite is older than this
     "prefix_lst_path": "datasets/Prefix.lst",     # Path to the VE3NEA CallParser Prefix.lst
     "auto_backup_interval_minutes": 15, # Automatic backup cadence; 0 disables the loop
 }
@@ -42,8 +44,9 @@ def load_config(path=None):
     data_dir = _resolve_relative_to_server(cfg["data_dir"])
     cfg["data_dir"] = data_dir
     data_dir.mkdir(parents=True, exist_ok=True)
-    # Resolve fcc_db_path the same way (without mkdir — see helper docstring).
+    # Resolve the dataset paths the same way (without mkdir — see helper docstring).
     cfg["fcc_db_path"] = _resolve_relative_to_server(cfg["fcc_db_path"])
+    cfg["ca_db_path"] = _resolve_relative_to_server(cfg["ca_db_path"])
     # Same story for prefix_lst_path: file is committed and required at
     # runtime, but a missing/garbled load must warn-and-continue at setup
     # rather than crash the server (the lookup_callparser adapter mirrors

@@ -91,3 +91,31 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
 - **Staleness warning**: because the FCC dump refreshes weekly and the schema
   carries no build timestamp, `lookup_fcc.setup()` uses the file's mtime as a
   proxy for its build date and prints a boot-time warning when it is old.
+
+## `ca_amateur.sqlite`
+
+The local ISED operator dataset that `server/lookup_ca.py` reads. ~92k Canadian licenses
+
+- **Source**: ISED's published amateur radio operator list. The raw extract is
+  converted into this sqlite by an out-of-repo importer script that emits the
+  **same `operators` column layout as the FCC dataset**, so the two
+  adapters share all of their row -> canonical mapping.
+- **Substantive differences from the FCC dataset** (all handled in `lookup_ca.py`):
+  - ISED does **not** publish license dates, `frn`, `attention_line`, `po_box`,
+    `middle_initial`, `name_suffix`, or any previous-callsign / previous-class /
+    trustee-callsign history — those columns are always NULL and come back as
+    clean `None` in the record.
+  - `operator_class` holds a **set of qualification letters** (`A` Basic, `B`
+    5 WPM, `C` 12 WPM, `D` Advanced, `E` Basic with Honours), e.g. `"ACD"`, not
+    a single class letter. The adapter collapses the set to the single
+    highest-privilege word (`advanced` > `basic with honours` > `basic`); a row
+    holding only CW endorsements yields no class word (clean `None`).
+  - `state` is a **Canadian province/territory code** (`ON`, `BC`, `QC`, …).
+    The canonical-record state coercer (`lookup_record._CA_PROVINCE_CODES`)
+    accepts these alongside US states; the client entry field already did.
+  - `applicant_type` is only `Individual` or `Amateur Club`.
+- **Server config**: path overridable via `ca_db_path`; staleness threshold via
+  `ca_db_max_age_days`. Same missing-file semantics and mtime-based
+  staleness warning as the FCC dataset.
+- **Not cached**: like the FCC source, `CACHED = False` — the query is
+  microseconds and a stale cache row would only outrank the DB.

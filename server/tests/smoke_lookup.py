@@ -1,8 +1,8 @@
 """End-to-end smoke test for the callsign-lookup feature.
 
 The lookup chain (`lookup.SOURCES`) is offline today: the FCC ULS sqlite,
-the blank placeholder that always misses, and the CallParser prefix DB.
-Neither shipped source is cacheable, so no lookup writes a cache row.
+the ISED (Canadian) sqlite, and the CallParser prefix DB. No shipped source
+is cacheable, so no lookup writes a cache row.
 
 Stdlib-only. Spawns the real server on a scratch port with a scratch data
 dir + a scratch FCC ULS fixture sqlite + the repo's committed Prefix.lst,
@@ -611,15 +611,15 @@ def check_chain_unit():
     is cacheable, so no lookup should ever write a cache row.
     """
     import lookup
-    import lookup_blank
+    import lookup_ca
     import lookup_callparser
     import lookup_fcc
 
-    check(lookup.SOURCES == (lookup_fcc, lookup_blank, lookup_callparser),
-          f"SOURCES order is fcc -> blank -> callparser "
+    check(lookup.SOURCES == (lookup_fcc, lookup_ca, lookup_callparser),
+          f"SOURCES order is fcc -> ised -> callparser "
           f"(got {[s.SOURCE for s in lookup.SOURCES]})")
-    check([s.CACHED for s in lookup.SOURCES] == [False, True, False],
-          f"CACHED flags are False/True/False "
+    check([s.CACHED for s in lookup.SOURCES] == [False, False, False],
+          f"CACHED flags are all False "
           f"(got {[s.CACHED for s in lookup.SOURCES]})")
     for source in lookup.SOURCES:
         check(callable(getattr(source, "setup", None)),
@@ -911,6 +911,229 @@ def check_fcc_unit():
         shutil.rmtree(scratch, ignore_errors=True)
 
 
+# --- ISED (Canada) fixture --------------------------------------------------
+# The Canadian dataset is built to the FCC column layout (plus an arrl_section
+# column the adapter ignores), so it reuses FCC_SCHEMA. Rows exercise the
+# three ways the CA adapter differs from FCC: a province state code, the
+# multi-letter qualification set collapsing to one class word, and a club
+# with no license dates / previous history (all NULL in this dataset).
+CA_FIXTURE = [
+    # VE7ADV: Individual, "AD" = Basic + Advanced -> "advanced" (D outranks A).
+    # Province code BC must survive coercion (was US-only before this source).
+    {
+        "callsign": "VE7ADV",
+        "applicant_type": "Individual",
+        "first_name": "Bill", "middle_initial": None, "last_name": "McFadden",
+        "name_suffix": None,
+        "entity_name": "Bill McFadden",
+        "operator_class": "AD", "previous_operator_class": None,
+        "previous_callsign": None,
+        "trustee_callsign": None, "trustee_name": None,
+        "street_address": "188 MILLWOOD DRIVE", "po_box": None,
+        "city": "VANCOUVER", "state": "BC", "zip_code": "V6B 1A1",
+        "attention_line": None,
+        "frn": None,
+        "grant_date": None, "expired_date": None,
+        "gridsquare": "CN89ng",
+        "coordinates": "49.2827,-123.1207",
+        "county": "Greater Vancouver",
+        "dxcc_entity": "Canada",
+        "continent": "NA",
+        "dxcc_id": 1,
+    },
+    # VA3HON: Individual, "E" only = "basic with honours".
+    {
+        "callsign": "VA3HON",
+        "applicant_type": "Individual",
+        "first_name": "Jane", "middle_initial": None, "last_name": "Doe",
+        "name_suffix": None,
+        "entity_name": "Jane Doe",
+        "operator_class": "E", "previous_operator_class": None,
+        "previous_callsign": None,
+        "trustee_callsign": None, "trustee_name": None,
+        "street_address": "1 King St", "po_box": None,
+        "city": "TORONTO", "state": "ON", "zip_code": "M5H 1A1",
+        "attention_line": None,
+        "frn": None,
+        "grant_date": None, "expired_date": None,
+        "gridsquare": "FN03",
+        "coordinates": "43.6532,-79.3832",
+        "county": None,
+        "dxcc_entity": "Canada",
+        "continent": "NA",
+        "dxcc_id": 1,
+    },
+    # VE1CWO: Individual holding ONLY CW endorsements ("BC" = 5+12 WPM) with
+    # no A/D/E privilege -> class collapses to empty -> clean None.
+    {
+        "callsign": "VE1CWO",
+        "applicant_type": "Individual",
+        "first_name": "Cw", "middle_initial": None, "last_name": "Only",
+        "name_suffix": None,
+        "entity_name": "Cw Only",
+        "operator_class": "BC", "previous_operator_class": None,
+        "previous_callsign": None,
+        "trustee_callsign": None, "trustee_name": None,
+        "street_address": None, "po_box": None,
+        "city": None, "state": "NS", "zip_code": None,
+        "attention_line": None,
+        "frn": None,
+        "grant_date": None, "expired_date": None,
+        "gridsquare": None,
+        "coordinates": None,
+        "county": None,
+        "dxcc_entity": "Canada",
+        "continent": "NA",
+        "dxcc_id": 1,
+    },
+    # VA1ADV: Amateur Club. Name from entity_name; trustee_name populated;
+    # license_type=club so the client skips the name fill.
+    {
+        "callsign": "VA1ADV",
+        "applicant_type": "Amateur Club",
+        "first_name": None, "middle_initial": None, "last_name": None,
+        "name_suffix": None,
+        "entity_name": "Advocate Fire Department",
+        "operator_class": "ACD", "previous_operator_class": None,
+        "previous_callsign": None,
+        "trustee_callsign": None, "trustee_name": "James Russel Hannon",
+        "street_address": "PO BOX 126", "po_box": None,
+        "city": "ADVOCATE HARBOUR", "state": "NS", "zip_code": "B0M 1A0",
+        "attention_line": None,
+        "frn": None,
+        "grant_date": None, "expired_date": None,
+        "gridsquare": "FN75oi",
+        "coordinates": "45.333367,-64.777525",
+        "county": "Cumberland",
+        "dxcc_entity": "Canada",
+        "continent": "NA",
+        "dxcc_id": 1,
+    },
+]
+
+
+def build_ca_fixture(path):
+    """Write a Canadian-dataset fixture at `path` (FCC layout). Returns path."""
+    conn = sqlite3.connect(path)
+    conn.executescript(FCC_SCHEMA)
+    cols = list(CA_FIXTURE[0].keys())
+    placeholders = ",".join("?" for _ in cols)
+    for row in CA_FIXTURE:
+        conn.execute(
+            f"INSERT INTO operators ({','.join(cols)}) VALUES ({placeholders})",
+            [row[c] for c in cols],
+        )
+    conn.commit()
+    conn.close()
+    return path
+
+
+def check_ca_unit():
+    """Drive the ISED (Canada) adapter directly against a scratch fixture.
+    Locks in the row -> canonical mapping, the qualification-set -> class-word
+    collapse, province-code survival, and the always-NULL columns."""
+    import lookup_ca
+    scratch = Path(tempfile.mkdtemp(prefix="haml-ca-unit-"))
+    try:
+        ca_path = scratch / "ca.sqlite"
+        build_ca_fixture(ca_path)
+
+        class _App(dict):
+            pass
+        app = _App()
+        app["cfg"] = {"ca_db_path": str(ca_path)}
+        lookup_ca.setup(app)
+        check(app.get("ca_db") is not None,
+              "ca.setup() opens the DB on a valid file")
+        check(app.get("ca_db_path") == str(ca_path),
+              "ca.setup() stashes the resolved path")
+
+        # ---- VE7ADV: Individual, "AD" -> advanced, BC province ----
+        result = lookup_ca.lookup(app, "VE7ADV")
+        check(result["status"] == lookup_cache.STATUS_OK, "VE7ADV -> STATUS_OK")
+        rec = result["payload"]
+        check(rec["source"] == "ised", "VE7ADV source=ised")
+        check(rec.get("fetched_at"), "VE7ADV fetched_at stamped")
+        check(rec["name"] == "Bill McFadden",
+              f"VE7ADV name from first+last (got {rec['name']!r})")
+        check(rec["license_type"] == "person", "VE7ADV license_type=person")
+        check(rec["license_class"] == "advanced",
+              f"VE7ADV 'AD' -> advanced (got {rec['license_class']!r})")
+        check(rec["state"] == "BC",
+              f"VE7ADV province code survives coercion (got {rec['state']!r})")
+        check(rec["address_line2"] == "VANCOUVER, BC V6B 1A1",
+              f"VE7ADV address_line2 (got {rec['address_line2']!r})")
+        check(rec["country"] == "Canada", "VE7ADV country=Canada")
+        check(rec["continent"] == "NA", "VE7ADV continent=NA")
+        check(rec["dxcc"] == 1, f"VE7ADV dxcc=1 (got {rec['dxcc']!r})")
+        check(rec["gridsquare"] == "CN89",
+              f"VE7ADV grid truncated to 4 (got {rec['gridsquare']!r})")
+        # Columns ISED never publishes come back clean-None.
+        check(rec["frn"] is None, "VE7ADV frn None (not published)")
+        check(rec["grant_date"] is None, "VE7ADV grant_date None (not published)")
+        check(rec["expiry_date"] is None, "VE7ADV expiry_date None (not published)")
+        check(rec["previous_callsign"] is None,
+              "VE7ADV previous_callsign None (not published)")
+        # Zones left to the post-processor, same contract as FCC.
+        check(rec["cq_zone"] is None and rec["itu_zone"] is None,
+              "VE7ADV zones left to post-processor")
+        check(set(rec.keys()) == set(lookup_record.FIELDS),
+              "VE7ADV output keys == FIELDS exactly")
+
+        # ---- VA3HON: "E" -> basic with honours ----
+        rec = lookup_ca.lookup(app, "VA3HON")["payload"]
+        check(rec["license_class"] == "basic with honours",
+              f"VA3HON 'E' -> basic with honours (got {rec['license_class']!r})")
+        check(rec["state"] == "ON", "VA3HON province ON")
+
+        # ---- VE1CWO: CW-only endorsements -> no class word (clean None) ----
+        res = lookup_ca.lookup(app, "VE1CWO")
+        check(res["status"] == lookup_cache.STATUS_OK, "VE1CWO -> STATUS_OK")
+        rec = res["payload"]
+        check(rec["license_class"] is None,
+              f"VE1CWO 'BC' collapses to None (got {rec['license_class']!r})")
+
+        # ---- VA1ADV: Amateur Club ----
+        rec = lookup_ca.lookup(app, "VA1ADV")["payload"]
+        check(rec["license_type"] == "club", "VA1ADV license_type=club")
+        check(rec["name"] == "Advocate Fire Department",
+              "VA1ADV name from entity_name")
+        check(rec["trustee_name"] == "James Russel Hannon",
+              "VA1ADV trustee_name populated")
+        check(rec["address_line1"] == "PO BOX 126",
+              f"VA1ADV address_line1 as-is (got {rec['address_line1']!r})")
+
+        # ---- unknown callsign -> NOT_FOUND ----
+        result = lookup_ca.lookup(app, "ZZZZZZ")
+        check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
+              "unknown call -> STATUS_NOT_FOUND")
+        check(result["error"] == "callsign not found",
+              "unknown call -> standard 'callsign not found' error")
+
+        # ---- missing-DB setup -> lookup errors ----
+        scratch2 = Path(tempfile.mkdtemp(prefix="haml-ca-missing-"))
+        try:
+            class _App2(dict):
+                pass
+            app2 = _App2()
+            app2["cfg"] = {"ca_db_path": str(scratch2 / "absent.sqlite")}
+            lookup_ca.setup(app2)
+            check(app2.get("ca_db") is None,
+                  "ca.setup() with a missing file -> app['ca_db'] is None")
+            result = lookup_ca.lookup(app2, "VE7ADV")
+            check(result["status"] == lookup_cache.STATUS_ERROR,
+                  "missing-DB lookup -> STATUS_ERROR")
+            check("unavailable" in result["error"].lower(),
+                  f"missing-DB error mentions unavailability "
+                  f"(got {result['error']!r})")
+        finally:
+            shutil.rmtree(scratch2, ignore_errors=True)
+
+        app["ca_db"].close()
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
 def check_callparser_unit():
     """Drive the CallParser adapter directly with the repo's committed
     Prefix.lst. Locks in the raw -> canonical mapping: zones as ints,
@@ -1070,6 +1293,12 @@ def _make_config(tmp, fcc_db_path, prefix_lst_path=None):
         "host": "127.0.0.1", "port": PORT,
         "data_dir": str(tmp), "admin_password": "test-pw",
         "fcc_db_path": str(fcc_db_path),
+        # The Canadian source sits between FCC and CallParser. Point it at the
+        # committed dataset (same as the real Prefix.lst above) so it is a
+        # clean NOT_FOUND for the US/garbage calls these e2e cases probe,
+        # preserving the 404/502 fall-through — never an "unavailable" error
+        # that would turn an expected 404 into a 502.
+        "ca_db_path": str(SERVER_DIR / "datasets" / "ca_amateur.sqlite"),
     }
     if prefix_lst_path is not None:
         cfg["prefix_lst_path"] = str(prefix_lst_path)
@@ -1284,6 +1513,38 @@ async def run_e2e(fcc_db_path, prefix_lst_path=None,
                       f"N0GEO dxcc is None (got "
                       f"{body.get('dxcc')!r})")
 
+                # ---- live ISED hit through the chain (Canadian call) ----
+                # The FCC fixture holds only US calls, so a VE/VA callsign
+                # misses FCC and must fall through to the ISED source. This is
+                # the one e2e case that lands on lookup_ca via the live chain —
+                # unit tests drive that adapter directly and can't catch a
+                # SOURCES-wiring or config-plumbing bug. Pick a real row out of
+                # the committed dataset at runtime so the assertion survives a
+                # dataset refresh.
+                print("live ISED hit (Canadian call):")
+                ca_db = SERVER_DIR / "datasets" / "ca_amateur.sqlite"
+                ca_conn = sqlite3.connect(f"file:{ca_db}?mode=ro", uri=True)
+                try:
+                    ca_row = ca_conn.execute(
+                        "SELECT callsign FROM operators "
+                        "WHERE dxcc_entity = 'Canada' LIMIT 1"
+                    ).fetchone()
+                finally:
+                    ca_conn.close()
+                check(ca_row is not None,
+                      "committed ca_amateur.sqlite has at least one Canadian row")
+                ca_call = ca_row[0]
+                status, body = await post_lookup(session, ca_call)
+                check(status == 200,
+                      f"Canadian call {ca_call} -> 200 (got {status})")
+                check(body.get("source") == "ised",
+                      f"{ca_call} resolves via the ISED source through the chain "
+                      f"(got {body.get('source')!r})")
+                check(body.get("callsign") == ca_call,
+                      f"{ca_call} callsign echoed (got {body.get('callsign')!r})")
+                check(body.get("country") == "Canada",
+                      f"{ca_call} country=Canada (got {body.get('country')!r})")
+
                 # ---- cold unknown call ----
                 print("cold unknown call:")
                 status, body = await post_lookup(session, "ZZZZZZ")
@@ -1468,6 +1729,8 @@ async def main():
     await check_chain_fallthrough_unit()
     print("unit: fcc adapter:")
     check_fcc_unit()
+    print("unit: ised (canada) adapter:")
+    check_ca_unit()
     print("unit: callparser adapter:")
     check_callparser_unit()
 

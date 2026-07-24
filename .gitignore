@@ -15,3 +15,4 @@ node_modules/
 # Live event state:
 server/data/
 server/datasets/fcc_amateur.sqlite
+server/datasets/ca_amateur.sqlite

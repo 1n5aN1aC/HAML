@@ -4,7 +4,7 @@ A pure adapter — no HTTP, no async, no I/O beyond the local sqlite read.
 File is opened read-only at setup time so a misconfigured path never blocks boot.
 On miss or DB unavailable, hand back a {status, payload, error} shape.
 
-First source in `lookup.SOURCES`; see `lookup_blank` for the module
+First source in `lookup.SOURCES`; see `lookup.py` for the module
 contract. `CACHED = False`: the query is microseconds, so a cache row buys
 no latency, and a stale row would outrank the DB itself. Cache writes are
 the dispatcher's job in any case — this module never touches the cache.

@@ -30,7 +30,10 @@ If you need to change any settings, simply edit config.json
 
 Relative paths resolve against `server/`, not the directory you launched from.
 
-Callsign lookups additionally need the FCC dataset at `server/datasets/fcc_amateur.sqlite` (see [server/datasets/README.md](server/datasets/README.md)); it is not in the repo, and without it lookups fall back to prefix-level answers only.
+Additionally, several callsign lookup databases are supported: (see [server/datasets/README.md](server/datasets/README.md));
+- The FCC dataset at `server/datasets/fcc_amateur.sqlite`
+- The Canadian dataset at `server/datasets/ca_amateur.sqlite`
+- When a callsign is not in these databases, it falls back to prefix-level answers only.
 
 ## Run development server
 

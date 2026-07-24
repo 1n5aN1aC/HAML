@@ -7,7 +7,7 @@ Providers (FCC today, QRZ/HamQTH tomorrow) adapt their raw payload into the keys
   - empty string  -> None
   - whitespace    -> stripped
   - enums         -> lowercased passthrough (no closed set yet)
-  - state         -> USPS 2-letter code, accepting spelled-out names (None on unknown -> dirty)
+  - state         -> USPS 2-letter code (or Canadian province code), accepting spelled-out US names (None on unknown -> dirty)
   - lat/lon       -> float (None on parse failure -> dirty)
   - zones         -> int within an allowed range (None on parse failure -> dirty)
   - dates         -> YYYY-MM-DD ISO 8601 (None on parse failure -> dirty)
@@ -121,21 +121,26 @@ _STATE_NAMES = {
 }
 _STATE_CODES = frozenset(_STATE_NAMES.values()) # two-letter codes, derived from the name map above.
 
+# Canadian province/territory codes.  ISED published the bare list, accepted below.
+_CA_PROVINCE_CODES = frozenset({
+    "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+})
+
 
 def _coerce_state(value):
-    """US state as the USPS two-letter code.
+    """US state or Canadian province as its two-letter code.
 
-    Accepts a two-letter code (any case) or a spelled-out name; always
-    returns the uppercase code. Anything else — a code or name we don't
-    recognize — is present-but-uncoercible (None -> dirty), same as a bad
-    date or latitude.
+    Accepts a two-letter code (any case), a Canadian province code, or a
+    spelled-out US state name; always returns the uppercase code. Anything
+    else — a code or name we don't recognize — is present-but-uncoercible
+    (None -> dirty), same as a bad date or latitude.
     """
     s = _coerce_str(value)
     if s is None:
         return None
     u = s.upper()
     if len(u) == 2:
-        return u if u in _STATE_CODES else None
+        return u if (u in _STATE_CODES or u in _CA_PROVINCE_CODES) else None
     # Collapse internal whitespace so "NEW  YORK" still maps.
     return _STATE_NAMES.get(" ".join(u.split()))
 

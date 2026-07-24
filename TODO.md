@@ -12,8 +12,6 @@ Client:
   Re-submit as Edit with late data
 
 Location-based improvements:
-- Data source: Other countries
-    Australia (ACMA) – The Register of Radiocommunications Licences (RRL) offers a full CSV data dump updated daily.
 - Data source: HamCall (Buckmaster) ($50)
 - Data source: Other online APIs
 - Server should live-build Gridsquare, State, ARRL section, ITU zone, CQ zone from location.

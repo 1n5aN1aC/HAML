@@ -5,16 +5,45 @@ future for concurrent callers), the source chain itself, and the cache
 writes. Sources know nothing about each other, about the cache, or about
 their position in the chain.
 
-To add a source: write a module following the contract documented in
-`lookup_blank`, then add it to `SOURCES` below. Nothing else changes —
-`main.build_app` calls `lookup.setup(app)` once and the chain drives every
-source's setup/teardown.
+To add a source: write a module following the contract below, then add it to
+`SOURCES`. Nothing else changes — `main.build_app` calls `lookup.setup(app)`
+once and the chain drives every source's setup/teardown.
 
 What lives here vs in a source module:
   here:  normalize_callsign, SOURCES, the fall-through rules, cache writes,
          inflight futures, _drive, schedule, setup, close
   there: the actual data access (sqlite / prefix DB / HTTP), its own rate
          gates and sessions, and the raw -> canonical mapping.
+
+--- the source module contract ---------------------------------------------
+
+A source is a plain module. No classes, no registration call; it becomes a
+source by being listed in `SOURCES`. It exposes:
+
+  SOURCE   str   provenance stamped into the record's `source` field
+  CACHED   bool  may the dispatcher persist this source's OK results?
+                 True  -> the dispatcher lookup.put()s the record; later
+                          lookups of that callsign are answered from the cache
+                          without the chain running at all (so sources ABOVE
+                          this one in SOURCES are skipped until the row
+                          expires). The slot for a paid online provider.
+                 False -> nothing is written; the source is re-run every time.
+                          Every shipped source is False: they are offline and
+                          answer in microseconds, so a cache row buys no
+                          latency and a stale row would only outrank the DB.
+  setup(app)                 called once at boot from lookup.setup(). Must
+                             never raise — warn and mark itself unavailable
+                             so the server still boots (see lookup_fcc).
+  close(app)                 optional. Release handles at shutdown.
+  lookup(app, callsign)      -> {status, payload, error}. May be `async def`;
+                             the dispatcher awaits an awaitable result. On a
+                             miss return STATUS_NOT_FOUND — that is how a
+                             source declines a callsign it doesn't handle
+                             (there is no routing predicate; every source sees
+                             every callsign). On breakage return STATUS_ERROR:
+                             the chain keeps going but remembers the first
+                             error, so a broken dataset surfaces as a 502
+                             rather than vanishing into a "not found".
 
 `api_rest.post_lookup` reads the cache, calls `schedule()` on a miss, and
 post-processes the record on the way out; the chain is invisible above
@@ -23,7 +52,7 @@ that line.
 import asyncio
 import inspect
 
-import lookup_blank
+import lookup_ca
 import lookup_cache
 import lookup_callparser
 import lookup_fcc
@@ -53,12 +82,15 @@ def normalize_callsign(raw):
 # run. Today:
 #   fcc         offline US licensee DB.   CACHED=False — microseconds, and a
 #               cache row would only let a stale answer outrank the DB.
-#   blank       always misses.            CACHED=True  — the worked example,
-#               and the slot an online provider (QRZ/HamQTH) drops into:
-#               after the free US hit, before the prefix-DB fallback.
+#   ised        offline Canadian licensee DB. CACHED=False, same reasoning.
+#               Runs only on an FCC miss; the two datasets are disjoint, so
+#               the order between them is about cost, not correctness.
 #   callparser  offline prefix DB.        CACHED=False — DXCC-level answers
 #               for everything else; in-memory, so nothing to cache.
-SOURCES = (lookup_fcc, lookup_blank, lookup_callparser)
+# A paid online provider (QRZ/HamQTH) would slot in after the offline licensee
+# hits and before the prefix-DB fallback, with CACHED=True; see the source
+# contract in the module docstring above.
+SOURCES = (lookup_fcc, lookup_ca, lookup_callparser)
 
 
 # Run one source, normalizing both async results and exceptions into the

@@ -121,15 +121,16 @@ Lookup is an ordered list of interchangeable **sources** in `lookup.SOURCES`, wa
 order, plus a single **post-processing** stage every answer passes through on the way out.
 
 A source is a plain module — no class, no registration call; it becomes part of the chain by
-being listed. The contract is written down in `server/lookup_blank.py`: `SOURCE`, `CACHED`,
-`setup(app)`, an optional `close(app)`, and `lookup(app, callsign) -> {status, payload,
-error}`, which may be sync or `async def` (the dispatcher awaits an awaitable result, so an
-online provider needs no change to the chain).
+being listed. The contract is written down in the `server/lookup.py` module docstring:
+`SOURCE`, `CACHED`, `setup(app)`, an optional `close(app)`, and `lookup(app, callsign) ->
+{status, payload, error}`, which may be sync or `async def` (the dispatcher awaits an awaitable
+result, so an online provider needs no change to the chain).
 
-The shipped chain is **`fcc` → `blank` → `callparser`**. `blank` always misses; it exists so
-the module contract is expressed in code, and so the slot an online provider (QRZ, HamQTH,
-ACMA, HamCall) belongs in already exists: after the free offline US hit, before the
-prefix-DB fallback.
+The shipped chain is **`fcc` → `ised` → `callparser`**. `fcc` and `ised` are the two offline
+licensee DBs (US and Canada); they hold disjoint callsign spaces, so `ised` runs only on an FCC
+miss and the order between them is about cost, not correctness. `callparser` is the prefix-DB
+fallback. A paid online provider (QRZ, HamQTH, ACMA, HamCall) would slot in after the offline
+licensee hits and before the prefix-DB fallback.
 
 - **A source declines by missing.** There is no routing predicate — every source sees every
   callsign, and `not_found` is how it says "not mine". A source that must not waste a paid
@@ -165,7 +166,8 @@ row, so there is nothing for it to describe. When the first real caching source 
 to the result shape (both offline adapters already compute `bad_fields`) so a half-coerced
 record gets the 15-minute TTL instead of 365 days.
 
-Supporting modules: `lookup_fcc.py` (local FCC ULS dataset), `lookup_callparser.py` over
+Supporting modules: `lookup_fcc.py` (local FCC ULS dataset), `lookup_ca.py` (local ISED
+Canadian dataset, run on an FCC miss), `lookup_callparser.py` over
 `callparser.py` (prefix DB), `lookup_zones.py` (CQ/ITU polygons), `lookup_cache.py`. Dataset
 provenance and schemas: [server/datasets/README.md](../server/datasets/README.md).
 

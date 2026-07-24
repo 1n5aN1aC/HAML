@@ -161,10 +161,10 @@ async def post_lookup(request):
 
     The callsign walks the ordered chain in `lookup.SOURCES`; the first
     source to return OK wins, a miss or error falls through to the next.
-    Today that chain is the offline FCC ULS sqlite, the blank placeholder
-    (always misses — the slot for a future QRZ/HamQTH), and the CallParser
-    prefix DB, which answers with DXCC-level fields only.
-    Neither shipped source is cacheable, so the cache read path never hits
+    Today that chain is the offline FCC ULS sqlite, the offline ISED
+    (Canadian) sqlite, and the CallParser prefix DB, which answers with
+    DXCC-level fields only.
+    No shipped source is cacheable, so the cache read path never hits
     and the long-poll ceiling only matters once an online source is wired in.
 
     Every OK record — cache hit or fresh — is passed through

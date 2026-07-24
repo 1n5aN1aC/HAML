@@ -5,7 +5,7 @@ parse that callparser.init() does at setup. On miss, hands back
 STATUS_NOT_FOUND; on load failure, setup() flips a flag and lookup()
 becomes a permanent miss (the FCC hop still decides the response).
 
-Last source in `lookup.SOURCES`; see `lookup_blank` for the module
+Last source in `lookup.SOURCES`; see `lookup.py` for the module
 contract. `CACHED = False`: the prefix DB is in-memory and answers in
 microseconds, so a cache row buys nothing on latency. Cache writes are the
 dispatcher's job in any case — this module never touches the cache.
