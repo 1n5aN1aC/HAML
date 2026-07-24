@@ -2,6 +2,9 @@
 
 Usage: python server/main.py [config.json]
 
+With no argument, server/config.json is used when present, built-in defaults
+otherwise.
+
 Serves the REST API, the WebSocket signal layer (presence/chat/pokes), and
 the built client from client/dist when it exists (during development the
 Vite dev server proxies to us instead).

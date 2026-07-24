@@ -2,6 +2,10 @@
 import json
 from pathlib import Path
 
+# Default Config location when no argument is passed.
+# In practice, it will never be passed, but the smoke tests require the command-line argument.
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+
 DEFAULTS = {
     "host": "0.0.0.0",        # Listen on all interfaces
     "port": 80,               # Port for HAML REST API & WebSocket
@@ -28,8 +32,11 @@ def _resolve_relative_to_server(path):
 
 
 def load_config(path=None):
-    """Return config dict. `path` is an optional JSON file overriding DEFAULTS."""
+    """Return config dict. `path` is an optional JSON file overriding DEFAULTS.
+    Fallas back to a built-in default location defined above for most usage."""
     cfg = dict(DEFAULTS)
+    if path is None and DEFAULT_CONFIG_PATH.is_file():
+        path = DEFAULT_CONFIG_PATH
     if path:
         cfg.update(json.loads(Path(path).read_text(encoding="utf-8")))
     data_dir = _resolve_relative_to_server(cfg["data_dir"])

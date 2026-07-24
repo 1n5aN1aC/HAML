@@ -23,6 +23,13 @@ cd ..
 >
 > Alternatively, use `cmd.exe` (where the policy doesn't apply), or activate with the `.bat` form: `.venv\Scripts\activate.bat`.
 
+## Configure
+
+The server runs on built-in defaults with no configuration needed.
+If you need to change any settings, simply edit config.json
+
+Relative paths resolve against `server/`, not the directory you launched from.
+
 Callsign lookups additionally need the FCC dataset at `server/datasets/fcc_amateur.sqlite` (see [server/datasets/README.md](server/datasets/README.md)); it is not in the repo, and without it lookups fall back to prefix-level answers only.
 
 ## Run development server
