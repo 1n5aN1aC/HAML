@@ -2,7 +2,6 @@ BUGS:
 - Filed out, but not submitted contact clears on switching tabs
 
 POTA Improvements:
-- Entry for multiple P2P's
 - Park decoding support
 
 Client:

@@ -324,8 +324,15 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     // the offset is written by the sync engine and is absent until first sync.
     const offset = (await kvGet('clock_offset')) ?? 0
     const now = new Date(Date.now() + offset).toISOString()
-    await db.contacts.put({
-      uuid: newUuid(),
+    // Park-to-park with several comma-separated parks logs as one contact per park:
+    // identical but with different their_park fields so each gets its own POTA_REF
+    // on export. One park (or none) stays a single contact.
+    const parks = String(customFields.their_park ?? '')
+      .split(',').map((p) => p.trim()).filter(Boolean)
+    const perParkFields = parks.length > 1
+      ? parks.map((p) => ({ ...customFields, their_park: p }))
+      : [customFields]
+    const base = {
       qso_at: now,
       created_at: now,
       last_edited: now,
@@ -337,9 +344,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
       mode: session.mode,
       deleted: false,
       ...builtins,
-      fields: customFields,
       sync_state: 'pending',
-    })
+    }
+    await db.contacts.bulkPut(
+      perParkFields.map((fields) => ({ ...base, uuid: newUuid(), fields })),
+    )
     pushNow()
     // DX contacts get their own submit sound!
     const isDx = String(finalValues.section ?? '').trim() === 'DX'
