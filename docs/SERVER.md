@@ -23,6 +23,10 @@ we don't want, and turns archiving and resetting into delete operations.)
 The lookup cache and the reference datasets sit in their own files *outside* the Event
 databases, so they survive Event switches — callsign facts belong to no particular Event.
 
+**Automatic backups.** A background task (`server/backup_scheduler.py`, started from `build_app`) snapshots the active Event every `auto_backup_interval_minutes` (config, `0` disables the loop)
+This uses the same online-backup copy as the admin action.
+It is change-gated: the tick only writes when the contacts table's `MAX(synced_at)` differs from an **in-memory** marker held since the last snapshot, so a quiet stretch writes nothing.
+
 ## Data model
 
 **Contact** — fixed columns: UUID (client-generated), QSO date/time, created / last-edited
@@ -171,7 +175,8 @@ Every admin request carries a shared password as a header — a tripwire to stop
 around, explicitly not a security mechanism (see [ARCHITECTURE.md](./ARCHITECTURE.md),
 *Trust model*). Behind it: create an Event from a Template;
 activate or delete a stored Event; back up the *active* Event (the only one the server holds
-open, so it's the only one it can snapshot); create, edit, and delete Template files; inspect
+open, so it's the only one it can snapshot — also done on a schedule, see *Automatic backups*
+above); create, edit, and delete Template files; inspect
 and clear the callsign-lookup cache; clear the Event's chat history; and inject test contacts.
 
 When the server has no active Event, there is nothing to serve but this surface — the client
@@ -179,12 +184,15 @@ shows the Admin page alone, since it's the only thing that can fix that state.
 
 ## Testing
 
-Three smoke tests in `server/tests/`:
+Four smoke tests in `server/tests/`:
 - `smoke.py` (events, sync, admin)
 - `smoke_ws.py` (presence, chat, pokes)
 - `smoke_lookup.py` (callsign lookup)
+- `smoke_backup.py` (the automatic-backup decision)
 
-Each spawns its own server on a scratch port with a scratch data directory, so nothing needs to be running first;
+The first three spawn their own server on a scratch port with a scratch data directory, so
+nothing needs to be running first; `smoke_backup.py` drives the time-gated backup decision
+in-process instead of waiting on the timer, building the app against a scratch data directory.
 Each prints a check count and exits non-zero on failure. Run them one at a time — see [INSTALL.md](../INSTALL.md).
 
 The data directory is scratch, but Template files are not: `smoke.py` exercises the Template

@@ -4,5 +4,6 @@
   "data_dir": "data",
   "admin_password": "haml",
   "fcc_db_path": "datasets/fcc_amateur.sqlite",
-  "prefix_lst_path": "datasets/Prefix.lst"
+  "prefix_lst_path": "datasets/Prefix.lst",
+  "auto_backup_interval_minutes": 15
 }

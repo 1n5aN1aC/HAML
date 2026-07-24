@@ -16,6 +16,7 @@ from aiohttp import web
 
 import api_rest
 import api_ws
+import backup_scheduler
 import events
 import lookup
 import lookup_cache
@@ -44,6 +45,7 @@ def build_app(cfg):
     app.on_shutdown.append(_close_cache)
     api_ws.setup(app)  # defines app["poke"] / app["notify_event"]
     api_rest.set_active_connection(app, events.get_active_path(cfg["data_dir"]))
+    backup_scheduler.setup(app)  # starts the automatic-backup loop (unless disabled)
     api_rest.setup_routes(app)
     if CLIENT_DIST.is_dir():
         app.router.add_get("/", lambda r: web.FileResponse(CLIENT_DIST / "index.html"))

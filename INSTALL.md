@@ -72,6 +72,7 @@ nothing needs to be running first.  Run them one at a time, from the repo root:
 python server/tests/smoke.py          # server core: events, sync, admin
 python server/tests/smoke_ws.py       # WebSocket: presence, chat, pokes
 python server/tests/smoke_lookup.py   # callsign lookup
+python server/tests/smoke_backup.py   # automatic-backups
 ```
 
 Each prints its check count and exits non-zero on failure, keeping its scratch directory

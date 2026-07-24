@@ -16,9 +16,6 @@ Client:
   Offline-First PWA
   Re-submit as Edit with late data
 
-Server:
-  Automatic Backup Feature
-
 Location-based improvements:
 - Data source: Other countries
     Australia (ACMA) – The Register of Radiocommunications Licences (RRL) offers a full CSV data dump updated daily.

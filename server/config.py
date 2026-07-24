@@ -13,8 +13,8 @@ DEFAULTS = {
     "admin_password": "haml", # Password for the admin REST endpoints
     "fcc_db_path": "datasets/fcc_amateur.sqlite", # Path to the local FCC ULS sqlite
     "prefix_lst_path": "datasets/Prefix.lst",     # Path to the VE3NEA CallParser Prefix.lst
+    "auto_backup_interval_minutes": 15, # Automatic backup cadence; 0 disables the loop
 }
-
 
 def _resolve_relative_to_server(path):
     """Make a server-relative path absolute against this file's dir.
@@ -29,7 +29,6 @@ def _resolve_relative_to_server(path):
     if p.is_absolute():
         return p
     return Path(__file__).resolve().parent / p
-
 
 def load_config(path=None):
     """Return config dict. `path` is an optional JSON file overriding DEFAULTS.

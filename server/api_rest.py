@@ -68,6 +68,8 @@ def set_active_connection(app, db_path):
     old = app.get("conn")
     if old is not None:
         old.close()
+    # A new DB connection is a fresh backup baseline
+    app["last_backup_marker"] = None
     if db_path is None:
         app["conn"] = None
         app["event"] = None
