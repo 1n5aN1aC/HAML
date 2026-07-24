@@ -12,7 +12,6 @@ POTA Improvements:
 - Park decoding support
 
 Client:
-  Mobile Submit button
   Offline-First PWA
   Re-submit as Edit with late data
 

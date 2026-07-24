@@ -25,16 +25,26 @@
   .future-panel-left { display: none; }
 
   /* cap each panel so the column stays navigable; they keep their inner scroll */
-  .contact-list { max-height: 45vh; overflow-x: auto; }
-  .stations-panel { max-height: 30vh; }
-  .chat-panel { flex: none; height: 38vh; }
+  .contact-list { max-height: 45dvh; overflow-x: auto; }
+  .stations-panel { max-height: 30dvh; }
+  .chat-panel { flex: none; height: 38dvh; }
 
   /* the logging tab's mini map only — the Stats tab has its own .map-panel */
   .right-pane > .map-stats-panel { display: none; }
 
   /* the Stats tab reuses .panes, so its cards need heights once the row stacks */
   .stats-page .stats-left,
-  .stats-page .stats-right > div { min-height: 60vh; }
+  .stats-page .stats-right > div { min-height: 60dvh; }
+
+  /* Reclaim vertical space while typing: focusing any field inside the panes
+     (entry form, chat, contact search) hides the operator status bar and its
+     separator. .panes :focus excludes the status bar's own inputs
+     (callsign/initials/band/mode), so it stays visible while you edit it.
+     :has() unsupported -> the bar just stays put, no harm. */
+  .app:has(.panes :focus) .status-bar,
+  .app:has(.panes :focus) .status-bar-separator {
+    display: none;
+  }
 
   /* status bar wraps; its exchange moves out to .exchange-bar below */
   .status-bar { flex-wrap: wrap; }
@@ -118,11 +128,30 @@
 
 /* --- Tier 2: phone --- additive overrides on top of Tier 1. */
 @media (max-width: 600px) {
-  .chat-panel { height: 35vh; }
+  .chat-panel { height: 35dvh; }
 }
 
 /* --- Touch input --- a question about the input device, not the screen: a touch
    laptop wants these, a narrow desktop window does not. */
 @media (pointer: coarse) {
   .top-bar .tab { padding-top: 8px; padding-bottom: 8px; }
+
+  /* The entry form's submit is sr-only on desktop (Enter-to-log);
+     on touch it becomes the primary tap target: a full-width bar below the fields. */
+  .entry-submit {
+    position: static;
+    width: 100%;
+    height: auto;
+    clip: auto;
+    overflow: visible;
+    margin-top: 10px;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    border: 1px solid var(--theme-border);
+    border-radius: 6px;
+    background: var(--theme-accent);
+    color: var(--theme-surface);
+  }
+  .entry-submit:disabled { opacity: 0.45; }
 }

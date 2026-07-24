@@ -18,6 +18,13 @@ import { lookupCallsign } from '../../api.js'
 import { isPlausibleCallsign, lookupPatchFromRecord } from '../../lookup-fill.js'
 import FieldInput from './FieldInput.jsx'
 
+// Touch soft keyboards get a per-field Return action:
+// Advance through fields ('next') and submits on the last one ('send')
+// Plus the visible "Log Contact" button submits from anywhere.
+// The browser's own next/send heuristic is unreliable (submitted from first field), so we drive it.
+// Desktop (fine pointer) keeps plain Enter-to-log on every field. Same test that reveals the button
+const IS_TOUCH = window.matchMedia?.('(pointer: coarse)').matches ?? false
+
 // UTC + local wall clock, corrected by the same server clock offset used for
 // QSO timestamps so what's shown matches what gets logged.
 function EntryClock() {
@@ -154,6 +161,15 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     return `${serverRecord.country} (${mi.toLocaleString()} mi)`
   }, [serverRecord])
 
+  // Soft-keyboard Return label for the field at `orderIndex`
+  // (callsign = 0, entry fields 1..N; the last order index is fields.length).
+  // Desktop: always 'send' (Enter logs everywhere).
+  // Touch: 'next' to advance, 'send' on the last field
+  function enterHint(orderIndex) {
+    if (!IS_TOUCH) return 'send'
+    return orderIndex === fields.length ? 'send' : 'next'
+  }
+
   // Log fields never contain spaces, so Space doubles as "next field" (wrapping, like Tab) instead of typing a literal space.
   // A freetext field (comment) opts out via allowSpace and takes the literal space; Tab still moves on.
   // Escape in any entry field resets the whole form and returns focus to the callsign box.
@@ -161,6 +177,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     if (e.key === ' ' && !allowSpace) {
       e.preventDefault()
       order[(index + 1) % order.length]?.focus()
+    } else if (e.key === 'Enter' && IS_TOUCH && index < order.length - 1) {
+      // Touch: Enter advances to the next field. On the last field it isn't
+      // caught here, so it falls through to implicit submission (logs)
+      e.preventDefault()
+      order[index + 1]?.focus()
     } else if (e.key === 'Tab') {
       if (!e.shiftKey && index === order.length - 1) {
         e.preventDefault()
@@ -356,8 +377,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             className="cs"
             placeholder="Callsign"
             maxLength={10}
-            // Return on a soft keyboard submits the form (it logs the QSO — so "send", not "next".)
-            enterKeyHint="send"
+            enterKeyHint={enterHint(0)}
             value={callsign}
             onChange={(e) => {
               // No .toUpperCase() here: transforming the typed text makes React write a value the DOM
@@ -404,6 +424,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               field={f}
               value={values[f.name]}
               placeholder={f.label}
+              enterKeyHint={enterHint(i + 1)}
               onChange={(v) => {
                 setValues((prev) => ({ ...prev, [f.name]: v }))
                 setTouched((prev) =>
@@ -428,11 +449,14 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             />
           ))}
           {callStatus && <span className="call-country">{callStatus}</span>}
-          {/* invisible: keeps Enter-to-submit working without multiple
-              fields blocking implicit submission (no visible button) */}
-          <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
           <EntryClock />
         </div>
+        {/* The form's submit button.
+            Hidden on desktop, but unhidden on mobile.  (sr-only)
+            tabIndex -1 keeps it out of the desktop keyboard trap; tap still works. */}
+        <button type="submit" className="entry-submit sr-only" tabIndex={-1}>
+          Log Contact
+        </button>
         {/* a submit error takes the slot over the dupe banner while shown */}
         {!disabled && (dupe && !error ? (
           <div className="entry-dupe">

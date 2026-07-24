@@ -15,7 +15,7 @@ function matches(pattern, value) {
 }
 
 const FieldInput = forwardRef(function FieldInput(
-  { field, value, onChange, placeholder, onKeyDown, onBlurValidity, onBlur },
+  { field, value, onChange, placeholder, onKeyDown, onBlurValidity, onBlur, enterKeyHint = 'send' },
   ref,
 ) {
   const [latchedBad, setLatchedBad] = useState(false)
@@ -55,8 +55,8 @@ const FieldInput = forwardRef(function FieldInput(
       className="field-input"
       ref={ref}
       type="text"
-      // Return on a soft keyboard submits the form (it logs the QSO — so "send", not "next".)
-      enterKeyHint="send"
+      // Soft-keyboard Return label. Entry form passes 'send' or 'next' (advances a field);
+      enterKeyHint={enterKeyHint}
       style={{ width, maxWidth: width }}
       value={value}
       placeholder={placeholder}
