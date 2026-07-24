@@ -372,10 +372,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     <form className="entry-form" onSubmit={logContact}>
       <fieldset disabled={disabled}>
         <div className="entry-fields">
+          <label className="field-cell">
+          <span className="field-label">Callsign</span>
           <input
             ref={callsignRef}
             className="cs"
-            placeholder="Callsign"
             maxLength={10}
             enterKeyHint={enterHint(0)}
             value={callsign}
@@ -417,36 +418,38 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
             }
             autoFocus
           />
+          </label>
           {fields.map((f, i) => (
-            <FieldInput
-              key={f.name}
-              ref={(el) => (fieldRefs.current[i] = el)}
-              field={f}
-              value={values[f.name]}
-              placeholder={f.label}
-              enterKeyHint={enterHint(i + 1)}
-              onChange={(v) => {
-                setValues((prev) => ({ ...prev, [f.name]: v }))
-                setTouched((prev) =>
-                  prev.has(f.name) ? prev : new Set(prev).add(f.name),
-                )
-              }}
-              onKeyDown={(e) =>
-                handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current], f.freetext)
-              }
-              // leaving section/state derives the counterpart (state <-> section)
-              onBlur={
-                f.name === 'section' || f.name === 'state' ? applyCrossFill : undefined
-              }
-              // invalid on blur puts the rule's message in the error bar; a
-              // valid blur clears it only if this field's message is showing,
-              // so it never wipes another field's (or a submit) error
-              onBlurValidity={(msg) =>
-                setError((prev) =>
-                  msg ?? (prev === f.validation?.message ? '' : prev),
-                )
-              }
-            />
+            <label key={f.name} className="field-cell">
+              <span className="field-label">{f.label}</span>
+              <FieldInput
+                ref={(el) => (fieldRefs.current[i] = el)}
+                field={f}
+                value={values[f.name]}
+                enterKeyHint={enterHint(i + 1)}
+                onChange={(v) => {
+                  setValues((prev) => ({ ...prev, [f.name]: v }))
+                  setTouched((prev) =>
+                    prev.has(f.name) ? prev : new Set(prev).add(f.name),
+                  )
+                }}
+                onKeyDown={(e) =>
+                  handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current], f.freetext)
+                }
+                // leaving section/state derives the counterpart (state <-> section)
+                onBlur={
+                  f.name === 'section' || f.name === 'state' ? applyCrossFill : undefined
+                }
+                // invalid on blur puts the rule's message in the error bar; a
+                // valid blur clears it only if this field's message is showing,
+                // so it never wipes another field's (or a submit) error
+                onBlurValidity={(msg) =>
+                  setError((prev) =>
+                    msg ?? (prev === f.validation?.message ? '' : prev),
+                  )
+                }
+              />
+            </label>
           ))}
           {callStatus && <span className="call-country">{callStatus}</span>}
           <EntryClock />

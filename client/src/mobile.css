@@ -18,7 +18,7 @@
     overflow: visible;
   }
   .left-pane { min-width: 0; }
-  .right-pane { min-width: 0; max-width: none; }
+  .right-pane { min-width: 0; width: auto; }
 
   /* entry form above the contact list (the pane's DOM order is list-then-form) */
   .entry-form { order: -1; }
@@ -80,6 +80,20 @@
     font-size: 16px;
   }
 
+  /* Labels-above (app.css) add a label line to each wrapped row of fields. On
+     the phone the row already spills onto several lines, so tighten the flex gap
+     to keep the stack compact and undo most of the extra height. */
+  .entry-form .entry-fields { gap: 7px 8px; }
+
+  /* Shrink entry boxes on the mobile tiers.
+      Entry-form-scoped rule must re-assert it, since it's more specific
+      than the generic .entry-fields 16px rule above. */
+  .entry-form .entry-fields input,
+  .entry-form .entry-fields select {
+    padding: 6px 9px;
+    font-size: 16px;
+  }
+
   /* modals fit the viewport and scroll internally rather than pushing their
      buttons off-screen */
   .modal {
@@ -129,6 +143,11 @@
 /* --- Tier 2: phone --- additive overrides on top of Tier 1. */
 @media (max-width: 600px) {
   .chat-panel { height: 35dvh; }
+
+  /* squeeze the labels-above layout a little more where space is tightest:
+     smaller label line and a hair less vertical gap between wrapped rows */
+  .entry-form .entry-fields { gap: 6px 8px; }
+  .field-label { font-size: 11px; }
 }
 
 /* --- Touch input --- a question about the input device, not the screen: a touch
