@@ -75,6 +75,8 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   - `previous_callsign` TEXT, `trustee_callsign` TEXT, `trustee_name` TEXT, `attention_line` TEXT
   - `street_address` TEXT, `po_box` TEXT, `city` TEXT, `state` TEXT, `zip_code` TEXT
   - `county` TEXT
+  - `arrl_section` TEXT — ARRL Section abbreviation (e.g. `"OR"`, `"ENY"`, `"MDC"`).
+    Served to clients as the `section` field.
   - `frn` TEXT
   - `grant_date` TEXT, `expired_date` TEXT   — ISO `YYYY-MM-DD`. Note the column
     is `expired_date`; the canonical lookup record calls the field `expiry_date`.
@@ -114,6 +116,8 @@ The local ISED operator dataset that `server/lookup_ca.py` reads. ~92k Canadian 
     The canonical-record state coercer (`lookup_record._CA_PROVINCE_CODES`)
     accepts these alongside US states; the client entry field already did.
   - `applicant_type` is only `Individual` or `Amateur Club`.
+  - `arrl_section` holds a **RAC** section (`BC`, `ONS`, `GTA`, …) rather than an
+    ARRL one; same column, same `section` field on the wire, different vocabulary.
 - **Server config**: path overridable via `ca_db_path`; staleness threshold via
   `ca_db_max_age_days`. Same missing-file semantics and mtime-based
   staleness warning as the FCC dataset.

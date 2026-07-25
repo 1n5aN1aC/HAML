@@ -193,6 +193,7 @@ def _build_record(row):
         "address_line2": address_line2,
         "state": state, # 2-letter province/territory code
         "county": row["county"] or "",
+        "section": row["arrl_section"] or "", # RAC section abbreviation
         "country": row["dxcc_entity"] or "",
         "continent": row["continent"] or "",
         "latitude": latitude,

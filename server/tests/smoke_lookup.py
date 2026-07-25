@@ -116,6 +116,7 @@ CREATE TABLE operators (
   gridsquare            TEXT,
   coordinates           TEXT,
   county                TEXT,
+  arrl_section          TEXT,
   dxcc_entity           TEXT,
   continent             TEXT,
   dxcc_id               INTEGER
@@ -152,6 +153,7 @@ FCC_FIXTURE = [
         "gridsquare": "CN84hx",
         "coordinates": "44.979441,-123.337862",
         "county": "Polk",
+        "arrl_section": "OR",
         "dxcc_entity": "United States",
         "continent": "NA",
         "dxcc_id": 291,
@@ -175,6 +177,7 @@ FCC_FIXTURE = [
         "gridsquare": "CN85",
         "coordinates": "45.5152,-122.6784",
         "county": "Multnomah",
+        "arrl_section": "OR",
         "dxcc_entity": "United States",
         "continent": "NA",
         "dxcc_id": 291,
@@ -198,6 +201,7 @@ FCC_FIXTURE = [
         "gridsquare": "CN85",
         "coordinates": "45.5152,-122.6784",
         "county": "Multnomah",
+        "arrl_section": "OR",
         "dxcc_entity": "United States",
         "continent": "NA",
         "dxcc_id": 291,
@@ -221,6 +225,7 @@ FCC_FIXTURE = [
         "gridsquare": "CN84",
         "coordinates": "44.0521,-123.0868",
         "county": "Lane",
+        "arrl_section": "or",
         "dxcc_entity": "United States",
         "continent": "NA",
         "dxcc_id": 291,
@@ -243,6 +248,7 @@ FCC_FIXTURE = [
         "gridsquare": "",
         "coordinates": "",
         "county": "",
+        "arrl_section": "",
         "dxcc_entity": "",
         "continent": "",
         "dxcc_id": None,
@@ -420,6 +426,7 @@ def check_coerce():
         "address_attn": "",
         "state": "Oregon",   # spelled-out on purpose — must map to the code
         "county": "",
+        "section": "or",     # lowercase on purpose — must come back uppercased
         "country": "",
         "continent": "",
         "latitude": "44.979441",
@@ -486,6 +493,8 @@ def check_coerce():
     check(record["state"] == "OR",
           f"full fixture -> 'Oregon' maps to 'OR' (got {record['state']!r})")
     check(record["county"] is None, "full fixture -> blank county is None")
+    check(record["section"] == "OR",
+          f"full fixture -> section uppercased (got {record['section']!r})")
     check(record["country"] is None, "full fixture -> blank country is None")
     check(record["continent"] is None, "full fixture -> blank continent is None")
 
@@ -806,6 +815,8 @@ def check_fcc_unit():
               f"W1AW state is the 2-letter code (got {rec['state']!r})")
         check(rec["county"] == "Polk",
               f"W1AW county from DB column (got {rec['county']!r})")
+        check(rec["section"] == "OR",
+              f"W1AW section from arrl_section column (got {rec['section']!r})")
         check(rec["country"] == "United States",
               f"W1AW country from DB column (got {rec['country']!r})")
         check(rec["continent"] == "NA",
@@ -853,6 +864,8 @@ def check_fcc_unit():
         check(result["status"] == lookup_cache.STATUS_OK, "N0BOX -> STATUS_OK")
         check(rec["address_line1"] == "PO BOX 123",
               f"N0BOX address_line1 synthesized (got {rec['address_line1']!r})")
+        check(rec["section"] == "OR",
+              f"N0BOX lowercase section uppercased (got {rec['section']!r})")
 
         # ---- N0GEO: NULL coordinates ----
         result = lookup_fcc.lookup(app, "N0GEO")
@@ -869,6 +882,8 @@ def check_fcc_unit():
               f"N0GEO itu_zone is None (got {rec['itu_zone']!r})")
         check(rec["county"] is None,
               f"N0GEO empty county coerces to None (got {rec['county']!r})")
+        check(rec["section"] is None,
+              f"N0GEO empty section coerces to None (got {rec['section']!r})")
         check(rec["country"] is None,
               f"N0GEO empty country coerces to None (got {rec['country']!r})")
         check(rec["continent"] is None,
@@ -912,8 +927,8 @@ def check_fcc_unit():
 
 
 # --- ISED (Canada) fixture --------------------------------------------------
-# The Canadian dataset is built to the FCC column layout (plus an arrl_section
-# column the adapter ignores), so it reuses FCC_SCHEMA. Rows exercise the
+# The Canadian dataset is built to the FCC column layout (arrl_section
+# included), so it reuses FCC_SCHEMA. Rows exercise the
 # three ways the CA adapter differs from FCC: a province state code, the
 # multi-letter qualification set collapsing to one class word, and a club
 # with no license dates / previous history (all NULL in this dataset).
@@ -937,6 +952,7 @@ CA_FIXTURE = [
         "gridsquare": "CN89ng",
         "coordinates": "49.2827,-123.1207",
         "county": "Greater Vancouver",
+        "arrl_section": "BC",
         "dxcc_entity": "Canada",
         "continent": "NA",
         "dxcc_id": 1,
@@ -959,6 +975,7 @@ CA_FIXTURE = [
         "gridsquare": "FN03",
         "coordinates": "43.6532,-79.3832",
         "county": None,
+        "arrl_section": "GTA",
         "dxcc_entity": "Canada",
         "continent": "NA",
         "dxcc_id": 1,
@@ -982,6 +999,7 @@ CA_FIXTURE = [
         "gridsquare": None,
         "coordinates": None,
         "county": None,
+        "arrl_section": None,
         "dxcc_entity": "Canada",
         "continent": "NA",
         "dxcc_id": 1,
@@ -1005,6 +1023,7 @@ CA_FIXTURE = [
         "gridsquare": "FN75oi",
         "coordinates": "45.333367,-64.777525",
         "county": "Cumberland",
+        "arrl_section": "NS",
         "dxcc_entity": "Canada",
         "continent": "NA",
         "dxcc_id": 1,
@@ -1061,6 +1080,8 @@ def check_ca_unit():
               f"VE7ADV 'AD' -> advanced (got {rec['license_class']!r})")
         check(rec["state"] == "BC",
               f"VE7ADV province code survives coercion (got {rec['state']!r})")
+        check(rec["section"] == "BC",
+              f"VE7ADV section from arrl_section column (got {rec['section']!r})")
         check(rec["address_line2"] == "VANCOUVER, BC V6B 1A1",
               f"VE7ADV address_line2 (got {rec['address_line2']!r})")
         check(rec["country"] == "Canada", "VE7ADV country=Canada")
@@ -1092,6 +1113,8 @@ def check_ca_unit():
         rec = res["payload"]
         check(rec["license_class"] is None,
               f"VE1CWO 'BC' collapses to None (got {rec['license_class']!r})")
+        check(rec["section"] is None,
+              f"VE1CWO NULL section is None (got {rec['section']!r})")
 
         # ---- VA1ADV: Amateur Club ----
         rec = lookup_ca.lookup(app, "VA1ADV")["payload"]
@@ -1411,6 +1434,8 @@ async def run_e2e(fcc_db_path, prefix_lst_path=None,
                       f"W1AW state field is 'OR' (got {body.get('state')!r})")
                 check(body.get("county") == "Polk",
                       f"W1AW county is 'Polk' (got {body.get('county')!r})")
+                check(body.get("section") == "OR",
+                      f"W1AW section is 'OR' (got {body.get('section')!r})")
                 check(body.get("country") == "United States",
                       f"W1AW country is 'United States' "
                       f"(got {body.get('country')!r})")

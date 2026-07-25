@@ -8,6 +8,7 @@ Providers (FCC today, QRZ/HamQTH tomorrow) adapt their raw payload into the keys
   - whitespace    -> stripped
   - enums         -> lowercased passthrough (no closed set yet)
   - state         -> USPS 2-letter code (or Canadian province code), accepting spelled-out US names (None on unknown -> dirty)
+  - section       -> uppercased passthrough (ARRL/RAC section abbreviation)
   - lat/lon       -> float (None on parse failure -> dirty)
   - zones         -> int within an allowed range (None on parse failure -> dirty)
   - dates         -> YYYY-MM-DD ISO 8601 (None on parse failure -> dirty)
@@ -42,6 +43,7 @@ FIELDS = (
     "address_attn",
     "state",
     "county",
+    "section",
     "country",
     "continent",
     "latitude",
@@ -150,6 +152,11 @@ def _coerce_lower(value):
     s = _coerce_str(value)
     return s.lower() if s is not None else None
 
+# Uppercase abbreviation passthrough. None / non-string / empty -> None.
+def _coerce_upper(value):
+    s = _coerce_str(value)
+    return s.upper() if s is not None else None
+
 
 def _coerce_float(value):
     """float, accepting ints and numeric strings. None on parse failure."""
@@ -246,6 +253,7 @@ _COERCERS = {
     "address_attn": _coerce_str,
     "state": _coerce_state,
     "county": _coerce_str,
+    "section": _coerce_upper,
     "country": _coerce_str,
     "continent": _coerce_str,
     "latitude": _coerce_float,

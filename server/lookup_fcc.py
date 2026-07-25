@@ -181,6 +181,7 @@ def _build_record(row):
         "address_attn": row["attention_line"] or "",
         "state": state, # 2-digit USPS code
         "county": row["county"] or "",
+        "section": row["arrl_section"] or "", # ARRL section abbreviation
         "country": row["dxcc_entity"] or "",
         "continent": row["continent"] or "",
         "latitude": latitude,
