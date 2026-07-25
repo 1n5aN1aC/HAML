@@ -118,6 +118,11 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   }, [fields])
   const [callsign, setCallsign] = useState('')
   const [values, setValues] = useState(() => defaultValues(fields))
+  // Live mirror of `values`, for the same reason as `touchedRef` below: the
+  // debounced server lookup reads the form 100ms after the keystroke that
+  // scheduled it, by which point its closure's `values` is a render behind.
+  const valuesRef = useRef(values)
+  valuesRef.current = values
   // names the operator typed into by hand — at submit, a touched auto field's
   // value wins over the freshly recomputed lookup value
   const [touched, setTouched] = useState(() => new Set())
@@ -137,6 +142,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   // a response lands only when this still equals the box's current content.
   // Covers both operator edits (the lookup fires for the old text) and post-submit (box goes to '').
   const callsignLiveRef = useRef('')
+  // Serialized payload from the last lookup, used to suppress duplicates.
+  // Cleared when the form moves to a different station.
+  const lastLookupRef = useRef(null)
 
   // Drop any pending debounced server lookup on unmount so its setValues never fires into an unmounted tree.
   useEffect(() => () => {
@@ -247,14 +255,32 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setValues((prev) => mergeUntouched(prev, touched, crossFillPatch(prev)))
   }
 
+  // Return raw values only for fields the operator edited.
+  // Auto-filled and hidden fields are untouched; callsign is separate state.
+  function touchedEntry() {
+    const entry = {}
+    for (const name of touchedRef.current) {
+      const v = valuesRef.current[name]
+      // A field the operator deliberately emptied is still context worth
+      // sending; only a name with no slot in `values` at all is skipped.
+      if (v !== undefined) entry[name] = v
+    }
+    return entry
+  }
+
   // Fire an async server callsign-lookup POST and apply the patch on success.
   // The only callsign-lookup the form drives. Skips non-plausible callsigns
   // and silently swallows every rejection (404/408/502 plus network errors):
   // enrichment is best-effort, never blocks.
   // Race guard: if the operator has changed the callsign since the request fired, the response is dropped.
+  // Skip duplicate (callsign, entry) requests, even if the previous one failed.
   function fireServerLookup(call) {
     if (!isPlausibleCallsign(call)) return
-    lookupCallsign(call)
+    const entry = touchedEntry()
+    const key = JSON.stringify([call, entry])
+    if (key === lastLookupRef.current) return
+    lastLookupRef.current = key
+    lookupCallsign(call, entry)
       .then((record) => {
         if (callsignLiveRef.current !== call) return
         const patch = lookupPatchFromRecord(record)
@@ -353,6 +379,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setError('')
     setDupe(null)
     setServerRecord(null) // drop any stale country/miles label so the next QSO starts blank
+    lastLookupRef.current = null // next station may repeat this one's callsign; don't suppress its lookup
     // Mirror the cleared callsign box in the live ref so any in-flight server-lookup response is dropped.
     callsignLiveRef.current = ''
     callsignRef.current?.focus()
@@ -370,6 +397,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setError('')
     setDupe(null)
     setServerRecord(null) // drop any stale country/miles label
+    lastLookupRef.current = null
     callsignLiveRef.current = ''
     callsignRef.current?.focus()
   }
@@ -403,6 +431,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
                 // Drop any cached server record so the country/miles label clears
                 // immediately on edit — the next lookup will repopulate it.
                 setServerRecord(null)
+                lastLookupRef.current = null
                 if (!next) {
                   setTouched(new Set())
                   setError('')
@@ -439,6 +468,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
                   setTouched((prev) =>
                     prev.has(f.name) ? prev : new Set(prev).add(f.name),
                   )
+                  // Restart the shared lookup debounce with the latest form values.
+                  if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+                  idleTimerRef.current = setTimeout(() => fireServerLookup(callsign), 100)
                 }}
                 onKeyDown={(e) =>
                   handleFieldNav(e, i + 1, [callsignRef.current, ...fieldRefs.current], f.freetext)

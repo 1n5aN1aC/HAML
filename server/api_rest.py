@@ -159,6 +159,13 @@ async def post_lookup(request):
     the request-time fields `lookup_postprocess` adds (today: `distance`).
     The client can trust its field names, types, and value sets without validating.
 
+    Request body is `{"callsign": ...}` plus an optional `entry` object: the
+    entry-form fields the operator has typed into by hand, raw. Unknown keys
+    are ignored — that is a guarantee, not an accident, so the client can grow
+    the request without a server release. `entry` is forwarded to `lookup_postprocess.apply`
+    Deliberately NOT part of the cache key, the coalescing key, or anything the source
+    chain sees, which is what makes it safe to vary per request.
+
     The callsign walks the ordered chain in `lookup.SOURCES`; the first
     source to return OK wins, a miss or error falls through to the next.
     Today that chain is the offline FCC ULS sqlite, the offline ISED
@@ -195,12 +202,19 @@ async def post_lookup(request):
     if not callsign:
         return json_error(400, "callsign must be a non-empty string")
 
+    # Raw entry-form values for request-time post-processing only.
+    # They never affect lookup, caching, or request coalescing.
+    # Normalize missing or non-object values to {}.
+    entry = body.get("entry") if isinstance(body, dict) else None
+    if not isinstance(entry, dict):
+        entry = {}
+
     cache_conn = request.app["lookup_cache"]
     cached = lookup_cache.get(cache_conn, callsign)
     if cached is not None:
         if cached["status"] == lookup_cache.STATUS_OK:
             return web.json_response(lookup_postprocess.apply(
-                request.app, json.loads(cached["payload"])))
+                request.app, json.loads(cached["payload"]), entry=entry))
         if cached["status"] == lookup_cache.STATUS_NOT_FOUND:
             return json_error(404, "callsign not found")
         # status == error
@@ -217,7 +231,7 @@ async def post_lookup(request):
         return json_error(408, "lookup timed out")
     if result["status"] == lookup_cache.STATUS_OK:
         return web.json_response(
-            lookup_postprocess.apply(request.app, result["payload"]))
+            lookup_postprocess.apply(request.app, result["payload"], entry=entry))
     if result["status"] == lookup_cache.STATUS_NOT_FOUND:
         return json_error(404, "callsign not found")
     return json_error(502, result["error"] or "upstream lookup failed")

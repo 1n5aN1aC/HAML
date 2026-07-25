@@ -21,7 +21,6 @@ because it applies to every source at once instead of being reimplemented
 per adapter.
 """
 import math
-
 import lookup_zones
 
 # Mean Earth radius in kilometers.
@@ -50,7 +49,6 @@ def _fill_zones(record):
         record["cq_zone"] = derived["cq_zone"]
     return record
 
-
 def _fill_distance(app, record):
     """Haversine kilometers from the active event's operating position
     (config.location) to the record's coordinates, floored to a whole
@@ -72,9 +70,12 @@ def _fill_distance(app, record):
     record["distance"] = distance
     return record
 
+def apply(app, record, entry=None):
+    """Canonical record in, response record out. Never mutates the input.
 
-def apply(app, record):
-    """Canonical record in, response record out. Never mutates the input."""
+    `entry` contains raw operator-edited fields for request-time derivations.
+    It is currently unused and never stored in the cache.
+    """
     out = dict(record)
     out = _fill_zones(out)
     out = _fill_distance(app, out)

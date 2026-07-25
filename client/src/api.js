@@ -52,11 +52,17 @@ export function getContacts(since) {
 // 404 = not found,
 // 408 = long-poll timeout,
 // 502 = upstream error.
-export function lookupCallsign(callsign) {
+//
+// Optional `entry` contains raw operator-edited fields for post-processing.
+// It is omitted when empty and currently does not affect the lookup result.
+export function lookupCallsign(callsign, entry) {
+  const body = entry && Object.keys(entry).length > 0
+    ? { callsign, entry }
+    : { callsign }
   return request('/api/lookup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ callsign }),
+    body: JSON.stringify(body),
   })
 }
 

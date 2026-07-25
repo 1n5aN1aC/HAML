@@ -209,12 +209,16 @@ Messages are *sent* over the WebSocket, not here. `sent_at` is server-stamped.
 ### `POST /api/lookup`
 
 ```json
-{"callsign": "W7ABC"}
+{"callsign": "W7ABC", "entry": {"state": "OR", "gridsquare": "CN85"}}
 ```
 
 The callsign is uppercased and stripped of `/P`, `/M`, `/MM`, `/QRP`, `/ANT`, and any
 trailing `/` before anything else happens, so those variants share one cache key and one
 answer.
+
+`entry` is optional and holds the entry-form fields the operator has typed into by hand,
+raw as typed — no coercion is expected of the client. It is forwarded to the post-processing stage for future use (deriving a location from an operator-supplied grid, say).
+Send only touched fields, omit the key when none are.
 
 **The response shape is the contract; the sources behind it are not.** The client trusts
 these field names and value types without validating them and knows nothing about where
