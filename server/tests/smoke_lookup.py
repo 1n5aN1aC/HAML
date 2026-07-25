@@ -1298,7 +1298,7 @@ def _make_config(tmp, fcc_db_path, prefix_lst_path=None):
         # clean NOT_FOUND for the US/garbage calls these e2e cases probe,
         # preserving the 404/502 fall-through — never an "unavailable" error
         # that would turn an expected 404 into a 502.
-        "ca_db_path": str(SERVER_DIR / "datasets" / "ca_amateur.sqlite"),
+        "ca_db_path": str(SERVER_DIR / "datasets" / "Lookup_CA.sqlite"),
     }
     if prefix_lst_path is not None:
         cfg["prefix_lst_path"] = str(prefix_lst_path)
@@ -1522,7 +1522,7 @@ async def run_e2e(fcc_db_path, prefix_lst_path=None,
                 # the committed dataset at runtime so the assertion survives a
                 # dataset refresh.
                 print("live ISED hit (Canadian call):")
-                ca_db = SERVER_DIR / "datasets" / "ca_amateur.sqlite"
+                ca_db = SERVER_DIR / "datasets" / "Lookup_CA.sqlite"
                 ca_conn = sqlite3.connect(f"file:{ca_db}?mode=ro", uri=True)
                 try:
                     ca_row = ca_conn.execute(
@@ -1532,7 +1532,7 @@ async def run_e2e(fcc_db_path, prefix_lst_path=None,
                 finally:
                     ca_conn.close()
                 check(ca_row is not None,
-                      "committed ca_amateur.sqlite has at least one Canadian row")
+                      "committed Lookup_CA.sqlite has at least one Canadian row")
                 ca_call = ca_row[0]
                 status, body = await post_lookup(session, ca_call)
                 check(status == 200,

@@ -3,9 +3,9 @@
   "port": 80,
   "data_dir": "data",
   "admin_password": "haml",
-  "fcc_db_path": "datasets/fcc_amateur.sqlite",
+  "fcc_db_path": "datasets/Lookup_FCC.sqlite",
   "fcc_db_max_age_days": 30,
-  "ca_db_path": "datasets/ca_amateur.sqlite",
+  "ca_db_path": "datasets/Lookup_CA.sqlite",
   "ca_db_max_age_days": 30,
   "prefix_lst_path": "datasets/Prefix.lst",
   "auto_backup_interval_minutes": 15

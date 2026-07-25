@@ -105,9 +105,9 @@ def _ensure_loaded():
     """Lazy-load both GeoJSON files on first use."""
     global _CQ_ZONES, _ITU_ZONES
     if _CQ_ZONES is None:
-        _CQ_ZONES = _parse_geojson(_DATA_DIR / "cqzones.geojson", "cq_zone_number")
+        _CQ_ZONES = _parse_geojson(_DATA_DIR / "mapregions_cqzones.geojson", "cq_zone_number")
     if _ITU_ZONES is None:
-        _ITU_ZONES = _parse_geojson(_DATA_DIR / "ituzones.geojson", "itu_zone_number")
+        _ITU_ZONES = _parse_geojson(_DATA_DIR / "mapregions_ituzones.geojson", "itu_zone_number")
 
 
 # --- point-in-polygon -----------------------------------------------------

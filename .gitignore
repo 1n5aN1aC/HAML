@@ -14,8 +14,8 @@ node_modules/
 
 # Live event state:
 server/data/
-server/datasets/fcc_amateur.sqlite
-server/datasets/ca_amateur.sqlite
+server/datasets/Lookup_FCC.sqlite
+server/datasets/Lookup_CA.sqlite
 
 # dataparser files which should not be commited:
 server/data-parsers/Canada/geocode_cache/

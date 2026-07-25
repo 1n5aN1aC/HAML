@@ -5,10 +5,10 @@ It is used to derive amateur radio CQ and ITU zone numbers from a latitude/longi
 
 ## Files
 
-| File              | Source zone numbering                       |
-| ----------------- | ------------------------------------------- |
-| `cqzones.geojson` | CQ Zones (integer `cq_zone_number`, 1–40)   |
-| `ituzones.geojson`| ITU Zones (integer `itu_zone_number`, 1–90) |
+| File                         | Source zone numbering                       |
+| ---------------------------- | ------------------------------------------- |
+| `mapregions_cqzones.geojson` | CQ Zones (integer `cq_zone_number`, 1–40)   |
+| `mapregions_ituzones.geojson` | ITU Zones (integer `itu_zone_number`, 1–90) |
 
 Both files are GeoJSON `FeatureCollection`s of `Polygon` features. Coordinates
 follow the GeoJSON axis order: `[longitude, latitude]`.
@@ -19,7 +19,7 @@ Both files were copied verbatim from:
 
 - Repository: <https://github.com/hb9hil/hamradio-zones-geojson>
 - Branch: `main`
-- Files: `cqzones.geojson`, `ituzones.geojson`
+- Files: `mapregions_cqzones.geojson`, `mapregions_ituzones.geojson`
 
 ## License
 
@@ -58,7 +58,7 @@ files in this directory.
 
 - Vendored: 2026-05-13
 
-## `fcc_amateur.sqlite`
+## `Lookup_FCC.sqlite`
 
 The local FCC ULS operator dataset that `server/lookup_fcc.py` reads on every
 callsign lookup. ~826k active US amateur licenses, one row per callsign.
@@ -84,7 +84,7 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   - `continent` TEXT   — 2-letter continent code (e.g. `"NA"`)
   - `dxcc_id` INTEGER  — ARRL DXCC entity code (e.g. `291` for US). Served to clients as the `dxcc` field.
 - **Server config**: path overridable via `fcc_db_path` in the server
-  config JSON. Default is `datasets/fcc_amateur.sqlite` (resolved
+  config JSON. Default is `datasets/Lookup_FCC.sqlite` (resolved
   relative to the server dir). A missing file is non-fatal: the server prints a
   warning at boot and lookups fall through to other sources.  A 502 is returned
   only when nothing below resolves either.
@@ -92,7 +92,7 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   carries no build timestamp, `lookup_fcc.setup()` uses the file's mtime as a
   proxy for its build date and prints a boot-time warning when it is old.
 
-## `ca_amateur.sqlite`
+## `Lookup_CA.sqlite`
 
 The local ISED operator dataset that `server/lookup_ca.py` reads. ~92k Canadian licenses
 
