@@ -27,3 +27,4 @@ server/data-parsers/FCC/geocode_cache/
 server/data-parsers/FCC/l_amat.zip
 server/data-parsers/FCC/update_run.log
 server/data-parsers/FCC/fcc_amateur.sqlite
+server/data-parsers/POTA/all_parks_ext.csv
