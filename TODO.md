@@ -2,7 +2,8 @@ BUGS:
 - Filed out, but not submitted contact clears on switching tabs
 
 POTA Improvements:
-- Park decoding support
+- Park decoding support (Server Endpoint)
+- Park decoding support (Client display)
 
 Client:
   Offline-First PWA

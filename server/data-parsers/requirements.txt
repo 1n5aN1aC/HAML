@@ -1,0 +1,14 @@
+# Core (download + build + geocode). Needed by every phase of both scripts.
+requests>=2.31
+
+# Point-in-polygon phases only - county assignment (FCC phase 6, Canada phase
+# 8) and, for Canada, the postal-code / FSA cross-check and province-centroid
+# fallback (phases 6 and 7). Not needed if you run with --no-county (and
+# --no-postal --no-province on Canada), but note the ARRL/RAC section phases
+# read the county those phases write, so the 8 split US states
+# (CA/FL/MA/NJ/NY/PA/TX/WA) and the Ontario sections stay NULL without them.
+shapely>=2.0
+pyshp>=2.3
+
+# Canada only - reprojecting StatCan boundary files, which are not WGS84.
+pyproj>=3.5

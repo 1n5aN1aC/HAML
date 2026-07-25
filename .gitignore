@@ -16,3 +16,14 @@ node_modules/
 server/data/
 server/datasets/fcc_amateur.sqlite
 server/datasets/ca_amateur.sqlite
+
+# dataparser files which should not be commited:
+server/data-parsers/Canada/geocode_cache/
+server/data-parsers/Canada/amateur_delim.zip
+server/data-parsers/Canada/amateur_delim.txt
+server/data-parsers/Canada/ca_amateur.sqlite
+server/data-parsers/Canada/update_run.log
+server/data-parsers/FCC/geocode_cache/
+server/data-parsers/FCC/l_amat.zip
+server/data-parsers/FCC/update_run.log
+server/data-parsers/FCC/fcc_amateur.sqlite
