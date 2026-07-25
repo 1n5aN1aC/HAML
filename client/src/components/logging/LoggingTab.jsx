@@ -8,6 +8,7 @@ import { kvGet } from '../../db.js'
 import StatusBar from './StatusBar.jsx'
 import ContactList from './ContactList.jsx'
 import ContactEntryForm from './ContactEntryForm.jsx'
+import CallInfo from './CallInfo.jsx'
 import StationsPanel from './StationsPanel.jsx'
 import ChatPanel from './ChatPanel.jsx'
 import CompactStatsPanel from './CompactStatsPanel.jsx'
@@ -26,6 +27,9 @@ export default function LoggingTab({
   onChatResend,
 }) {
   const [editing, setEditing] = useState(null)
+  // Server lookup record for the callsign being entered, handed up by the entry
+  // form so CallInfo can display it. Null between contacts.
+  const [lookup, setLookup] = useState(null)
 
   // Band-conflict warning: another station (seen within the last 15s) is on
   // our band. No timer — the roster rebroadcasts on every heartbeat (≥ every
@@ -84,8 +88,9 @@ export default function LoggingTab({
             session={session}
             clientUuid={clientUuid}
             disabled={!sessionComplete}
+            onLookup={setLookup}
           />
-          <div className="future-panel-left" />
+          <CallInfo record={lookup} />
         </section>
         <aside className="right-pane">
           <StationsPanel

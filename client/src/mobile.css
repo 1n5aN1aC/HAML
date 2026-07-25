@@ -22,7 +22,7 @@
 
   /* entry form above the contact list (the pane's DOM order is list-then-form) */
   .entry-form { order: -1; }
-  .future-panel-left { display: none; }
+  .call-info { display: none; }
 
   /* cap each panel so the column stays navigable; they keep their inner scroll */
   .contact-list { max-height: 45dvh; overflow-x: auto; }

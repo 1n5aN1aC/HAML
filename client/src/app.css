@@ -334,7 +334,7 @@ body {
 /* card frame shared by every panel in both panes */
 .contact-list,
 .entry-form,
-.future-panel-left,
+.call-info,
 .stations-panel,
 .chat-panel,
 .right-pane > .stats-panel {
@@ -467,7 +467,36 @@ body {
   z-index: 1000;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
-.future-panel-left { flex: 1; background: var(--theme-surface); }  /* fills the left pane below the entry form */
+/* --- call info panel -------------------------------------------------------- */
+
+/* lookup detail for the callsign being entered; one card filling the left pane
+   below the entry form. Its groups are columns of equal width that wrap to
+   stacked once the pane gets narrow — no frames of their own, the headings
+   delimit them (same as the panels in the right pane). */
+.call-info {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 4px 16px;
+  padding: 6px 10px;
+  background: var(--theme-surface);
+}
+.call-info-group { flex: 1 1 200px; }
+.call-info-group h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  margin: 0 0 4px;
+  color: var(--theme-text-faint);
+}
+.call-info p { margin: 0; }
+.call-info .placeholder { color: var(--theme-text-faint); font-style: italic; }
+
+/* live DXCC country + distance readout in the Operator Location box */
+.call-info .call-country { font-weight: 700; color: var(--theme-accent); }
+
+/* licensee name — "FIRST LAST" for individuals, the club/entity name otherwise */
+.call-info .call-name { font-weight: 700; }
 
 /* --- stations panel --------------------------------------------------------- */
 
@@ -670,13 +699,6 @@ body {
   margin: 4px 0;
   border: 0;
   border-top: 1px solid var(--theme-border);
-}
-
-/* live DXCC country + distance readout, sits right of the entry inputs */
-.entry-fields .call-country {
-  font-weight: 700;
-  white-space: nowrap;
-  color: var(--theme-accent);
 }
 
 .entry-clock {

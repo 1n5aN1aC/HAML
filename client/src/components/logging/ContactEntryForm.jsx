@@ -108,7 +108,7 @@ function formatLocalTime(iso) {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export default function ContactEntryForm({ config, session, clientUuid, disabled }) {
+export default function ContactEntryForm({ config, session, clientUuid, disabled, onLookup }) {
   const fields = useMemo(() => resolveEntryFields(config), [config])
   // built-ins with no entry input of their own, reset alongside the entry
   // fields when the callsign is cleared so hidden fills can't leak forward
@@ -143,23 +143,15 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
   }, [])
 
-  // The most recent successful server lookup record: drives the country + miles
-  // label (recomputed only when the record changes, not per keystroke). Cleared
-  // on every callsign text change, on submit, and on Escape so a stale label
-  // never sits next to a new contact.
+  // The most recent successful server lookup record. Cleared on every callsign
+  // text change, on submit, and on Escape so a stale record never sits next to
+  // a new contact.
   const [serverRecord, setServerRecord] = useState(null)
 
-  // Country + distance label. The server returns a canonical record with
-  // `country` (always set on a hit), `continent`, and a request-time `distance`
-  // in km when the event has a location; we show country + miles when both
-  // are present, country alone when the event has no location, nothing on a miss.
-  const callStatus = useMemo(() => {
-    if (!serverRecord?.country) return ''
-    const km = serverRecord.distance
-    if (km == null) return serverRecord.country
-    const mi = Math.round(km * 0.621371)
-    return `${serverRecord.country} (${mi.toLocaleString()} mi)`
-  }, [serverRecord])
+  // The record is displayed by CallInfo (a sibling panel under LoggingTab), so
+  // hand the whole thing up and let it decide what to show — the form doesn't
+  // need to change again as more of the lookup gets displayed.
+  useEffect(() => { onLookup?.(serverRecord) }, [serverRecord, onLookup])
 
   // Soft-keyboard Return label for the field at `orderIndex`
   // (callsign = 0, entry fields 1..N; the last order index is fields.length).
@@ -466,7 +458,6 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
               />
             </label>
           ))}
-          {callStatus && <span className="call-country">{callStatus}</span>}
           <EntryClock />
         </div>
         {/* The form's submit button.
