@@ -21,44 +21,27 @@ because it applies to every source at once instead of being reimplemented
 per adapter.
 """
 import math
-import lookup_zones
+import lookup_record
+import lookup_location_calc
 
-# Mean Earth radius in kilometers.
-_EARTH_RADIUS_KM = 6371.0
+_EARTH_RADIUS_KM = 6371.0                                   # Mean Earth radius in kilometers.
+_DEFAULT_LOCATION = {"latitude": 45.0, "longitude": -123.0} # Default location if the event does not provide one.
 
-
-def _fill_zones(record):
-    """Derive CQ + ITU zones from the record's coordinates.
-
-    Only-fill-if-null: a source that already knows its zones wins, and wins
-    before any work happens — a record carrying both zones returns untouched
-    rather than deriving values it would discard. CallParser reads them
-    straight out of the prefix DB, which is authoritative for a DXCC entity;
-    the polygons here are a fallback for records (FCC rows) that carry
-    coordinates and nothing else. `lookup_zones.derive` never raises and
-    returns None for a point no polygon covers.
-    """
-    if record.get("cq_zone") is not None and record.get("itu_zone") is not None:
-        return record
-    if record.get("latitude") is None or record.get("longitude") is None:
-        return record
-    derived = lookup_zones.derive(record["latitude"], record["longitude"])
+# Derive missing zones from the records coordinates.
+def _fill_missing_zones(record):
     if record.get("itu_zone") is None:
-        record["itu_zone"] = derived["itu_zone"]
+        record = lookup_location_calc.recalculate_itu_zone(record)
     if record.get("cq_zone") is None:
-        record["cq_zone"] = derived["cq_zone"]
+        record = lookup_location_calc.recalculate_cq_zone(record)
     return record
 
+# Derive the distance in km from the active event's operating position (config.location)
 def _fill_distance(app, record):
-    """Haversine kilometers from the active event's operating position
-    (config.location) to the record's coordinates, floored to a whole
-    number. None when either end is missing.
-    """
     event = app.get("event") or {}
-    loc = (event.get("config") or {}).get("location")
+    loc = (event.get("config") or {}).get("location") or _DEFAULT_LOCATION
     lat, lon = record.get("latitude"), record.get("longitude")
     distance = None
-    if loc and lat is not None and lon is not None:
+    if lat is not None and lon is not None:
         phi1 = math.radians(loc["latitude"])
         phi2 = math.radians(lat)
         d_phi = math.radians(lat - loc["latitude"])
@@ -70,13 +53,102 @@ def _fill_distance(app, record):
     record["distance"] = distance
     return record
 
-def apply(app, record, entry=None):
-    """Canonical record in, response record out. Never mutates the input.
+# Entry-form location fields that can trigger an override, paired with coercers
+# so typed and lookup values are compared in canonical form.
+_OVERRIDE_FIELDS = {
+    "state": lookup_record._coerce_state,
+    "section": lookup_record._coerce_upper,
+    "gridsquare": lookup_record._coerce_gridsquare,
+    "latitude": lookup_record._coerce_float,
+    "longitude": lookup_record._coerce_float,
+}
 
-    `entry` contains raw operator-edited fields for request-time derivations.
-    It is currently unused and never stored in the cache.
-    """
+# Canonical record in, response record out. Never mutates the input.
+# `entry` contains raw operator-edited fields for request-time derivations.
+def apply(app, record, entry=None):
+    # Load the record
     out = dict(record)
-    out = _fill_zones(out)
+
+    # Fill missing fields
+    out = _fill_missing_zones(out)
     out = _fill_distance(app, out)
+
+    # Check if the user provided any location information which might override the operator values
+    if entry:
+        # User-provided coordinates differ from existing user record
+        if "latitude" in entry and "longitude" in entry:
+            typed_lat = _OVERRIDE_FIELDS["latitude"](entry["latitude"])
+            typed_lon = _OVERRIDE_FIELDS["longitude"](entry["longitude"])
+            if (typed_lat is not None and typed_lon is not None and (typed_lat != record.get("latitude") or typed_lon != record.get("longitude"))):
+                out["latitude"] = typed_lat
+                out["longitude"] = typed_lon
+                # Override grid
+                # Override state
+                # Override section
+                # override county
+                # override country
+                # override dxcc
+                # override cq zone
+                # override ITU zone
+                # override distance
+                return out
+        # User gave us a POTA park, parse it- ()
+        if "their_park" in entry and bool(str(entry["their_park"] or "").strip()):
+            # Parse what park they are in.
+                #Add that to the returned record
+                #Update the coordinates
+            # Override grid
+            # Override state
+            # Override section
+            # override county
+            # override country
+            # override dxcc
+            # override cq zone
+            # override ITU zone
+            # override distance
+            return out
+        # User-provided gridsquare differs from existing user record
+        if "gridsquare" in entry:
+            typed = _OVERRIDE_FIELDS["gridsquare"](entry["gridsquare"])
+            if typed is not None and typed != record.get("gridsquare"):
+                # Override state
+                # Override section
+                # override county
+                # override country
+                # override dxcc
+                # override cq zone
+                # override ITU zone
+                # override distance
+                return out
+        # User-provided section differs from existing user record
+        if "section" in entry:
+            typed = _OVERRIDE_FIELDS["section"](entry["section"])
+            if typed is not None and typed != record.get("section"):
+                # Override grid
+                # Override state
+                # override county
+                # override country
+                # override dxcc
+                # override cq zone
+                # override ITU zone
+                # override distance
+                return out
+        # User-provided State differs from existing user record
+        if "state" in entry:
+            typed = _OVERRIDE_FIELDS["state"](entry["state"])
+            if typed is not None and typed != record.get("state"):
+                # Override grid
+                # Override section
+                # override county
+                # override country
+                # override dxcc
+                # override cq zone
+                # override ITU zone
+                # override distance
+                return out
+
+    # Calculate distance from him to us.
+    out = _fill_distance(app, out)
+
+    # Return finalized status
     return out

@@ -1,6 +1,7 @@
 # Zone boundary data
 
-This directory contains vendored, static zone boundary data used by `server/lookup_zones.py`
+This directory contains vendored, static zone boundary data used by
+`server/lookup_location_calc.py`
 It is used to derive amateur radio CQ and ITU zone numbers from a latitude/longitude coordinate.
 
 ## Files

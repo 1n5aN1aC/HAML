@@ -582,12 +582,16 @@ def check_postprocess_unit():
     out = lookup_postprocess.apply(loc_app, {"latitude": None, "longitude": None})
     check(out["distance"] is None, "no record coords -> distance is None")
 
+    # No operating position to measure from falls back to _DEFAULT_LOCATION
+    # (45, -123) rather than declining to answer.
     out = lookup_postprocess.apply({"event": {"config": {"location": None}}},
                                    record)
-    check(out["distance"] is None, "no event location -> distance is None")
+    check(out["distance"] == 26,
+          f"no event location -> distance from default (got {out['distance']!r})")
 
     out = lookup_postprocess.apply({}, record)
-    check(out["distance"] is None, "no active event -> distance is None")
+    check(out["distance"] == 26,
+          f"no active event -> distance from default (got {out['distance']!r})")
 
     # ---- zone derivation (moved here out of the FCC adapter) ----
     # Dallas, OR is CQ 3, ITU 6. The FCC adapter now hands over a record with
