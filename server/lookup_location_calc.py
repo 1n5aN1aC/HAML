@@ -23,6 +23,11 @@ row of `counties`, and `country` and `dxcc` one row of `dxcc_entities`.
 `recalculate()` groups the fields it is asked for by derivation, so each
 query runs at most once per call however many of its fields are wanted.
 
+`recalculate_section_from_state()` is the exception to all of the above: it
+is keyed on the record's state rather than a coordinate, so it sits outside
+the registry and a caller invokes it directly, for the case where a state is
+the only location the record has.
+
 Polygons come from the region tables of `lookup_data.sqlite` — the same file
 `lookup_db.py` opens for the operator datasets. This module holds its own
 read-only handle on it, because its public functions take a bare coordinate
@@ -49,6 +54,7 @@ import sqlite3
 import struct
 
 import config
+import lookup_record
 
 
 # --- shared coordinate handling --------------------------------------------
@@ -352,6 +358,66 @@ def derive_county(lat, lon):
         "state": state or None,
         "section": section or None,
     }
+
+
+# --- section from state -----------------------------------------------------
+
+# state code -> section, for the states one section covers entirely. Built on
+# first use from `counties`, which carries `arrl_section` on every row, so the
+# set of unambiguous states and the section each maps to are read from the
+# same table the polygon lookups use rather than kept as a second copy here.
+# 60 of 69 states and provinces qualify; the nine that don't are CA (9
+# sections), NY and ON (4), FL and TX (3), and MA, NJ, PA and WA (2).
+_STATE_SECTIONS = None
+
+def _state_sections():
+    """The state -> section map, built once, or {} while it can't be."""
+    global _STATE_SECTIONS
+    if _STATE_SECTIONS is None:
+        conn = _conn()
+        if conn is None:
+            return {}  # Unbuilt, not empty: a later call retries the open.
+        try:
+            _STATE_SECTIONS = dict(conn.execute(
+                "SELECT state, MIN(arrl_section) FROM counties "
+                "GROUP BY state HAVING COUNT(DISTINCT arrl_section) = 1"))
+        except sqlite3.Error as exc:
+            print(f"warning: lookup dataset error reading sections: {exc}")
+            return {}
+    return _STATE_SECTIONS
+
+def recalculate_section_from_state(record):
+    """Set the record's section from its own state, in place, and return it.
+
+    The one derivation here keyed on a record field rather than a
+    coordinate, so it sits outside `_DERIVED_FIELDS` and `recalculate()`.
+    A caller reaches for it when a state is all the record has.
+
+    It writes only when the state names exactly one section, which is what
+    separates it from `recalculate()`: a state that decides nothing leaves
+    the existing section as it stands rather than nulling it. Both ways of
+    not knowing behave the same — an unrecognised state, and a genuinely
+    split one where the state alone cannot decide, since a California
+    licensee could be in any of nine. To clear a section instead of keeping
+    it, `lookup_record.blank()` says that explicitly.
+
+    A single section is not the state's own code: `DC` is `MDC`, `HI`, `GU`,
+    `AS` and `MP` are all `PAC`, and `NU` is `TER`.
+
+    Never raises. A code in any case matches the table directly, which is
+    what carries the US territories (`PR`, `VI`, `GU`, `AS`, `MP`) that
+    `lookup_record._coerce_state` does not accept; a spelled-out US name
+    falls back to that coercer to become a code first.
+    """
+    sections = _state_sections()
+    state = record.get("state")
+    code = state.strip().upper() if isinstance(state, str) else ""
+    if code not in sections:
+        code = lookup_record._coerce_state(state) or ""
+    section = sections.get(code)
+    if section is not None:
+        record["section"] = section
+    return record
 
 
 # --- Maidenhead gridsquare --------------------------------------------------
