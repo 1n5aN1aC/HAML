@@ -15,6 +15,7 @@ each querying its own table:
 | `fcc_operators`           | `server/lookup_fcc.py`             |
 | `ca_operators`            | `server/lookup_ca.py`              |
 | `cq_zones` / `itu_zones`  | `server/lookup_location_calc.py`   |
+| `dxcc_entities`           | `server/lookup_location_calc.py`   |
 
 - **Server config**: path overridable via `lookup_db_path` in the server
   config JSON. Default is `datasets/lookup_data.sqlite` (resolved
@@ -104,6 +105,33 @@ lives in `{table}_parts` as one WKB polygon per row (`part_id`, `feature_id`,
 - **Own connection**: unlike the operator tables, these are read through a
   second read-only handle opened lazily by `lookup_location_calc` itself,
   because its entry points take a bare coordinate and never see the app dict.
+
+### `dxcc_entities`
+
+The DXCC entity polygons `server/lookup_location_calc.py` turns a coordinate
+into a country name and ARRL entity code. Same three-table shape as the zone
+tables: `dxcc_entities` (`id`, `prefix`, `name`, `entity_code`, `area_deg2`),
+`dxcc_entities_parts` (WKB, one polygon per row), `dxcc_entities_bbox`
+(R\*Tree). 341 rows covering 340 entities — Conway Reef is two rows sharing
+prefix `3D2/c` and code 489, so neither column is unique.
+
+- **`id` ascends with polygon area, smallest first**, and ordering a
+  point-in-polygon query by it is what resolves an enclave to the enclave:
+  Vatican, San Marino and SMOM inside Italy, ITU HQ inside Switzerland, UN HQ
+  inside the USA, Lesotho inside South Africa. Ordering by `entity_code`
+  instead answers with the host country.
+- **Land only**, ~33.8% of the globe, so a maritime coordinate resolves to
+  nothing and reaches the client as a null country.
+- **Coastline resolution** is a 1:110m generalisation, ~16,600 vertices
+  worldwide, and neighbouring borders are generalised independently, so a
+  point within a few km of a land border answers on the geometry's border.
+  Vanuatu omits Efate, Tanna, Erromango and the Banks/Torres groups;
+  Palestine is the West Bank only.
+- **Entity vocabulary is DXCC's own**: `K` is `United States of America`,
+  which matches `lookup_callparser` output rather than the `United States`
+  that `fcc_operators.dxcc_entity` carries.
+- **Prefixes are exact**: `3D2` is Fiji (176), while Conway Reef is `3D2/c`
+  and Rotuma `3D2/r`.
 
 ## `Prefix.lst`
 

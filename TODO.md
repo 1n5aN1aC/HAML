@@ -5,6 +5,10 @@ POTA Improvements:
 - Park decoding support (Server Endpoint)
 - Park decoding support (Client display)
 
+Server callsign lookup improvements:
+- Stoke calls (K1MI/JA) should include the operator info.
+- POTA Park decoding (and override) support
+
 Client:
   Offline-First PWA
   Re-submit as Edit with late data
