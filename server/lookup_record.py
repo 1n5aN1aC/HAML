@@ -57,13 +57,11 @@ FIELDS = (
     "expiry_date",
 )
 
-
 # --- helpers ---------------------------------------------------------------
 
 # ISO 8601 UTC with milliseconds, matching the rest of the server's timestamps.
 def now_iso():
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
-
 
 def _coerce_str(value):
     """Strip a string. None / non-string / empty-after-strip -> None."""
@@ -72,12 +70,10 @@ def _coerce_str(value):
     s = value.strip()
     return s if s else None
 
-
 # Maidenhead 4-char field grid: two letters in [A-R] followed by two digits.
 # Mirrors `BUILTINS.gridsquare.validation` client-side.
 # Compiled once at module scope so the regex isn't rebuilt on every coerce() call.
 _GRID_RE = re.compile(r"^[A-R]{2}[0-9]{2}$")
-
 
 def _coerce_gridsquare(value):
     """Maidenhead grid truncated and validated to the 4-char field grid.
@@ -98,7 +94,6 @@ def _coerce_gridsquare(value):
         return None
     g = s[:4].upper()
     return g if _GRID_RE.match(g) else None
-
 
 # USPS full name -> two-letter code. Single source of truth: the valid-code
 # set below is derived from these values, so adding an entry here makes both
@@ -128,7 +123,6 @@ _CA_PROVINCE_CODES = frozenset({
     "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
 })
 
-
 def _coerce_state(value):
     """US state or Canadian province as its two-letter code.
 
@@ -146,7 +140,6 @@ def _coerce_state(value):
     # Collapse internal whitespace so "NEW  YORK" still maps.
     return _STATE_NAMES.get(" ".join(u.split()))
 
-
 def _coerce_lower(value):
     """Lowercase enum passthrough. None / non-string / empty -> None."""
     s = _coerce_str(value)
@@ -157,7 +150,6 @@ def _coerce_upper(value):
     s = _coerce_str(value)
     return s.upper() if s is not None else None
 
-
 def _coerce_float(value):
     """float, accepting ints and numeric strings. None on parse failure."""
     if value is None or value == "":
@@ -166,7 +158,6 @@ def _coerce_float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
-
 
 def _coerce_iso_date(value):
     """YYYY-MM-DD passthrough; MM/DD/YYYY -> YYYY-MM-DD. None on parse failure (dirty).
@@ -192,7 +183,6 @@ def _coerce_iso_date(value):
         return datetime.strptime(s, "%m/%d/%Y").date().isoformat()
     except ValueError:
         return None
-
 
 def _coerce_zone(lo, hi):
     """Factory: int within [lo, hi], accepting ints, integer-valued floats,
@@ -232,7 +222,6 @@ def _coerce_zone(lo, hi):
         n = int(f)
         return n if lo <= n <= hi else None
     return coercer
-
 
 # Per-field coercer map. A coercer returns None on "missing" or on a value
 # that cannot be parsed; the caller distinguishes the two via the missing-
@@ -305,3 +294,14 @@ def coerce(raw):
         else:
             record[field] = coerced
     return record, bad_fields
+
+def blank(record, fields):
+    """Set each named field of `record` to None, in place, and return it.
+    None is the record's one empty value — `coerce()` turns "" and whitespace into it
+    """
+    for field in fields:
+        if field not in FIELDS:
+            print(f"warning: {field} is not a lookup record field")
+            continue
+        record[field] = None
+    return record
