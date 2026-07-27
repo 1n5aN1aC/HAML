@@ -27,12 +27,13 @@ import lookup_location_calc
 _EARTH_RADIUS_KM = 6371.0                                   # Mean Earth radius in kilometers.
 _DEFAULT_LOCATION = {"latitude": 45.0, "longitude": -123.0} # Default location if the event does not provide one.
 
-# Derive missing zones from the records coordinates.
+# Derive missing zones from the records coordinates. Only the fields that
+# arrived empty are named, so a source-supplied zone (CallParser's prefix-DB
+# zones, say) stays as it is and costs no query.
 def _fill_missing_zones(record):
-    if record.get("itu_zone") is None:
-        record = lookup_location_calc.recalculate_itu_zone(record)
-    if record.get("cq_zone") is None:
-        record = lookup_location_calc.recalculate_cq_zone(record)
+    missing = [f for f in ("itu_zone", "cq_zone") if record.get(f) is None]
+    if missing:
+        record = lookup_location_calc.recalculate(record, missing)
     return record
 
 # Derive the distance in km from the active event's operating position (config.location)
@@ -74,6 +75,7 @@ def apply(app, record, entry=None):
     out = _fill_distance(app, out)
 
     # Check if the user provided any location information which might override the operator values
+    # Start from most precise location towards least-precise so we hit the mutator that would be most precise.
     if entry:
         # User-provided coordinates differ from existing user record
         if "latitude" in entry and "longitude" in entry:
@@ -82,18 +84,18 @@ def apply(app, record, entry=None):
             if (typed_lat is not None and typed_lon is not None and (typed_lat != record.get("latitude") or typed_lon != record.get("longitude"))):
                 out["latitude"] = typed_lat
                 out["longitude"] = typed_lon
-                # Override grid
-                # Override state
-                # Override section
-                # override county
-                # override country
-                # override dxcc
-                # override cq zone
-                # override ITU zone
-                # override distance
+                # Override grid      x
+                # Override state     <
+                # Override section   <
+                # override county    <
+                # override country   <
+                # override dxcc      <
+                # override cq zone   <
+                # override ITU zone  <
+                # override distance  <
                 return out
         # User gave us a POTA park, parse it- ()
-        if "their_park" in entry and bool(str(entry["their_park"] or "").strip()):
+        elif "their_park" in entry and bool(str(entry["their_park"] or "").strip()):
             # Parse what park they are in.
                 #Add that to the returned record
                 #Update the coordinates
@@ -107,21 +109,8 @@ def apply(app, record, entry=None):
             # override ITU zone
             # override distance
             return out
-        # User-provided gridsquare differs from existing user record
-        if "gridsquare" in entry:
-            typed = _OVERRIDE_FIELDS["gridsquare"](entry["gridsquare"])
-            if typed is not None and typed != record.get("gridsquare"):
-                # Override state
-                # Override section
-                # override county
-                # override country
-                # override dxcc
-                # override cq zone
-                # override ITU zone
-                # override distance
-                return out
         # User-provided section differs from existing user record
-        if "section" in entry:
+        elif "section" in entry:
             typed = _OVERRIDE_FIELDS["section"](entry["section"])
             if typed is not None and typed != record.get("section"):
                 # Override grid
@@ -134,10 +123,23 @@ def apply(app, record, entry=None):
                 # override distance
                 return out
         # User-provided State differs from existing user record
-        if "state" in entry:
+        elif "state" in entry:
             typed = _OVERRIDE_FIELDS["state"](entry["state"])
             if typed is not None and typed != record.get("state"):
                 # Override grid
+                # Override section (if possible)
+                # override county
+                # override country
+                # override dxcc
+                # override cq zone
+                # override ITU zone
+                # override distance
+                return out
+        # User-provided gridsquare differs from existing user record
+        elif "gridsquare" in entry:
+            typed = _OVERRIDE_FIELDS["gridsquare"](entry["gridsquare"])
+            if typed is not None and typed != record.get("gridsquare"):
+                # Override state
                 # Override section
                 # override county
                 # override country

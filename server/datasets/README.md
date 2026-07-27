@@ -16,6 +16,7 @@ each querying its own table:
 | `ca_operators`            | `server/lookup_ca.py`              |
 | `cq_zones` / `itu_zones`  | `server/lookup_location_calc.py`   |
 | `dxcc_entities`           | `server/lookup_location_calc.py`   |
+| `counties`                | `server/lookup_location_calc.py`   |
 
 - **Server config**: path overridable via `lookup_db_path` in the server
   config JSON. Default is `datasets/lookup_data.sqlite` (resolved
@@ -132,6 +133,33 @@ prefix `3D2/c` and code 489, so neither column is unique.
   that `fcc_operators.dxcc_entity` carries.
 - **Prefixes are exact**: `3D2` is Fiji (176), while Conway Reef is `3D2/c`
   and Rotuma `3D2/r`.
+
+### `counties`
+
+The file's only administrative geography, and the source of `county`,
+`state` and `section` in `server/lookup_location_calc.py`. 3,528 rows
+(`id`, `county`, `state`, `country`, `arrl_section`) covering US counties and
+Canadian census divisions, with geometry in `counties_parts` (180,961 WKB
+polygons, 296 MB) under the `counties_bbox` R\*Tree.
+
+- **All three fields come from one row**, so one query answers county, state
+  and section together. `arrl_section` is populated on every row and holds
+  the same value the operator tables carry, since one importer derives both.
+- **`country` here is `US` or `CA`**, a two-letter code rather than a DXCC
+  entity name, which is why `lookup_location_calc` takes `country` from
+  `dxcc_entities` instead.
+- **Order by `(country = 'US') DESC, id`** so a point on the 49th parallel
+  resolves to the US side every time.
+- **Geometry size drives the cost**: parts average 1.6 KB, but 30 run past a
+  megabyte and mainland Baffin Island is a single 15.67 MB polygon, 979k
+  points holding 110 MB once parsed into Python tuples. `lookup_location_calc`
+  parses per lookup and keeps nothing, so a coordinate in the Arctic census
+  divisions costs ~140 ms against ~1 ms elsewhere, and the server's memory
+  does not grow with the area it has looked up.
+- **The `county` vocabulary is whatever the authoritative source calls its
+  county-equivalent**: Connecticut has nine planning regions (`Capitol`, not
+  `Hartford`), Louisiana parishes, Alaska boroughs and census areas, and
+  Canadian rows are census divisions named like `Division No. 18`.
 
 ## `Prefix.lst`
 
