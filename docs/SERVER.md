@@ -144,11 +144,11 @@ licensee hits and before the prefix-DB fallback.
   the chain down.
 - **Each source declares whether it may be cached**; the dispatcher does the writing. `CACHED`
   is a property of the source, not of the result, and no source touches `lookup_cache` itself
-  — one writer, one place the TTL policy lives. Both shipped *data* sources, `fcc` and
-  `callparser`, are `CACHED = False`: they are offline and answer in microseconds, and the
+  — one writer, one place the TTL policy lives. All three shipped sources — `fcc`, `ised`,
+  `callparser` — are `CACHED = False`: they are offline and answer in microseconds, and the
   cache is read once *before* the chain runs, so a cached row would outrank every source
-  above whichever one wrote it until it expired. `blank` is `CACHED = True` purely as the
-  worked example; its write path never fires, because it never returns an OK.
+  above whichever one wrote it until it expired. Nothing writes a cache row today; `CACHED =
+  True` is the slot a paid online provider would fill.
 
 **Post-processing runs after the cache, on every OK path.** `lookup_postprocess` is one file
 that takes the canonical record (`lookup_record.FIELDS` — the storage contract) and hands
@@ -169,7 +169,7 @@ record gets the 15-minute TTL instead of 365 days.
 Supporting modules: `lookup_fcc.py` (local FCC ULS dataset), `lookup_ca.py` (local ISED
 Canadian dataset, run on an FCC miss), `lookup_callparser.py` over
 `callparser.py` (prefix DB), `lookup_location_calc.py` (coordinate-derived values: CQ/ITU
-zone polygons today), `lookup_cache.py`. Dataset
+zone polygons from the same sqlite), `lookup_cache.py`. Dataset
 provenance and schemas: [server/datasets/README.md](../server/datasets/README.md).
 
 ## Admin surface

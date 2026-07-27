@@ -1,63 +1,8 @@
-# Zone boundary data
+# Lookup datasets
 
-This directory contains vendored, static zone boundary data used by
-`server/lookup_location_calc.py`
-It is used to derive amateur radio CQ and ITU zone numbers from a latitude/longitude coordinate.
-
-## Files
-
-| File                         | Source zone numbering                       |
-| ---------------------------- | ------------------------------------------- |
-| `mapregions_cqzones.geojson` | CQ Zones (integer `cq_zone_number`, 1–40)   |
-| `mapregions_ituzones.geojson` | ITU Zones (integer `itu_zone_number`, 1–90) |
-
-Both files are GeoJSON `FeatureCollection`s of `Polygon` features. Coordinates
-follow the GeoJSON axis order: `[longitude, latitude]`.
-
-## Source
-
-Both files were copied verbatim from:
-
-- Repository: <https://github.com/hb9hil/hamradio-zones-geojson>
-- Branch: `main`
-- Files: `mapregions_cqzones.geojson`, `mapregions_ituzones.geojson`
-
-## License
-
-The data is distributed under the MIT License by the upstream author
-(HB9HIL). The full MIT notice:
-
-```
-MIT License
-
-Copyright (c) 2023 HB9HIL
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## Vendoring date
-
-This data was vendored into HAML on the date below. To refresh, re-download
-from the upstream repository, verify license has not changed, and replace the
-files in this directory.
-
-- Vendored: 2026-05-13
+This directory holds the datasets the server reads at runtime: the
+`lookup_data.sqlite` bundle (gitignored, built out of repo) and the vendored
+`Prefix.lst` prefix database.
 
 ## `lookup_data.sqlite`
 
@@ -65,10 +10,11 @@ One sqlite file holding every offline lookup dataset. `server/lookup_db.py`
 opens it read-only once at boot and the adapters share that connection,
 each querying its own table:
 
-| Table           | Adapter                 |
-| --------------- | ----------------------- |
-| `fcc_operators` | `server/lookup_fcc.py`  |
-| `ca_operators`  | `server/lookup_ca.py`   |
+| Table                     | Reader                             |
+| ------------------------- | ---------------------------------- |
+| `fcc_operators`           | `server/lookup_fcc.py`             |
+| `ca_operators`            | `server/lookup_ca.py`              |
+| `cq_zones` / `itu_zones`  | `server/lookup_location_calc.py`   |
 
 - **Server config**: path overridable via `lookup_db_path` in the server
   config JSON. Default is `datasets/lookup_data.sqlite` (resolved
@@ -133,3 +79,34 @@ The local ISED operator dataset that `server/lookup_ca.py` reads. ~92k Canadian 
     ARRL one; same column, same `section` field on the wire, different vocabulary.
 - **Not cached**: like the FCC source, `CACHED = False` — the query is
   microseconds and a stale cache row would only outrank the DB.
+
+### `cq_zones` / `itu_zones`
+
+The CQ (1–40) and ITU (1–90) zone polygons `server/lookup_location_calc.py`
+tests a coordinate against. Each zone is one row in the feature table
+(`id`, `zone`, `name`, `label_lat`, `label_lon`, `area_deg2`); its geometry
+lives in `{table}_parts` as one WKB polygon per row (`part_id`, `feature_id`,
+`geom`), with an R\*Tree `{table}_bbox` (`id`, `minx`, `maxx`, `miny`, `maxy`,
+`+feature_id`) over the parts. 44 CQ parts, 103 ITU parts.
+
+- **Reading them**: the R\*Tree is a *prefilter* — it matches parts whose
+  bounding box contains the point, and the point-in-polygon test decides.
+  Join parts to bbox on `part_id = id`, so each row carries the one part
+  whose box matched, and order by `z.id` so overlaps resolve deterministically.
+- **Axis order**: the R\*Tree and the WKB blobs are `(x, y)` = `(lon, lat)`;
+  `label_lat`/`label_lon` are the opposite order, and unused here.
+- **Not a partition**: CQ covers ~96% of the globe, ITU ~94.5%, and a few
+  pairs overlap. A point outside every polygon resolves to `None`, which is
+  correct and reaches the client as a null zone.
+- **Clipped at ±180**: every polygon stays within the antimeridian, so
+  longitudes are plain values in that range; `lookup_location_calc` reads a
+  longitude of +180 as -180, the side of that meridian the polygons cover.
+- **Own connection**: unlike the operator tables, these are read through a
+  second read-only handle opened lazily by `lookup_location_calc` itself,
+  because its entry points take a bare coordinate and never see the app dict.
+
+## `Prefix.lst`
+
+The VE3NEA CallParser prefix database, read by `server/callparser.py` (see
+`server/lookup_callparser.py`). Committed to the repo; path overridable via
+`prefix_lst_path`.
