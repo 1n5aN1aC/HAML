@@ -50,6 +50,7 @@ Coordinate convention:
     antimeridian and no unwrapping is needed.
 """
 import math
+import re
 import sqlite3
 import struct
 
@@ -417,6 +418,69 @@ def recalculate_section_from_state(record):
     section = sections.get(code)
     if section is not None:
         record["section"] = section
+    return record
+
+
+# --- POTA park --------------------------------------------------------------
+
+# What separates one reference from the next in an operator-typed park field:
+# comma, semicolon, slash and whitespace all appear in practice for a
+# park-to-park or multi-park activation.
+_PARK_SPLIT = re.compile(r"[,]+")
+
+def recalculate_coordinates_from_park(record, entry):
+    """Move the record onto the park in `entry`, or answer None.
+
+    Takes the whole entry because the park is an operator-typed field
+    (`their_park`) rather than anything a source supplied. Only the first
+    reference is read: a multi-park activation is one operating position, so
+    the references name the same spot, and the first is the one to trust.
+
+    On success the record's latitude and longitude are replaced in place and
+    the record comes back, ready for `recalculate()` to derive the rest from
+    the new position. On failure the answer is None, and that covers every
+    way of not knowing — no park typed, an unparseable field, a reference
+    the table doesn't carry, and a park POTA lists without a real position.
+    A caller that gets None leaves the record's own location alone.
+
+    Reference matching is exact against `pota_parks.reference` (uppercased,
+    with surrounding punctuation dropped), so the table decides what counts
+    as a park rather than a pattern here that would have to be widened every
+    time POTA adds a numbering scheme.
+
+    Never raises.
+    """
+    text = entry.get("their_park") if isinstance(entry, dict) else None
+    if not isinstance(text, str):
+        return None
+    first = next((t for t in _PARK_SPLIT.split(text.strip()) if t), "")
+    reference = first.strip(".,;:()[]").upper()
+    if not reference:
+        return None
+
+    conn = _conn()
+    if conn is None:
+        return None
+    try:
+        row = conn.execute(
+            "SELECT latitude, longitude FROM pota_parks WHERE reference = ?",
+            (reference,)).fetchone()
+    except sqlite3.Error as exc:
+        print(f"warning: lookup dataset error reading pota_parks: {exc}")
+        return None
+    if row is None:
+        return None
+
+    lat, lon = row
+    # (0, 0) is POTA's "coordinates unknown" placeholder on 2,736 parks, not
+    # a position in the Gulf of Guinea; 57 more carry no coordinates at all.
+    if lat == 0 and lon == 0:
+        return None
+    coord = _valid_coord(lat, lon)
+    if coord is None:
+        return None
+
+    record["latitude"], record["longitude"] = coord
     return record
 
 
