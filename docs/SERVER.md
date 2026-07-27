@@ -169,7 +169,7 @@ record gets the 15-minute TTL instead of 365 days.
 Supporting modules: `lookup_fcc.py` (local FCC ULS dataset), `lookup_ca.py` (local ISED
 Canadian dataset, run on an FCC miss), `lookup_callparser.py` over
 `callparser.py` (prefix DB), `lookup_location_calc.py` (coordinate-derived values: CQ/ITU zone, DXCC entity and
-county polygons from the same sqlite), `lookup_cache.py`. Dataset
+county polygons from the same sqlite, plus the Maidenhead gridsquare), `lookup_cache.py`. Dataset
 provenance and schemas: [server/datasets/README.md](../server/datasets/README.md).
 
 ## Admin surface

@@ -2,8 +2,8 @@
 
 Home for the derivations that turn a coordinate into some other geographic
 fact about it — CQ and ITU zone numbers, DXCC entity and country, county,
-state and ARRL/RAC section. The module is split so a new derivation only has
-to add its own query + entry point:
+state and ARRL/RAC section, Maidenhead gridsquare. The module is split so a
+new derivation only has to add its own query + entry point:
 
   - shared coordinate handling (`_valid_coord`),
   - shared sqlite access, WKB parsing and point-in-polygon machinery,
@@ -354,6 +354,42 @@ def derive_county(lat, lon):
     }
 
 
+# --- Maidenhead gridsquare --------------------------------------------------
+
+# Field letters for the first pair (20° of longitude, 10° of latitude each)
+# and, at 4 characters, the digits of the square are 0-9 by construction.
+_GRID_FIELD = "ABCDEFGHIJKLMNOPQR"
+
+def derive_gridsquare(lat, lon):
+    """{ 'gridsquare': str|None } — the 4-character Maidenhead locator.
+
+    Arithmetic on the coordinate, not a polygon, so this is the one
+    derivation that touches no table and answers for every point on Earth:
+    None means only that the coordinate isn't usable (see `_valid_coord`).
+
+    Maidenhead counts from the antipode of the prime meridian at the south
+    pole, so both axes shift positive first. The pair of poles and the
+    antimeridian are the boundaries the arithmetic has to survive: latitude
+    +90 and longitude +180 land exactly on the far edge of the last field,
+    which is why each axis is held just inside it. The `_valid_coord` remap
+    of +180 to -180 puts the antimeridian in `A`, the field that starts
+    there.
+    """
+    coord = _valid_coord(lat, lon)
+    if coord is None:
+        return {"gridsquare": None}
+    lat_f, lon_f = coord
+
+    lon_adj = min(lon_f + 180.0, 359.999999)
+    lat_adj = min(lat_f + 90.0, 179.999999)
+    return {"gridsquare": (
+        _GRID_FIELD[int(lon_adj // 20)]
+        + _GRID_FIELD[int(lat_adj // 10)]
+        + str(int(lon_adj % 20 // 2))
+        + str(int(lat_adj % 10))
+    )}
+
+
 # --- writing derivations onto a record --------------------------------------
 
 # Which derivation answers each record field, and under which key. One entry
@@ -371,6 +407,7 @@ _DERIVED_FIELDS = {
     "county":   (derive_county,   "county"),
     "state":    (derive_county,   "state"),
     "section":  (derive_county,   "section"),
+    "gridsquare": (derive_gridsquare, "gridsquare"),
 }
 
 def recalculate(record, fields=None):
