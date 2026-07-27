@@ -1,19 +1,19 @@
-"""FCC ULS adapter: turns one row of `operators` into the canonical record.
+"""FCC ULS adapter: turns one row of `fcc_operators` into the canonical record.
 
 A pure adapter — no HTTP, no async, no I/O beyond the local sqlite read.
-File is opened read-only at setup time so a misconfigured path never blocks boot.
-On miss or DB unavailable, hand back a {status, payload, error} shape.
+The file is `datasets/lookup_data.sqlite`, shared with the ISED source and
+opened read-only at setup time by `lookup_db` so a misconfigured path never
+blocks boot. On miss or DB unavailable, hand back a {status, payload, error} shape.
 
 First source in `lookup.SOURCES`; see `lookup.py` for the module
 contract. `CACHED = False`: the query is microseconds, so a cache row buys
 no latency, and a stale row would outrank the DB itself. Cache writes are
 the dispatcher's job in any case — this module never touches the cache.
 """
-import os
 import sqlite3
-import time
 
 import lookup_cache
+import lookup_db
 import lookup_record
 
 SOURCE = "fcc"
@@ -47,60 +47,13 @@ _LICENSE_CLASS_MAP = {
     "T": "technician",
 }
 
-# --- open the read-only DB connection ---------------------------------------
-# `uri=True` + `mode=ro` is the official way to open a sqlite read-only via a file: URI.
-def _open(path):
-    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    # Row factory so we can read by column name in _build_record().
-    # Default tuples would force us to track ordinal positions, which is
-    # fragile against importer-side column reordering.
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# Staleness warning: when the DB is older than the configured threshold.
-def _warn_if_stale(db_path, max_age_days):
-    if not max_age_days:  # 0 disables the check
-        return
-    try:
-        mtime = os.path.getmtime(db_path)
-    except OSError:
-        return  # File-age unknowable; the open path already warns on a bad file.
-    age_days = (time.time() - mtime) / 86400
-    if age_days > max_age_days:
-        print(
-            f"warning: FCC dataset at {db_path} is {age_days:.1f} days old "
-            f"(threshold {max_age_days}); the FCC ULS dump refreshes weekly, "
-            "consider rebuilding it"
-        )
-
-# setup(): called from main.build_app.
-# Missing/unopenable -> warn, store None.
-# We never raise; the server must boot so the admin endpoints still work.
+# setup()/close(): both delegate to the shared handle, which is idempotent —
+# the ISED source calls the same pair, and whichever runs first does the work.
 def setup(app):
-    db_path = app["cfg"]["fcc_db_path"]
-    try:
-        conn = _open(db_path)
-        # Force a real open + pragma so a corrupt file fails here, not on the first lookup.
-        conn.execute("PRAGMA quick_check").fetchone()
-        app["fcc_db"] = conn
-        app["fcc_db_path"] = str(db_path)
-        _warn_if_stale(db_path, app["cfg"].get("fcc_db_max_age_days", 0))
-    except (sqlite3.OperationalError, sqlite3.DatabaseError, OSError) as exc:
-        # Not fatal: the chain falls through to the prefix DB.
-        print(
-            f"warning: FCC dataset unavailable at {db_path} ({exc}); "
-            "Falling back to other sources"
-        )
-        app["fcc_db"] = None
-        app["fcc_db_path"] = str(db_path)
+    lookup_db.setup(app)
 
-# close(): called from lookup.close() at shutdown. The read-only handle is
-# process-lived otherwise; closing it lets a test's scratch dir be removed.
 def close(app):
-    conn = app.get("fcc_db")
-    if conn is not None:
-        conn.close()
-        app["fcc_db"] = None
+    lookup_db.close(app)
 
 # --- row -> canonical mapping ----------------------------------------------
 # coerce() will turns empty strings into None and dirty fields are tracked there.
@@ -196,7 +149,7 @@ def _build_record(row):
 # lookup(): one indexed query; sync because the work is microseconds.
 # Returns the {status, payload, error} shape the chain expects.
 def lookup(app, callsign):
-    conn = app.get("fcc_db")
+    conn = app.get("lookup_db")
     if conn is None:
         return {
             "status": lookup_cache.STATUS_ERROR,
@@ -206,7 +159,7 @@ def lookup(app, callsign):
 
     try:
         row = conn.execute(
-            "SELECT * FROM operators WHERE callsign = ?", (callsign,)
+            "SELECT * FROM fcc_operators WHERE callsign = ?", (callsign,)
         ).fetchone()
     except sqlite3.OperationalError as exc:
         # The DB file disappeared or got corrupted between setup() and now.

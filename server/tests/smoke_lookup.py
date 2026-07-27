@@ -87,11 +87,12 @@ def check(condition, label):
 
 
 # --- fixture ---------------------------------------------------------------
-# Mirror of the production `operators` schema (see server/datasets/README.md).
-# Real DB has 826k rows; the test only needs a handful to exercise the
-# adapter's mapping + zones + status paths.
-FCC_SCHEMA = """
-CREATE TABLE operators (
+# Mirror of the production operator-table schema (see server/datasets/README.md).
+# Both `fcc_operators` and `ca_operators` share this layout, so the template
+# is filled in per table. Real DB has 826k + 92k rows; the test only needs a
+# handful to exercise the adapters' mapping + zones + status paths.
+OPERATORS_SCHEMA = """
+CREATE TABLE {table} (
   callsign              TEXT PRIMARY KEY,
   applicant_type        TEXT,
   first_name            TEXT,
@@ -257,16 +258,25 @@ FCC_FIXTURE = [
 
 
 def build_fixture(path):
-    """Write the fixture sqlite at `path`. Returns the path."""
+    """Write the fixture sqlite at `path`. Returns the path.
+
+    One file with both operator tables, mirroring production's single
+    `lookup_data.sqlite`: the FCC and ISED adapters share one connection and
+    differ only in which table they query. CA_FIXTURE is defined further down,
+    next to the CA adapter's own checks; this runs at call time, not import.
+    """
     conn = sqlite3.connect(path)
-    conn.executescript(FCC_SCHEMA)
-    cols = list(FCC_FIXTURE[0].keys())
-    placeholders = ",".join("?" for _ in cols)
-    for row in FCC_FIXTURE:
-        conn.execute(
-            f"INSERT INTO operators ({','.join(cols)}) VALUES ({placeholders})",
-            [row[c] for c in cols],
-        )
+    for table, rows in (("fcc_operators", FCC_FIXTURE),
+                        ("ca_operators", CA_FIXTURE)):
+        conn.executescript(OPERATORS_SCHEMA.format(table=table))
+        cols = list(rows[0].keys())
+        placeholders = ",".join("?" for _ in cols)
+        for row in rows:
+            conn.execute(
+                f"INSERT INTO {table} ({','.join(cols)}) "
+                f"VALUES ({placeholders})",
+                [row[c] for c in cols],
+            )
     conn.commit()
     conn.close()
     return path
@@ -775,17 +785,17 @@ def check_fcc_unit():
     import lookup_fcc
     scratch = Path(tempfile.mkdtemp(prefix="haml-fcc-unit-"))
     try:
-        fcc_path = scratch / "fcc.sqlite"
+        fcc_path = scratch / "lookup_data.sqlite"
         build_fixture(fcc_path)
 
         class _App(dict):
             pass
         app = _App()
-        app["cfg"] = {"fcc_db_path": str(fcc_path)}
+        app["cfg"] = {"lookup_db_path": str(fcc_path)}
         lookup_fcc.setup(app)
-        check(app.get("fcc_db") is not None,
+        check(app.get("lookup_db") is not None,
               "fcc.setup() opens the DB on a valid file")
-        check(app.get("fcc_db_path") == str(fcc_path),
+        check(app.get("lookup_db_path") == str(fcc_path),
               "fcc.setup() stashes the resolved path")
 
         # ---- W1AW: Individual, has previous_callsign, has coords ----
@@ -910,11 +920,11 @@ def check_fcc_unit():
             class _App2(dict):
                 pass
             app2 = _App2()
-            app2["cfg"] = {"fcc_db_path": str(scratch2 / "absent.sqlite")}
+            app2["cfg"] = {"lookup_db_path": str(scratch2 / "absent.sqlite")}
             lookup_fcc.setup(app2)
-            check(app2.get("fcc_db") is None,
-                  "fcc.setup() with a missing file -> app['fcc_db'] is None")
-            check(app2.get("fcc_db_path") == str(scratch2 / "absent.sqlite"),
+            check(app2.get("lookup_db") is None,
+                  "fcc.setup() with a missing file -> app['lookup_db'] is None")
+            check(app2.get("lookup_db_path") == str(scratch2 / "absent.sqlite"),
                   "fcc.setup() still stashes the resolved path on missing file")
             result = lookup_fcc.lookup(app2, "W1AW")
             check(result["status"] == lookup_cache.STATUS_ERROR,
@@ -925,14 +935,14 @@ def check_fcc_unit():
         finally:
             shutil.rmtree(scratch2, ignore_errors=True)
 
-        app["fcc_db"].close()
+        app["lookup_db"].close()
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
 
 # --- ISED (Canada) fixture --------------------------------------------------
 # The Canadian dataset is built to the FCC column layout (arrl_section
-# included), so it reuses FCC_SCHEMA. Rows exercise the
+# included), so it reuses OPERATORS_SCHEMA. Rows exercise the
 # three ways the CA adapter differs from FCC: a province state code, the
 # multi-letter qualification set collapsing to one class word, and a club
 # with no license dates / previous history (all NULL in this dataset).
@@ -1035,22 +1045,6 @@ CA_FIXTURE = [
 ]
 
 
-def build_ca_fixture(path):
-    """Write a Canadian-dataset fixture at `path` (FCC layout). Returns path."""
-    conn = sqlite3.connect(path)
-    conn.executescript(FCC_SCHEMA)
-    cols = list(CA_FIXTURE[0].keys())
-    placeholders = ",".join("?" for _ in cols)
-    for row in CA_FIXTURE:
-        conn.execute(
-            f"INSERT INTO operators ({','.join(cols)}) VALUES ({placeholders})",
-            [row[c] for c in cols],
-        )
-    conn.commit()
-    conn.close()
-    return path
-
-
 def check_ca_unit():
     """Drive the ISED (Canada) adapter directly against a scratch fixture.
     Locks in the row -> canonical mapping, the qualification-set -> class-word
@@ -1058,17 +1052,17 @@ def check_ca_unit():
     import lookup_ca
     scratch = Path(tempfile.mkdtemp(prefix="haml-ca-unit-"))
     try:
-        ca_path = scratch / "ca.sqlite"
-        build_ca_fixture(ca_path)
+        ca_path = scratch / "lookup_data.sqlite"
+        build_fixture(ca_path)
 
         class _App(dict):
             pass
         app = _App()
-        app["cfg"] = {"ca_db_path": str(ca_path)}
+        app["cfg"] = {"lookup_db_path": str(ca_path)}
         lookup_ca.setup(app)
-        check(app.get("ca_db") is not None,
+        check(app.get("lookup_db") is not None,
               "ca.setup() opens the DB on a valid file")
-        check(app.get("ca_db_path") == str(ca_path),
+        check(app.get("lookup_db_path") == str(ca_path),
               "ca.setup() stashes the resolved path")
 
         # ---- VE7ADV: Individual, "AD" -> advanced, BC province ----
@@ -1143,10 +1137,10 @@ def check_ca_unit():
             class _App2(dict):
                 pass
             app2 = _App2()
-            app2["cfg"] = {"ca_db_path": str(scratch2 / "absent.sqlite")}
+            app2["cfg"] = {"lookup_db_path": str(scratch2 / "absent.sqlite")}
             lookup_ca.setup(app2)
-            check(app2.get("ca_db") is None,
-                  "ca.setup() with a missing file -> app['ca_db'] is None")
+            check(app2.get("lookup_db") is None,
+                  "ca.setup() with a missing file -> app['lookup_db'] is None")
             result = lookup_ca.lookup(app2, "VE7ADV")
             check(result["status"] == lookup_cache.STATUS_ERROR,
                   "missing-DB lookup -> STATUS_ERROR")
@@ -1156,7 +1150,7 @@ def check_ca_unit():
         finally:
             shutil.rmtree(scratch2, ignore_errors=True)
 
-        app["ca_db"].close()
+        app["lookup_db"].close()
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 
@@ -1315,32 +1309,31 @@ def _make_minimal_event_db(tmp):
         json.dumps({"active": "events/test.db"}))
 
 
-def _make_config(tmp, fcc_db_path, prefix_lst_path=None):
+def _make_config(tmp, lookup_db_path, prefix_lst_path=None):
     cfg = {
         "host": "127.0.0.1", "port": PORT,
         "data_dir": str(tmp), "admin_password": "test-pw",
-        "fcc_db_path": str(fcc_db_path),
-        # The Canadian source sits between FCC and CallParser. Point it at the
-        # committed dataset (same as the real Prefix.lst above) so it is a
-        # clean NOT_FOUND for the US/garbage calls these e2e cases probe,
-        # preserving the 404/502 fall-through — never an "unavailable" error
-        # that would turn an expected 404 into a 502.
-        "ca_db_path": str(SERVER_DIR / "datasets" / "Lookup_CA.sqlite"),
+        # One path for both offline licensee sources: the fixture carries
+        # `fcc_operators` and `ca_operators` exactly as production does. The
+        # CA table is a clean NOT_FOUND for the US/garbage calls these e2e
+        # cases probe, preserving the 404/502 fall-through — never an
+        # "unavailable" error that would turn an expected 404 into a 502.
+        "lookup_db_path": str(lookup_db_path),
     }
     if prefix_lst_path is not None:
         cfg["prefix_lst_path"] = str(prefix_lst_path)
     return tmp / "config.json", json.dumps(cfg)
 
 
-async def run_e2e(fcc_db_path, prefix_lst_path=None,
+async def run_e2e(lookup_db_path, prefix_lst_path=None,
                   missing_db=False, missing_prefix_lst=False):
     preclean()
     tmp = Path(tempfile.mkdtemp(prefix="haml-lookup-"))
     try:
         if missing_db:
-            fcc_path = tmp / "does_not_exist.sqlite"
+            db_path = tmp / "does_not_exist.sqlite"
         else:
-            fcc_path = fcc_db_path
+            db_path = lookup_db_path
         if prefix_lst_path is None and not missing_prefix_lst:
             # Default to the committed fixture so the chain has DX coverage.
             prefix_lst_path = SERVER_DIR / "datasets" / "Prefix.lst"
@@ -1348,7 +1341,7 @@ async def run_e2e(fcc_db_path, prefix_lst_path=None,
             cp_path = tmp / "does_not_exist_Prefix.lst"
         else:
             cp_path = prefix_lst_path
-        config_path, body = _make_config(tmp, fcc_path,
+        config_path, body = _make_config(tmp, db_path,
                                          prefix_lst_path=cp_path)
         config_path.write_text(body)
         _make_minimal_event_db(tmp)
@@ -1547,22 +1540,12 @@ async def run_e2e(fcc_db_path, prefix_lst_path=None,
                 # misses FCC and must fall through to the ISED source. This is
                 # the one e2e case that lands on lookup_ca via the live chain —
                 # unit tests drive that adapter directly and can't catch a
-                # SOURCES-wiring or config-plumbing bug. Pick a real row out of
-                # the committed dataset at runtime so the assertion survives a
-                # dataset refresh.
+                # SOURCES-wiring or config-plumbing bug. The row comes out of
+                # the fixture's `ca_operators` table, the same file the FCC
+                # rows live in — which is also the point being proven here:
+                # two sources, two tables, one shared connection.
                 print("live ISED hit (Canadian call):")
-                ca_db = SERVER_DIR / "datasets" / "Lookup_CA.sqlite"
-                ca_conn = sqlite3.connect(f"file:{ca_db}?mode=ro", uri=True)
-                try:
-                    ca_row = ca_conn.execute(
-                        "SELECT callsign FROM operators "
-                        "WHERE dxcc_entity = 'Canada' LIMIT 1"
-                    ).fetchone()
-                finally:
-                    ca_conn.close()
-                check(ca_row is not None,
-                      "committed Lookup_CA.sqlite has at least one Canadian row")
-                ca_call = ca_row[0]
+                ca_call = CA_FIXTURE[0]["callsign"]
                 status, body = await post_lookup(session, ca_call)
                 check(status == 200,
                       f"Canadian call {ca_call} -> 200 (got {status})")
@@ -1764,10 +1747,13 @@ async def main():
     check_callparser_unit()
 
     print("\nend-to-end against the live server:")
-    fixture_path = Path(tempfile.mkdtemp(prefix="haml-fcc-fixture-")) / "fcc.sqlite"
+    # Prefix must NOT start with "haml-lookup-": preclean() wipes those
+    # between e2e runs and would delete the fixture out from under us.
+    fixture_path = (Path(tempfile.mkdtemp(prefix="haml-fixture-"))
+                    / "lookup_data.sqlite")
     try:
         build_fixture(fixture_path)
-        # Real Prefix.lst + FCC fixture: the new e2e CP cases run here.
+        # Real Prefix.lst + lookup fixture: the new e2e CP cases run here.
         await run_e2e(fixture_path, missing_db=False)
         # Missing-DB, real Prefix.lst: CP must rescue every resolvable call.
         await run_e2e(fixture_path, missing_db=True)

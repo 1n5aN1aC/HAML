@@ -59,7 +59,28 @@ files in this directory.
 
 - Vendored: 2026-05-13
 
-## `Lookup_FCC.sqlite`
+## `lookup_data.sqlite`
+
+One sqlite file holding every offline lookup dataset. `server/lookup_db.py`
+opens it read-only once at boot and the adapters share that connection,
+each querying its own table:
+
+| Table           | Adapter                 |
+| --------------- | ----------------------- |
+| `fcc_operators` | `server/lookup_fcc.py`  |
+| `ca_operators`  | `server/lookup_ca.py`   |
+
+- **Server config**: path overridable via `lookup_db_path` in the server
+  config JSON. Default is `datasets/lookup_data.sqlite` (resolved
+  relative to the server dir). A missing file is non-fatal: the server prints a
+  warning at boot and lookups fall through to other sources. A 502 is returned
+  only when nothing below resolves either.
+- **Staleness warning**: because the upstream dumps refresh on their own
+  cadence and the schema carries no build timestamp, `lookup_db.setup()` uses
+  the file's mtime as a proxy for its build date and prints a boot-time
+  warning when it is older than `lookup_db_max_age_days`.
+
+### `fcc_operators`
 
 The local FCC ULS operator dataset that `server/lookup_fcc.py` reads on every
 callsign lookup. ~826k active US amateur licenses, one row per callsign.
@@ -67,7 +88,7 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
 - **Source**: FCC Universal Licensing System weekly data dump
   (`l_amat.zip` from <https://www.fcc.gov/ulrs>). The raw pipe-delimited
   extract is converted into this sqlite by an out-of-repo importer script
-- **Schema** (table `operators`, with a unique index on `callsign`):
+- **Schema** (with a unique index on `callsign`):
   - `callsign` TEXT PRIMARY KEY
   - `applicant_type` TEXT  — `Individual` / `Amateur Club` / `Military Recreation` / `Government Entity`
   - `first_name` TEXT, `middle_initial` TEXT, `last_name` TEXT, `name_suffix` TEXT
@@ -86,24 +107,15 @@ callsign lookup. ~826k active US amateur licenses, one row per callsign.
   - `dxcc_entity` TEXT — DXCC entity name (e.g. `"United States"`, `"Alaska"`, `"Northern Mariana Islands"`). Served to clients as the `country` field.
   - `continent` TEXT   — 2-letter continent code (e.g. `"NA"`)
   - `dxcc_id` INTEGER  — ARRL DXCC entity code (e.g. `291` for US). Served to clients as the `dxcc` field.
-- **Server config**: path overridable via `fcc_db_path` in the server
-  config JSON. Default is `datasets/Lookup_FCC.sqlite` (resolved
-  relative to the server dir). A missing file is non-fatal: the server prints a
-  warning at boot and lookups fall through to other sources.  A 502 is returned
-  only when nothing below resolves either.
-- **Staleness warning**: because the FCC dump refreshes weekly and the schema
-  carries no build timestamp, `lookup_fcc.setup()` uses the file's mtime as a
-  proxy for its build date and prints a boot-time warning when it is old.
-
-## `Lookup_CA.sqlite`
+### `ca_operators`
 
 The local ISED operator dataset that `server/lookup_ca.py` reads. ~92k Canadian licenses
 
 - **Source**: ISED's published amateur radio operator list. The raw extract is
-  converted into this sqlite by an out-of-repo importer script that emits the
-  **same `operators` column layout as the FCC dataset**, so the two
+  converted into this table by an out-of-repo importer script that emits the
+  **same column layout as `fcc_operators`**, so the two
   adapters share all of their row -> canonical mapping.
-- **Substantive differences from the FCC dataset** (all handled in `lookup_ca.py`):
+- **Substantive differences from the FCC table** (all handled in `lookup_ca.py`):
   - ISED does **not** publish license dates, `frn`, `attention_line`, `po_box`,
     `middle_initial`, `name_suffix`, or any previous-callsign / previous-class /
     trustee-callsign history — those columns are always NULL and come back as
@@ -119,8 +131,5 @@ The local ISED operator dataset that `server/lookup_ca.py` reads. ~92k Canadian 
   - `applicant_type` is only `Individual` or `Amateur Club`.
   - `arrl_section` holds a **RAC** section (`BC`, `ONS`, `GTA`, …) rather than an
     ARRL one; same column, same `section` field on the wire, different vocabulary.
-- **Server config**: path overridable via `ca_db_path`; staleness threshold via
-  `ca_db_max_age_days`. Same missing-file semantics and mtime-based
-  staleness warning as the FCC dataset.
 - **Not cached**: like the FCC source, `CACHED = False` — the query is
   microseconds and a stale cache row would only outrank the DB.

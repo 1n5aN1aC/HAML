@@ -1,12 +1,13 @@
-"""ISED (Canada) adapter: turns one row of `operators` into the canonical record.
+"""ISED (Canada) adapter: turns one row of `ca_operators` into the canonical record.
 
-Structurally a twin of `lookup_fcc`: a pure adapter over a local sqlite,
-opened read-only at setup time, handing back the {status, payload, error}
-shape on a miss or an unavailable DB. It sits directly after `lookup_fcc`
-in `lookup.SOURCES` — a US call resolves before this module is ever asked,
-and a VE/VA/VO/VY call falls through the FCC miss into here.
+Structurally a twin of `lookup_fcc`: a pure adapter over the same local
+sqlite, opened read-only at setup time by `lookup_db`, handing back the
+{status, payload, error} shape on a miss or an unavailable DB. It sits
+directly after `lookup_fcc` in `lookup.SOURCES` — a US call resolves before
+this module is ever asked, and a VE/VA/VO/VY call falls through the FCC miss
+into here.
 
-The Canadian dataset is built to the FCC column layout on purpose (see
+The `ca_operators` table is built to the `fcc_operators` column layout on purpose (see
 `server/datasets/README.md`), so most of the mapping is identical. The three
 real differences are handled below: ISED publishes no license dates / FRN /
 previous-call history (those columns are always NULL), the qualification
@@ -18,11 +19,10 @@ microseconds, a cache row buys no latency, and a stale row would outrank the
 DB itself. Cache writes are the dispatcher's job regardless — this module
 never touches the cache.
 """
-import os
 import sqlite3
-import time
 
 import lookup_cache
+import lookup_db
 import lookup_record
 
 SOURCE = "ised"
@@ -75,59 +75,13 @@ def _license_class(operator_class):
             return word
     return ""
 
-# --- open the read-only DB connection ---------------------------------------
-# `uri=True` + `mode=ro` is the official way to open a sqlite read-only via a file: URI.
-def _open(path):
-    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-    # Row factory so we can read by column name in _build_record(); ordinal
-    # positions would be fragile against importer-side column reordering.
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# Staleness warning: when the DB is older than the configured threshold.
-def _warn_if_stale(db_path, max_age_days):
-    if not max_age_days:  # 0 disables the check
-        return
-    try:
-        mtime = os.path.getmtime(db_path)
-    except OSError:
-        return  # File-age unknowable; the open path already warns on a bad file.
-    age_days = (time.time() - mtime) / 86400
-    if age_days > max_age_days:
-        print(
-            f"warning: Canadian dataset at {db_path} is {age_days:.1f} days old "
-            f"(threshold {max_age_days}); the ISED amateur list refreshes "
-            "regularly, consider rebuilding it"
-        )
-
-# setup(): called from main.build_app via lookup.setup.
-# Missing/unopenable -> warn, store None. We never raise; the server must
-# boot so the admin endpoints still work.
+# setup()/close(): both delegate to the shared handle, which is idempotent —
+# the FCC source calls the same pair, and whichever runs first does the work.
 def setup(app):
-    db_path = app["cfg"]["ca_db_path"]
-    try:
-        conn = _open(db_path)
-        # Force a real open + pragma so a corrupt file fails here, not on the first lookup.
-        conn.execute("PRAGMA quick_check").fetchone()
-        app["ca_db"] = conn
-        app["ca_db_path"] = str(db_path)
-        _warn_if_stale(db_path, app["cfg"].get("ca_db_max_age_days", 0))
-    except (sqlite3.OperationalError, sqlite3.DatabaseError, OSError) as exc:
-        # Not fatal: the chain falls through to the prefix DB.
-        print(
-            f"warning: Canadian dataset unavailable at {db_path} ({exc}); "
-            "Falling back to other sources"
-        )
-        app["ca_db"] = None
-        app["ca_db_path"] = str(db_path)
+    lookup_db.setup(app)
 
-# close(): called from lookup.close() at shutdown. The read-only handle is
-# process-lived otherwise; closing it lets a test's scratch dir be removed.
 def close(app):
-    conn = app.get("ca_db")
-    if conn is not None:
-        conn.close()
-        app["ca_db"] = None
+    lookup_db.close(app)
 
 # --- row -> canonical mapping ----------------------------------------------
 # coerce() turns empty strings into None and tracks dirty fields; we only
@@ -205,7 +159,7 @@ def _build_record(row):
 # lookup(): one indexed query; sync because the work is microseconds.
 # Returns the {status, payload, error} shape the chain expects.
 def lookup(app, callsign):
-    conn = app.get("ca_db")
+    conn = app.get("lookup_db")
     if conn is None:
         return {
             "status": lookup_cache.STATUS_ERROR,
@@ -215,7 +169,7 @@ def lookup(app, callsign):
 
     try:
         row = conn.execute(
-            "SELECT * FROM operators WHERE callsign = ?", (callsign,)
+            "SELECT * FROM ca_operators WHERE callsign = ?", (callsign,)
         ).fetchone()
     except sqlite3.OperationalError as exc:
         # The DB file disappeared or got corrupted between setup() and now.
