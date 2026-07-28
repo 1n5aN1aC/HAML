@@ -21,6 +21,11 @@ raising SystemExit with a message - which is what sys.exit() in its phases
 already does. Anything else it raises is caught here too, so a bug in one
 importer returns you to the menu rather than ending the session.
 
+The database is built here, not where the server reads it: an import takes hours
+and the server should stay on the last good copy for all of them. The finished
+file is copied to ../datasets/lookup_data.sqlite - automatically at the end of
+`run all`, or on its own from the menu.
+
 Every importer shares three directories under this one:
 
     downloads/   files fetched from upstream, kept between runs
@@ -38,6 +43,7 @@ One-time setup, from this folder:
 
 import importlib
 import os
+import shutil
 import sqlite3
 import sys
 import time
@@ -50,6 +56,10 @@ DOWNLOADS_DIR = os.path.join(HERE, "downloads")
 CACHES_DIR = os.path.join(HERE, "caches")
 LOGS_DIR = os.path.join(HERE, "logs")
 DB_PATH = os.path.join(HERE, "lookup_data.sqlite")
+
+# Where the server reads the database from.
+# Building in place here and copies when a run is completes
+SERVER_DB_PATH = os.path.join(HERE, os.pardir, "datasets", "lookup_data.sqlite")
 
 
 # --------------------------------------------------------------------------- #
@@ -81,8 +91,14 @@ IMPORTERS = [
              "    (~30 seconds)"),
 ]
 
-# Menu numbering: 1 runs everything, importers start at 2.
+# Menu numbering: 1 runs everything, importers start at 2, and the copy to the
+# server is the key after the last importer.
 FIRST_IMPORTER_KEY = 2
+DEPLOY_KEY = FIRST_IMPORTER_KEY + len(IMPORTERS)
+
+# Only needs a label: it is not an importer and owns no table, but it appears in
+# the same menu and the same summary.
+DEPLOY_LABEL = "Copy database to the server"
 
 
 def run_importer(imp):
@@ -134,31 +150,76 @@ def vacuum():
         con.close()
 
 
+def deploy():
+    """Copy the finished database to where the server reads it.
+
+    Written to a temporary file alongside the destination and moved into place,
+    so a copy interrupted half way through cannot leave the server a truncated
+    database. Returns 'ok' or 'failed'; like an importer, it reports rather than
+    raises, so `run all` still reaches its summary.
+    """
+    dest = os.path.abspath(SERVER_DB_PATH)
+    print(f"\n{'=' * 70}\n  Copying to {dest}\n{'=' * 70}")
+    if not os.path.exists(DB_PATH):
+        print("  Nothing to copy: lookup_data.sqlite does not exist yet.")
+        return "failed"
+
+    tmp = dest + ".new"
+    try:
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        size = os.path.getsize(DB_PATH)
+        print(f"  {size / 1e9:,.2f} GB ...")
+        shutil.copyfile(DB_PATH, tmp)
+        # Replacing an open file fails on Windows: SQLite opens without
+        # FILE_SHARE_DELETE, so a running server holds the old database down.
+        os.replace(tmp, dest)
+    except OSError as e:
+        print(f"  FAILED: {e}")
+        print("  If the server is running, stop it and copy again.")
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return "failed"
+    print("  Done.")
+    return "ok"
+
+
 def run_all():
     """Run every importer, continuing past failures."""
     results = []
+    interrupted = False
     for imp in IMPORTERS:
         try:
-            results.append((imp, run_importer(imp)))
+            results.append((imp.label, run_importer(imp)))
         except KeyboardInterrupt:
             print("\n\n  Ctrl-C: stopping. Importers already finished keep "
                   "their tables; the rest were not started.")
-            results.append((imp, "interrupted"))
+            results.append((imp.label, "interrupted"))
+            interrupted = True
             break
 
     vacuum()
+    # Not offered as a question: a finished `run all` is exactly when the server
+    # should get the new database. An interrupted one is not finished, so the
+    # server keeps the copy it has.
+    if interrupted:
+        print(f"\n  Not copying to the server: the run did not finish. "
+              f"Use option {DEPLOY_KEY} when it does.")
+    else:
+        results.append((DEPLOY_LABEL, deploy()))
     summary(results)
 
 
 def summary(results):
     print(f"\n{'=' * 70}\n  Summary\n{'=' * 70}")
-    for imp, outcome in results:
+    for label, outcome in results:
         mark = {"ok": "OK", "failed": "FAILED",
                 "interrupted": "interrupted"}[outcome]
-        print(f"  {mark:<12} {imp.label}")
+        print(f"  {mark:<12} {label}")
     failed = sum(1 for _, o in results if o == "failed")
     if failed:
-        print(f"\n  {failed} importer(s) failed. See logs/ for the details of "
+        print(f"\n  {failed} step(s) failed. See logs/ for the details of "
               f"each run.")
 
 
@@ -175,6 +236,8 @@ def menu():
         print(f"   {key}  {imp.label}")
         if imp.note:
             print(f"      {imp.note}")
+    print(f"   {DEPLOY_KEY}  {DEPLOY_LABEL}")
+    print("          (done automatically at the end of option 1)")
     print("   q  Quit")
     print()
 
@@ -200,6 +263,9 @@ def main():
         if choice == "1":
             run_all()
             continue
+        if choice == str(DEPLOY_KEY):
+            summary([(DEPLOY_LABEL, deploy())])
+            continue
         if choice.isdigit():
             idx = int(choice) - FIRST_IMPORTER_KEY
             if 0 <= idx < len(IMPORTERS):
@@ -210,7 +276,7 @@ def main():
                     print("\n\n  Ctrl-C: stopped. The previously published "
                           "table is untouched; rerun to resume.")
                     continue
-                summary([(imp, outcome)])
+                summary([(imp.label, outcome)])
                 continue
         print(f"\n  '{choice}' is not one of the options.")
 

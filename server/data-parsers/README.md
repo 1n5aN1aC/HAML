@@ -52,8 +52,9 @@ on macOS/Linux. `deactivate` to leave.)
 .venv\Scripts\python run_importers.py
 ```
 
-That opens the TUI menu: `1` runs every importer and then compacts the database,
-`2`–`6` run one, `q` quits. Ctrl-C returns you to the menu; the previously
+That opens the TUI menu: `1` runs every importer, compacts the database and
+copies it to the server, `2`–`6` run one importer, `7` copies the database to
+`../datasets/lookup_data.sqlite` on its own, `q` quits. Ctrl-C returns you to the menu; the previously
 published table is left intact, so a stopped run is safe to restart.
 
 ## Runtime estimates
@@ -80,3 +81,8 @@ are minutes.
 Importers build into a work database under `caches/` and copy the finished table
 into `lookup_data.sqlite` in one transaction at the end, so the published data is
 never a half-finished run.
+
+The database is built here rather than where the server reads it, so the server
+stays on the last good copy for the hours an import takes. Copying it across
+replaces `../datasets/lookup_data.sqlite`; on Windows that fails while the
+server is running, so stop the server first.
