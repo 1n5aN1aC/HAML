@@ -23,10 +23,16 @@ row of `counties`, and `country` and `dxcc` one row of `dxcc_entities`.
 `recalculate()` groups the fields it is asked for by derivation, so each
 query runs at most once per call however many of its fields are wanted.
 
-`recalculate_section_from_state()` is the exception to all of the above: it
-is keyed on the record's state rather than a coordinate, so it sits outside
-the registry and a caller invokes it directly, for the case where a state is
-the only location the record has.
+A `process_*(record, ...)` establishes a position from something that is not
+a coordinate — a park reference, a section, a state, a gridsquare. On
+success it writes its own field and the record's coordinates in place and
+returns the record. On failure it returns None having written nothing at
+all, so the call is safe to use as a condition and a caller can fall through
+to a coarser source. Follow one with `recalculate()` to derive the rest from
+the position it set.
+
+`recalculate_section_from_state()` sits outside the registry too, keyed on
+the record's own state rather than on a coordinate.
 
 Polygons come from the region tables of `lookup_data.sqlite` — the same file
 `lookup_db.py` opens for the operator datasets. This module holds its own
@@ -363,29 +369,24 @@ def derive_county(lat, lon):
 
 # --- section from state -----------------------------------------------------
 
-# state code -> section, for the states one section covers entirely. Built on
-# first use from `counties`, which carries `arrl_section` on every row, so the
-# set of unambiguous states and the section each maps to are read from the
-# same table the polygon lookups use rather than kept as a second copy here.
-# 60 of 69 states and provinces qualify; the nine that don't are CA (9
-# sections), NY and ON (4), FL and TX (3), and MA, NJ, PA and WA (2).
-_STATE_SECTIONS = None
-
+# state code -> section, for the states one section covers entirely. Read
+# from `counties`, which carries `arrl_section` on every row, so the set of
+# unambiguous states and the section each maps to come from the same table
+# the polygon lookups use rather than a second copy kept here. 60 of 69
+# states and provinces qualify; the nine that don't are CA (9 sections), NY
+# and ON (4), FL and TX (3), and MA, NJ, PA and WA (2).
 def _state_sections():
-    """The state -> section map, built once, or {} while it can't be."""
-    global _STATE_SECTIONS
-    if _STATE_SECTIONS is None:
-        conn = _conn()
-        if conn is None:
-            return {}  # Unbuilt, not empty: a later call retries the open.
-        try:
-            _STATE_SECTIONS = dict(conn.execute(
-                "SELECT state, MIN(arrl_section) FROM counties "
-                "GROUP BY state HAVING COUNT(DISTINCT arrl_section) = 1"))
-        except sqlite3.Error as exc:
-            print(f"warning: lookup dataset error reading sections: {exc}")
-            return {}
-    return _STATE_SECTIONS
+    """The state -> section map, or {} when the dataset can't answer."""
+    conn = _conn()
+    if conn is None:
+        return {}
+    try:
+        return dict(conn.execute(
+            "SELECT state, MIN(arrl_section) FROM counties "
+            "GROUP BY state HAVING COUNT(DISTINCT arrl_section) = 1"))
+    except sqlite3.Error as exc:
+        print(f"warning: lookup dataset error reading sections: {exc}")
+        return {}
 
 def recalculate_section_from_state(record):
     """Set the record's section from its own state, in place, and return it.
@@ -423,32 +424,32 @@ def recalculate_section_from_state(record):
 
 # --- POTA park --------------------------------------------------------------
 
-# What separates one reference from the next in an operator-typed park field:
-# comma, semicolon, slash and whitespace all appear in practice for a
-# park-to-park or multi-park activation.
+# What separates one reference from the next in an operator-typed park field
+# on a park-to-park or multi-park activation. Comma alone: the field is not
+# `freetext`, so the client's `sanitizeText` keeps only [A-Za-z0-9,_./-] and
+# Space is the entry row's next-field key, and the client splits the same
+# field on comma and nothing else.
 _PARK_SPLIT = re.compile(r"[,]+")
 
-def recalculate_coordinates_from_park(record, entry):
+def process_park(record, entry):
     """Move the record onto the park in `entry`, or answer None.
 
-    Takes the whole entry because the park is an operator-typed field
-    (`their_park`) rather than anything a source supplied. Only the first
-    reference is read: a multi-park activation is one operating position, so
-    the references name the same spot, and the first is the one to trust.
+    Reads the operator-typed `their_park`, first reference only: a multi-park
+    activation is one operating position. Sets `pota_park` to the park's name
+    alongside the coordinates, so the key appears only on a record that is
+    actually on a park.
 
-    On success the record's latitude and longitude are replaced in place and
-    the record comes back, ready for `recalculate()` to derive the rest from
-    the new position. On failure the answer is None, and that covers every
-    way of not knowing — no park typed, an unparseable field, a reference
-    the table doesn't carry, and a park POTA lists without a real position.
-    A caller that gets None leaves the record's own location alone.
+    None covers no park typed, an unparseable field, a reference the table
+    doesn't carry, and a park POTA lists without a real position — 2,736 hold
+    (0, 0), its "coordinates unknown" placeholder, and 57 hold nothing.
 
-    Reference matching is exact against `pota_parks.reference` (uppercased,
-    with surrounding punctuation dropped), so the table decides what counts
-    as a park rather than a pattern here that would have to be widened every
-    time POTA adds a numbering scheme.
+    Matching is exact against `pota_parks.reference`, uppercased, so the
+    table decides what counts as a park rather than a pattern here that would
+    need widening every time POTA adds a numbering scheme.
 
-    Never raises.
+    `pota_park` is not one of `lookup_record.FIELDS`: it is a request-time
+    extra like `distance`, describing this contact rather than the callsign,
+    so it belongs on the wire and not in the cache.
     """
     text = entry.get("their_park") if isinstance(entry, dict) else None
     if not isinstance(text, str):
@@ -463,15 +464,15 @@ def recalculate_coordinates_from_park(record, entry):
         return None
     try:
         row = conn.execute(
-            "SELECT latitude, longitude FROM pota_parks WHERE reference = ?",
-            (reference,)).fetchone()
+            "SELECT latitude, longitude, name FROM pota_parks "
+            "WHERE reference = ?", (reference,)).fetchone()
     except sqlite3.Error as exc:
         print(f"warning: lookup dataset error reading pota_parks: {exc}")
         return None
     if row is None:
         return None
 
-    lat, lon = row
+    lat, lon, name = row
     # (0, 0) is POTA's "coordinates unknown" placeholder on 2,736 parks, not
     # a position in the Gulf of Guinea; 57 more carry no coordinates at all.
     if lat == 0 and lon == 0:
@@ -481,6 +482,153 @@ def recalculate_coordinates_from_park(record, entry):
         return None
 
     record["latitude"], record["longitude"] = coord
+    record["pota_park"] = name or None
+    return record
+
+
+# --- operator-population anchors (section, state) ---------------------------
+
+# `coordinates` is TEXT "lat,lon", so both halves are cut out in SQL rather
+# than pulled into Python: these queries scan a lot of licensee rows and the
+# point is to never materialise them.
+_OP_LAT = "CAST(substr(coordinates, 1, instr(coordinates, ',') - 1) AS REAL)"
+_OP_LON = "CAST(substr(coordinates, instr(coordinates, ',') + 1) AS REAL)"
+
+# Sample every Nth row rather than reading all 102,567 California licensees
+# to place an anchor that's already accurate to tens of km at best.
+# Sampling by `rowid` keeps coverage even — `LIMIT` would grab the first N
+# rows, which in the (column, coordinates) index order are latitude-ordered
+# and cluster at California's southern border.
+#
+# Across all 154 states and sections, sampling changes nothing for state,
+# section or CQ zone; county moves for 22 and gridsquare for 12 — which
+# callers blank for anchors anyway.
+_OP_SAMPLE = 8
+
+# Below this threshold, skip sampling and read all rows. Small territories
+# like UM (3), AS (19), and NU (40) are already cheap to scan in full.
+_OP_SAMPLE_MIN = 500
+
+# Both licensee tables, filtered on one column, as a single result set. `?1`
+# is the value; the FCC table answers for US sections and states, the ISED
+# one for RAC sections and provinces, and a caller never has to know which.
+# `divisor` is the sampling step, and has to appear in both arms: a single
+# clause over the union would take the FCC rows and never reach the ISED ones.
+def _operators_where(column, divisor):
+    sample = f"AND rowid % {divisor} = 0 " if divisor > 1 else ""
+    return (
+        f"SELECT {_OP_LAT} AS lat, {_OP_LON} AS lon FROM fcc_operators "
+        f"WHERE {column} = ?1 AND coordinates IS NOT NULL {sample}"
+        f"UNION ALL "
+        f"SELECT {_OP_LAT}, {_OP_LON} FROM ca_operators "
+        f"WHERE {column} = ?1 AND coordinates IS NOT NULL {sample}")
+
+# Each licensee as a unit vector on the sphere, which is what makes the mean
+# below well defined. Averaging degrees instead breaks wherever a population
+# crosses the antimeridian, and two of these genuinely do: the PAC section
+# holds 3,937 licensees near -157 (Hawaii, Samoa) and 569 near +145 (Guam,
+# the Marianas), whose arithmetic mean longitude is a point in California.
+_OP_X = "cos(radians(lat)) * cos(radians(lon))"
+_OP_Y = "cos(radians(lat)) * sin(radians(lon))"
+_OP_Z = "sin(radians(lat))"
+
+def _operator_anchor(column, value):
+    """Where the licensees of one section or state sit, as (lat, lon).
+
+    Their mean position, snapped to the nearest licensee to it. The mean
+    alone is a point in empty space — it lands in a lake, over a border, or
+    off the coast for a section shaped around a bay — and every field this
+    module derives from a coordinate would then answer for wherever that
+    happens to be. Snapping to the closest real licensee keeps the answer
+    inside the population it came from, which is the thing being estimated:
+    where an operator from here probably is.
+
+    The mean is taken over unit vectors and the snap minimises straight-line
+    distance through the sphere, which ranks the same as distance across it.
+    Both are done that way so the antimeridian and the poles need no special
+    case, rather than for the geometry: degrees of longitude are not
+    comparable to degrees of latitude, and neither wraps.
+
+    None when the value names nobody, or when the dataset is unavailable —
+    including a sqlite built without its math functions, which the error
+    path below reports rather than answering wrongly.
+
+    Both statements read the sampled licensee rows of the value (see
+    `_OP_SAMPLE`), so the cost is what the indexes on `arrl_section` and
+    `state` allow, over an eighth of the rows.
+    """
+    conn = _conn()
+    if conn is None:
+        return None
+    try:
+        # Sampled first, whole population second. The second pass is what
+        # carries the values too small to sample, and it is free where it
+        # fires: a value under `_OP_SAMPLE_MIN` sampled rows is one whose
+        # full scan costs a millisecond.
+        for divisor in (_OP_SAMPLE, 1):
+            rows = _operators_where(column, divisor)
+            x, y, z, count = conn.execute(
+                f"SELECT AVG({_OP_X}), AVG({_OP_Y}), AVG({_OP_Z}), COUNT(*) "
+                f"FROM ({rows})", (value,)).fetchone()
+            if count and count >= _OP_SAMPLE_MIN:
+                break
+        if not count or x is None or y is None or z is None:
+            return None
+        row = conn.execute(
+            f"SELECT lat, lon FROM ({rows}) "
+            f"ORDER BY ({_OP_X} - ?2) * ({_OP_X} - ?2) "
+            f"       + ({_OP_Y} - ?3) * ({_OP_Y} - ?3) "
+            f"       + ({_OP_Z} - ?4) * ({_OP_Z} - ?4) LIMIT 1",
+            (value, x, y, z)).fetchone()
+    except sqlite3.Error as exc:
+        print(f"warning: lookup dataset error anchoring {column}: {exc}")
+        return None
+
+    return _valid_coord(row[0], row[1]) if row else None
+
+def process_section(record, section):
+    """Move the record onto `section`'s licensee population, or answer None.
+
+    The coordinate is where that section's licensees are, per
+    `_operator_anchor()` — an estimate of a person from a region, not a
+    position, and everything derived from it inherits that: county and
+    gridsquare in particular are the anchor licensee's, not this operator's.
+
+    None means the section names no licensee with coordinates.
+    """
+    code = lookup_record._coerce_upper(section)
+    if code is None:
+        return None
+    coord = _operator_anchor("arrl_section", code)
+    if coord is None:
+        return None
+    record["latitude"], record["longitude"] = coord
+    record["section"] = code
+    return record
+
+def process_state(record, state):
+    """Move the record onto `state`'s licensee population, or answer None.
+
+    `process_section()` with the state column, and the same caveat with more
+    force behind it: the anchor for Texas is one point standing in for
+    1,300 km of it.
+
+    Matched as typed first, which is what carries the US territories
+    `lookup_record._coerce_state` rejects, then through that coercer so a
+    spelled-out name becomes a code. The code written to the record is
+    whichever one found the anchor.
+
+    None means the state names no licensee with coordinates.
+    """
+    code = state.strip().upper() if isinstance(state, str) else ""
+    coord = _operator_anchor("state", code) if code else None
+    if coord is None:
+        code = lookup_record._coerce_state(state)
+        coord = _operator_anchor("state", code) if code else None
+    if coord is None:
+        return None
+    record["latitude"], record["longitude"] = coord
+    record["state"] = code
     return record
 
 
@@ -518,6 +666,34 @@ def derive_gridsquare(lat, lon):
         + str(int(lon_adj % 20 // 2))
         + str(int(lat_adj % 10))
     )}
+
+def process_gridsquare(record, gridsquare):
+    """Move the record to the centre of `gridsquare`, or answer None.
+
+    The inverse of `derive_gridsquare()`, and lossy the same way: a
+    4-character square is 2 degrees of longitude by 1 of latitude, so the
+    centre is up to ~111 km from the operator. It is the best single point
+    the grid names, and `derive_gridsquare()` on it returns the same square.
+
+    Input and output both pass through `lookup_record._coerce_gridsquare`,
+    so a longer or lowercase locator lands as the uppercase 4-character form
+    the record's field holds, which is what the coordinates encode.
+
+    None means the locator isn't a usable 4-character square.
+    """
+    grid = lookup_record._coerce_gridsquare(gridsquare)
+    if grid is None:
+        return None
+    # Undo the arithmetic in derive_gridsquare(), then step to the middle of
+    # the square: half of its 2 x 1 degrees.
+    lon = (_GRID_FIELD.index(grid[0]) * 20.0 + int(grid[2]) * 2.0) - 180.0 + 1.0
+    lat = (_GRID_FIELD.index(grid[1]) * 10.0 + int(grid[3]) * 1.0) - 90.0 + 0.5
+    coord = _valid_coord(lat, lon)
+    if coord is None:
+        return None
+    record["latitude"], record["longitude"] = coord
+    record["gridsquare"] = grid
+    return record
 
 
 # --- writing derivations onto a record --------------------------------------

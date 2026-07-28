@@ -157,7 +157,9 @@ results alike, *after* the cache has been read or written, so the cache stores w
 actually said, derivation changes take effect with no cache to clear, and request-relative
 values never freeze into a row that outlives the Event that produced them. Today it derives
 CQ/ITU zones from coordinates (only-fill-if-null, so CallParser's authoritative prefix-DB
-zones win) and stamps `distance` from the active Event's operating position. The remaining
+zones win) and stamps two request-time extras: `distance` from the active Event's operating
+position, and `pota_park` from the park the operator typed. Both are always present and null
+when they have nothing to say, so the client reads them like any canonical field. The remaining
 location work in [TODO.md](../TODO.md) — deriving a location from grid or country, overriding
 one from state or a POTA park — belongs here too, since it applies to every source at once.
 

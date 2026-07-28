@@ -12,7 +12,9 @@ point:
 
 Input is the canonical record (`lookup_record.FIELDS`). Output is the wire
 shape: those fields, possibly filled in further, plus request-time extras
-that are deliberately not part of the storage contract (today: `distance`).
+that are deliberately not part of the storage contract (today: `distance`
+and `pota_park`). Every extra is always present, null when it has nothing to
+say, so the client reads them exactly like the canonical fields.
 The input record is never mutated.
 
 This is where the location-derivation work in TODO.md belongs — deriving a
@@ -40,13 +42,17 @@ def _fill_missing_zones(record):
 def _fill_distance(app, record):
     event = app.get("event") or {}
     loc = (event.get("config") or {}).get("location") or _DEFAULT_LOCATION
-    lat, lon = record.get("latitude"), record.get("longitude")
+    # Both ends through the same gate every other coordinate here passes: a missing,
+    # NaN or out-of-range value answers None instead of raising out of apply().
+    here = lookup_location_calc._valid_coord(loc.get("latitude"), loc.get("longitude"))
+    there = lookup_location_calc._valid_coord(record.get("latitude"), record.get("longitude"))
     distance = None
-    if lat is not None and lon is not None:
-        phi1 = math.radians(loc["latitude"])
+    if here is not None and there is not None:
+        (op_lat, op_lon), (lat, lon) = here, there
+        phi1 = math.radians(op_lat)
         phi2 = math.radians(lat)
-        d_phi = math.radians(lat - loc["latitude"])
-        d_lam = math.radians(lon - loc["longitude"])
+        d_phi = math.radians(lat - op_lat)
+        d_lam = math.radians(lon - op_lon)
         a = (math.sin(d_phi / 2) ** 2
              + math.cos(phi1) * math.cos(phi2) * math.sin(d_lam / 2) ** 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
@@ -64,66 +70,52 @@ _OVERRIDE_FIELDS = {
     "longitude": lookup_record._coerce_float,
 }
 
+# An operator-edited field's coerced value, or None when this field has nothing to say:
+# absent from `entry`, emptied, uncoercible, or the same as what the lookup already returned.
+def _overridden(entry, record, field):
+    typed = _OVERRIDE_FIELDS[field](entry.get(field))
+    return typed if (typed is not None and typed != record.get(field)) else None
+
 # Canonical record in, response record out. Never mutates the input.
 # `entry` contains raw operator-edited fields for request-time derivations.
 def apply(app, record, entry=None):
-    # Load the record
-    out = dict(record)
+    out = dict(record)      # Load the record
+    out["pota_park"] = None # Ensure wire shape always includes this field
 
     # Fill missing fields (only ITU & cq zones as of today)
     out = _fill_missing_zones(out)
 
     # Check if the user provided any location information which might override the operator values
-    # Start from most precise location towards least-precise so we hit the mutator that would be most precise.
+    # Ordered by how reliably each names where someone is, not by how tight a box it draws:
+    # a grid centre is tighter than a state anchor but can land across a state line, and a
+    # wrong state is worse than a coarse one — so gridsquare is tried last, not first.
     if entry:
-        # User-provided coordinates differ from existing user record
-        if "latitude" in entry and "longitude" in entry:
-            typed_lat = _OVERRIDE_FIELDS["latitude"](entry["latitude"])
-            typed_lon = _OVERRIDE_FIELDS["longitude"](entry["longitude"])
-            if (typed_lat is not None and typed_lon is not None and (typed_lat != record.get("latitude") or typed_lon != record.get("longitude"))):
-                out["latitude"] = typed_lat
-                out["longitude"] = typed_lon
-                # Coordinates being fed to us means we trust them implicitly and update EVERYTHING
-                out = lookup_location_calc.recalculate(out)
-        # User gave us a POTA park, parse it- ()
-        elif "their_park" in entry and bool(str(entry["their_park"] or "").strip()):
-            # Parse what park they are in.           #############################################################
-                #Add that to the returned record     #############################################################
-                #Update the coordinates              #############################################################
-            # We have updated coordinates from the POTA park, so we trust that implicitly and update EVERYTHING
-            out = lookup_location_calc.recalculate(out)
-        # User-provided section differs from existing user record
-        elif "section" in entry:
-            typed = _OVERRIDE_FIELDS["section"](entry["section"])
-            if typed is not None and typed != record.get("section"):
-                out["section"] = typed
-                # Update coordinates based on section  (TODO TODO TODO ############################################)
-                # Recalculate everything downstream of section
-                out = lookup_location_calc.recalculate(out, ["state", "country", "dxcc", "cq_zone", "itu_zone"])
-                # Since our most accurate location is section, we don't know the following:
-                out = lookup_record.blank(out, ["gridsquare", "county"])
-        # User-provided State differs from existing user record
-        elif "state" in entry:
-            typed = _OVERRIDE_FIELDS["state"](entry["state"])
-            if typed is not None and typed != record.get("state"):
-                out["state"] = typed
-                # Update coordinates based on state  (TODO TODO TODO ############################################)
-                # Recalculate everything downstream of state
-                out = lookup_location_calc.recalculate(out, ["country", "dxcc", "cq_zone", "itu_zone"])
-                # Since our most accurate location is state, we don't know the following:
-                out = lookup_record.blank(out, ["gridsquare", "county", "section"])
-                # Now attempt to re-get section from state.  (will be blank for states with more than one section)
-                out = lookup_location_calc.recalculate_section_from_state(out)
-        # User-provided gridsquare differs from existing user record
-        elif "gridsquare" in entry:
-            typed = _OVERRIDE_FIELDS["gridsquare"](entry["gridsquare"])
-            if typed is not None and typed != record.get("gridsquare"):
-                out["gridsquare"] = typed
-                # Update coordinates based on gridsquare  (TODO TODO TODO ############################################)
-                # Recalculate everything downstream of gridsquare
-                out = lookup_location_calc.recalculate(out, ["country", "dxcc", "cq_zone", "itu_zone"])
-                # Since our most accurate location is gridsquare, we don't know the following:
-                out = lookup_record.blank(out, ["county", "section", "state"])
+        typed_lat = _OVERRIDE_FIELDS["latitude"](entry.get("latitude"))
+        typed_lon = _OVERRIDE_FIELDS["longitude"](entry.get("longitude"))
+        coords = (typed_lat, typed_lon) if (
+            typed_lat is not None and typed_lon is not None
+            and (typed_lat != record.get("latitude")
+                 or typed_lon != record.get("longitude"))) else None
+        typed_section = _overridden(entry, record, "section")
+        typed_state = _overridden(entry, record, "state")
+        typed_grid = _overridden(entry, record, "gridsquare")
+
+        if coords is not None:
+            out["latitude"] = typed_lat
+            out["longitude"] = typed_lon
+            lookup_location_calc.recalculate(out)                                             # Coords given, trust them implicitly and update EVERYTHING
+        elif lookup_location_calc.process_park(out, entry) is not None:
+            lookup_location_calc.recalculate(out)                                             # Coords from POTA, we trust that implicitly and update EVERYTHING
+        elif typed_section and lookup_location_calc.process_section(out, typed_section):
+            lookup_location_calc.recalculate(out, ["state", "country", "dxcc", "cq_zone", "itu_zone"]) # Recalculate everything downstream of section
+            lookup_record.blank(out, ["gridsquare", "county"])                                         # Remove inaccurate information
+        elif typed_state and lookup_location_calc.process_state(out, typed_state):
+            lookup_location_calc.recalculate(out, ["country", "dxcc", "cq_zone", "itu_zone"]) # Recalculate everything downstream of state
+            lookup_record.blank(out, ["gridsquare", "county", "section"])                     # Remove inaccurate information
+            lookup_location_calc.recalculate_section_from_state(out)                          # (try to) re-get section from state.  (blank for states >1 section)
+        elif typed_grid and lookup_location_calc.process_gridsquare(out, typed_grid):
+            lookup_location_calc.recalculate(out, ["country", "dxcc", "cq_zone", "itu_zone"]) # Recalculate everything downstream of gridsquare
+            lookup_record.blank(out, ["county", "section", "state"])                          # Remove inaccurate information
 
     # Calculate distance from him to us.
     # This needs to be last, because other bits could have overridden the coordinates.

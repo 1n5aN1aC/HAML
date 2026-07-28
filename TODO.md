@@ -2,12 +2,10 @@ BUGS:
 - Filed out, but not submitted contact clears on switching tabs
 
 POTA Improvements:
-- Park decoding support (Server Endpoint)
 - Park decoding support (Client display)
 
 Server callsign lookup improvements:
 - Stoke calls (K1MI/JA) should include the operator info.
-- POTA Park decoding (and override) support
 
 Client:
   Offline-First PWA
@@ -17,8 +15,6 @@ Location-based improvements:
 - Data source: HamCall (Buckmaster) ($50)
 - Data source: Other online APIs
 - Server should live-build Gridsquare, State, ARRL section, ITU zone, CQ zone from location.
-- Server should derive unknown location from Grid/Country
-- Server should overide a location from state / POTA park / etc.
 
 Supercheck partial:
 - FD history

@@ -156,7 +156,8 @@ LONGPOLL_TIMEOUT_S = 15
 async def post_lookup(request):
     """Look up a callsign, returning the cached or fresh result.
     The 200 response body is the canonical record from `lookup_record`, plus
-    the request-time fields `lookup_postprocess` adds (today: `distance`).
+    the request-time fields `lookup_postprocess` adds (today: `distance` and
+    `pota_park`), which are always present and null when they have nothing to say.
     The client can trust its field names, types, and value sets without validating.
 
     Request body is `{"callsign": ...}` plus an optional `entry` object: the
