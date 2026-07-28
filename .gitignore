@@ -15,15 +15,11 @@ node_modules/
 # Live event state:
 server/data/
 
-# dataparser files which should not be commited:
+# server files which should not be commited:
 server/datasets/lookup_data.sqlite
-server/data-parsers/Canada/geocode_cache/
-server/data-parsers/Canada/amateur_delim.zip
-server/data-parsers/Canada/amateur_delim.txt
-server/data-parsers/Canada/ca_amateur.sqlite
-server/data-parsers/Canada/update_run.log
-server/data-parsers/FCC/geocode_cache/
-server/data-parsers/FCC/l_amat.zip
-server/data-parsers/FCC/update_run.log
-server/data-parsers/FCC/fcc_amateur.sqlite
-server/data-parsers/POTA/all_parks_ext.csv
+
+# dataparser files which should not be commited:
+server/data-parsers/lookup_data.sqlite
+server/data-parsers/caches
+server/data-parsers/downloads
+server/data-parsers/logs

@@ -1,116 +1,82 @@
-# Amateur radio callsign database builders
+# data-parsers
 
-Two independent pipelines that download a national amateur-radio licence dump
-and turn it into a clean, geocoded SQLite database.
+Five importers that build `lookup_data.sqlite`, the shared lookup database for
+callsigns, parks and geography. Each importer owns exactly one area of the
+database and nothing else, so they can be run in any order, alone or all at
+once, and one failing never costs another its data.
 
-| | Source | Script | Output |
-|---|---|---|---|
-| **[FCC/](FCC/)** | US — FCC ULS weekly dump | `update_fcc_db.py` | `fcc_amateur.sqlite` |
-| **[Canada/](Canada/)** | Canada — ISED amateur data | `update_ca_db.py` | `ca_amateur.sqlite` |
+| Importer | Table(s) | Where the data comes from |
+| --- | --- | --- |
+| `importer_fcc.py` | `fcc_operators` | FCC weekly amateur dump `l_amat.zip`, geocoded with the US Census batch geocoder and Census county/ZCTA boundaries |
+| `importer_ca.py` | `ca_operators` | ISED amateur callsign dump `amateur_delim.zip`, geocoded via geo.ca, with StatCan FSA and census-division boundaries |
+| `importer_boundaries.py` | `counties` (+ parts/R\*Tree) | US Census county shapefiles + StatCan census divisions |
+| `importer_pota.py` | `pota_parks` | `https://pota.app/all_parks_ext.csv` (regenerated daily) |
+| `importer_zones.py` | `cq_zones`, `itu_zones`, `dxcc_entities` (+ parts/R\*Tree) | CQ/ITU zone and DXCC entity polygon repos, tracked by ETag on their default branch |
 
-Both produce a single `operators` table with the **same columns in the same
-order**, so the two can be queried uniformly or `UNION`ed together. Fields one
-country does not publish are left `NULL`.
+Downloads are kept between runs, so a rerun is normally cheap. Boundary and
+reference sources are probed newest-first at run time rather than pinned, with a
+fallback to the newest complete copy already on disk when a source is
+unreachable.
 
-Each row carries name, address, licence class and dates, plus `coordinates`,
-`gridsquare` (Maidenhead), `geocode_match`, `county`, `dxcc_entity` / `dxcc_id`,
-`continent`, and `arrl_section`.
+Details of how any one importer works are in the docstring at the top of that
+file — start there, not here.
 
-## Quick start
+## Setup
 
-The two pipelines are entirely separate and share no code, so you can use one
-and ignore the other — but they **share one venv**, here in `data-parsers/`,
-built from the single `requirements.txt` beside it (the union of what both
-need). One-time setup:
+From this folder, once:
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt
+.venv\Scripts\Activate.ps1
+.venv\Scripts\python -m pip install -r requirements.txt
 ```
 
-Then run either script through that interpreter:
+Use `.venv\Scripts\python -m pip`, not `pip.exe` — venv console shims hardcode
+the interpreter path and break if the folder is moved. On macOS/Linux the
+interpreter is `./.venv/bin/python`.
+
+You do not have to "activate" the venv; calling its interpreter directly is
+enough. If you prefer to activate it:
 
 ```bash
-.venv/Scripts/python FCC/update_fcc_db.py
-.venv/Scripts/python Canada/update_ca_db.py
+.venv\Scripts\Activate.ps1
 ```
 
-Each script anchors every path it uses on its own location, so it does not
-matter which directory you invoke it from — output lands beside the script
-either way.
+(PowerShell; `.venv\Scripts\activate.bat` for cmd, `source .venv/bin/activate`
+on macOS/Linux. `deactivate` to leave.)
 
-On macOS/Linux the interpreter is `.venv/bin/python` instead of
-`.venv/Scripts/python`.
+## Running
 
-Note the `python -m pip` form rather than `pip` / `pip.exe`. The `.exe` shims
-in a venv hardcode an absolute path to the interpreter that created them, so
-if you ever copy or rename the project folder they quietly keep installing
-into the *old* location. `python -m pip` always targets the interpreter you
-invoked it with.
+```bash
+.venv\Scripts\Activate.ps1
+.venv\Scripts\python run_importers.py
+```
 
-That is the whole setup. There is nothing to configure: every path each
-pipeline uses is fixed, beside its own script. Run it again to refresh.
+That opens the TUI menu: `1` runs every importer and then compacts the database,
+`2`–`6` run one, `q` quits. Ctrl-C returns you to the menu; the previously
+published table is left intact, so a stopped run is safe to restart.
 
-## What to expect on a first run
+## Runtime estimates
 
-| | FCC | Canada |
-|---|---|---|
-| Download | ~194 MB | ~2 MB |
-| Cold run | ~1.5–2.5 h | ~7 h |
-| Warm re-run | ~10–20 min | minutes |
-| Peak disk | ~1.8 GB | ~800 MB |
+As shown in the menu:
 
-Almost all of that time is the free public geocoding service, not local work.
-Reruns are much faster because every completed address lookup is kept in
-`geocode_cache/` and reused.
+| Importer | Update | First/fresh run |
+| --- | --- | --- |
+| FCC amateur licenses | ~2 minutes | ~7 hours |
+| Canada amateur licenses | ~2 minutes | ~6 hours, needs multiple runs |
+| Boundaries (counties) | ~1 minute | |
+| POTA parks | ~30 seconds | |
+| Zones (CQ/ITU/DXCC) | ~30 seconds | |
 
-**Both scripts are safe to interrupt.** `Ctrl-C` flushes finished lookups to
-the cache and exits; rerunning the same command picks up where it left off. The
-database you already have is never deleted up front — it is replaced by an
-atomic rename only after its replacement is complete and verified, so a failed
-download, a failed build, or a `Ctrl-C` leaves you exactly as you were, and the
-existing database stays queryable for the entire run.
+The long first runs are geocoding; results are cached, which is why later runs
+are minutes.
 
-**The Canadian geocoder is flaky by design of the upstream service** — geo.ca
-returns HTTP 500 on roughly half of all requests, at random. That is expected,
-not a bug. Just run the script again; each pass fills in more from the cache.
-See [Canada/NOTES.md](Canada/NOTES.md).
+## Directories
 
-## Requirements
+    downloads/   files fetched from upstream, kept between runs
+    caches/      work databases and the persistent geocode caches
+    logs/        each run's log and reports (e.g. unmatched addresses)
 
-Python 3.9+ and `requests`. The point-in-polygon phases additionally need
-`shapely` + `pyshp` (FCC) and `shapely` + `pyshp` + `pyproj` (Canada); the
-shared `requirements.txt` lists all four.
-
-If those are missing, the script says so **immediately** and tells you either
-what to install or which `--no-*` flag skips the phase — it does not download
-200 MB and geocode for an hour first.
-
-Run `python update_fcc_db.py --help` (or `update_ca_db.py --help`) for the full
-flag list.
-
-## Documentation
-
-* [FCC/README.md](FCC/README.md) — phase-by-phase walkthrough of the US pipeline
-* [Canada/NOTES.md](Canada/NOTES.md) — the Canadian pipeline, and a long write-up
-  of the geo.ca quirks the validation logic exists to defend against
-
-## Data sources and licensing
-
-The data comes from the US and Canadian governments and is redistributed under
-their terms, not this project's:
-
-* FCC ULS — <https://data.fcc.gov/download/pub/uls/complete/l_amat.zip> (US
-  public domain)
-* ISED amateur data — <https://ised-isde.canada.ca/site/amateur-radio-operator-certificate-services/en/downloads>
-  (Open Government Licence – Canada)
-* US Census geocoder, ZCTA gazetteer, county boundaries (US public domain)
-* Statistics Canada boundary files (Statistics Canada Open Licence)
-
-Both databases contain **names and home addresses of licensed amateurs**,
-published by the respective regulators. Redistributing a built database is not
-the same as redistributing the scripts — check the source terms before you do.
-
-> **Note:** these are read-only bulk-download clients. Neither script needs an
-> API key, and neither sends anything anywhere except the address strings the
-> geocoders need.
+Importers build into a work database under `caches/` and copy the finished table
+into `lookup_data.sqlite` in one transaction at the end, so the published data is
+never a half-finished run.

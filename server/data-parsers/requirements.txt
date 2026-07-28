@@ -1,14 +1,20 @@
-# Core (download + build + geocode). Needed by every phase of both scripts.
+# Dependencies for every importer driven by run_importers.py.
+#
+# Install into a virtualenv at this directory:
+#     python -m venv .venv
+#     .venv\Scripts\python -m pip install -r requirements.txt
+#
+# Use `python -m pip` rather than `pip.exe`: a venv's console-script shims
+# hardcode an absolute path to the interpreter that created them, so they keep
+# targeting the original location if the folder is ever copied or renamed.
+
+# Core: every download + build + geocode phase of all importers.
 requests>=2.31
 
-# Point-in-polygon phases only - county assignment (FCC phase 6, Canada phase
-# 8) and, for Canada, the postal-code / FSA cross-check and province-centroid
-# fallback (phases 6 and 7). Not needed if you run with --no-county (and
-# --no-postal --no-province on Canada), but note the ARRL/RAC section phases
-# read the county those phases write, so the 8 split US states
-# (CA/FL/MA/NJ/NY/PA/TX/WA) and the Ontario sections stay NULL without them.
+# Point-in-polygon phases.
 shapely>=2.0
 pyshp>=2.3
-
-# Canada only - reprojecting StatCan boundary files, which are not WGS84.
 pyproj>=3.5
+
+# importer_boundaries uses to _convert_ring reprojects (techncially already supplied by shapely)
+numpy>=1.22

@@ -1,9 +1,6 @@
 BUGS:
 - Filed out, but not submitted contact clears on switching tabs
 
-POTA Improvements:
-- Park decoding support (Client display)
-
 Server callsign lookup improvements:
 - Stroke calls (K1MI/JA) should include the operator info.
 
