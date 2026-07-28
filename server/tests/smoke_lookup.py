@@ -34,10 +34,21 @@ then walks POST /api/lookup:
     shape + CACHED flags, chain fall-through rules against stub sources,
     fcc adapter row -> canonical mapping, callparser adapter hit ->
     canonical mapping (incl. not-ready setup semantics)
+  - unit checks over the shipped dataset: the location derivations
+    (recalculate() registry, gridsquare both ways, POTA park, section and
+    state anchors, section-from-state, blank()) and the operator-override
+    chain in lookup_postprocess.apply() (precedence, what each override
+    blanks, and the atomicity that lets an unresolvable one fall through)
 
-No internet access required. The fixture sqlite is built in scratch,
-not the real 192MB dataset; the prefix DB is the small committed
+No internet access required. The end-to-end fixture sqlite is built in
+scratch, not the real dataset; the prefix DB is the small committed
 server/datasets/Prefix.lst.
+
+The two location unit blocks are the exception: `lookup_location_calc`
+opens the configured dataset itself, so they read the real
+`datasets/lookup_data.sqlite` and need it present. Polygon answers are
+asserted by value, anchors only by property — a section anchor moves with
+every ULS dump, so what is checked is which section it lands in.
 
 Run: python server/tests/smoke_lookup.py
 """
@@ -624,6 +635,267 @@ def check_postprocess_unit():
              "itu_zone": None})
     check(out["cq_zone"] is None and out["itu_zone"] is None,
           "no coords -> zones stay None")
+
+
+def check_location_calc_unit():
+    """Verify lookup_location_calc's derivations against the shipped dataset.
+
+    Two kinds of assertion here, deliberately. Polygon-derived answers
+    (zones, DXCC, county) are checked by value: boundary datasets are stable
+    between rebuilds. Anchors are not — `process_section` and `process_state`
+    average a licensee population that changes with every ULS dump — so
+    those are checked by property: which section the anchor lands in, not
+    what its digits are.
+    """
+    import lookup_location_calc as loc
+
+    LAT, LON = 41.7148, -72.7273      # W1AW, Newington CT
+
+    # ---- recalculate(): every registry field from one coordinate ----
+    rec = loc.recalculate({"latitude": LAT, "longitude": LON})
+    check(rec["cq_zone"] == 5 and rec["itu_zone"] == 8,
+          f"W1AW coords -> CQ 5 / ITU 8 (got {rec['cq_zone']!r}/{rec['itu_zone']!r})")
+    check(rec["dxcc"] == 291 and rec["country"] == "United States of America",
+          f"W1AW coords -> DXCC 291 (got {rec['dxcc']!r}/{rec['country']!r})")
+    check(rec["state"] == "CT" and rec["section"] == "CT",
+          f"W1AW coords -> state/section CT (got {rec['state']!r}/{rec['section']!r})")
+    # Connecticut has planning regions, not counties: Hartford does not exist.
+    check(rec["county"] == "Capitol",
+          f"W1AW coords -> county Capitol (got {rec['county']!r})")
+    check(rec["gridsquare"] == "FN31",
+          f"W1AW coords -> gridsquare FN31 (got {rec['gridsquare']!r})")
+
+    # A subset writes only what it names, so a caller can refresh one field
+    # without disturbing the rest of the record.
+    rec = loc.recalculate({"latitude": LAT, "longitude": LON,
+                           "state": "XX", "county": "Nowhere"}, ["state"])
+    check(rec["state"] == "CT" and rec["county"] == "Nowhere",
+          f"subset rewrites only the named field (got {rec['state']!r}/{rec['county']!r})")
+
+    # An unrecognized name is skipped; the rest of the list still applies.
+    rec = loc.recalculate({"latitude": LAT, "longitude": LON},
+                          ["state", "nonesuch"])
+    check(rec["state"] == "CT" and "nonesuch" not in rec,
+          "an unknown field name is skipped, the rest still apply")
+
+    # No coordinates: nothing to derive from, so nothing is touched.
+    rec = loc.recalculate({"state": "XX"})
+    check(rec == {"state": "XX"},
+          f"no coordinates -> record untouched (got {rec!r})")
+
+    # A point outside every polygon nulls the named fields rather than
+    # leaving values that describe somewhere the operator no longer is.
+    rec = loc.recalculate({"latitude": 40.0, "longitude": -40.0,
+                           "state": "CT", "county": "Capitol", "dxcc": 291})
+    check(rec["state"] is None and rec["county"] is None and rec["dxcc"] is None,
+          "mid-Atlantic -> the named fields are nulled, not left stale")
+
+    # ---- gridsquare, both directions ----
+    check(loc.derive_gridsquare(LAT, LON)["gridsquare"] == "FN31",
+          "derive_gridsquare on W1AW -> FN31")
+    check(loc.derive_gridsquare(0, 180) == loc.derive_gridsquare(0, -180),
+          "+180 and -180 are the same meridian and the same square")
+    rec = loc.process_gridsquare({}, "fn31ab")
+    check(rec["gridsquare"] == "FN31",
+          f"a long lowercase locator is stored as the 4-char form (got {rec['gridsquare']!r})")
+    check(loc.derive_gridsquare(rec["latitude"], rec["longitude"])["gridsquare"] == "FN31",
+          "grid -> centre -> grid round-trips to the same square")
+    stale = {"gridsquare": "FN31", "latitude": 1.0, "longitude": 2.0}
+    check(loc.process_gridsquare(stale, "ZZ99") is None
+          and stale == {"gridsquare": "FN31", "latitude": 1.0, "longitude": 2.0},
+          "an unusable locator answers None and writes nothing")
+
+    # ---- POTA park ----
+    rec = loc.process_park({}, {"their_park": "us-0001, US-0002"})
+    check(rec is not None
+          and loc.derive_county(rec["latitude"], rec["longitude"])["state"] == "ME",
+          "first reference of a multi-park list wins (US-0001 is in Maine)")
+    check(bool(rec.get("pota_park")),
+          f"a matched park sets pota_park to its name (got {rec.get('pota_park')!r})")
+    stale = {"latitude": 1.0, "longitude": 2.0}
+    check(loc.process_park(stale, {"their_park": "ZZ-9999"}) is None
+          and stale == {"latitude": 1.0, "longitude": 2.0},
+          "an unknown reference answers None and writes nothing")
+    check(loc.process_park({}, {}) is None and loc.process_park({}, None) is None,
+          "no park typed answers None")
+    # POTA's (0,0) placeholder means "coordinates unknown", not the Gulf of
+    # Guinea, so a park carrying it must not move the record.
+    conn = loc._conn()
+    row = conn.execute("SELECT reference FROM pota_parks "
+                       "WHERE latitude = 0 AND longitude = 0 LIMIT 1").fetchone()
+    if row:
+        stale = {"latitude": 1.0, "longitude": 2.0}
+        check(loc.process_park(stale, {"their_park": row[0]}) is None
+              and stale == {"latitude": 1.0, "longitude": 2.0},
+              f"a park at POTA's (0,0) placeholder is refused ({row[0]})")
+
+    # ---- section / state anchors ----
+    rec = loc.process_section({}, "ct")
+    check(rec["section"] == "CT",
+          f"process_section writes the coerced section (got {rec['section']!r})")
+    check(loc.derive_county(rec["latitude"], rec["longitude"])["section"] == "CT",
+          "the CT anchor lands inside the CT section")
+    # The anchor is a licensee's own position, not the mean of the population.
+    # An unsnapped mean sits in whatever lake or stretch of water the average
+    # lands in, and every field derived from it answers for that instead.
+    hit = conn.execute(
+        f"SELECT 1 FROM fcc_operators WHERE arrl_section = 'CT' "
+        f"AND coordinates IS NOT NULL "
+        f"AND abs({loc._OP_LAT} - ?) < 1e-9 AND abs({loc._OP_LON} - ?) < 1e-9 "
+        f"LIMIT 1", (rec["latitude"], rec["longitude"])).fetchone()
+    check(hit is not None,
+          "the anchor is a real licensee's position, not the raw mean")
+    # PAC spans the antimeridian: Hawaii near -157, Guam near +145. Averaging
+    # degrees puts the anchor in California, which is the bug this guards.
+    rec = loc.process_section({}, "PAC")
+    check(abs(rec["longitude"]) >= 140,
+          f"the PAC anchor is in the Pacific, not on the mainland "
+          f"(got longitude {rec['longitude']!r})")
+    rec = loc.process_state({}, "connecticut")
+    check(rec["state"] == "CT"
+          and loc.derive_county(rec["latitude"], rec["longitude"])["state"] == "CT",
+          "a spelled-out state anchors in that state and stores the code")
+    # Territories the record's own state coercer rejects still anchor, because
+    # the licensee table carries them.
+    rec = loc.process_state({}, "PR")
+    check(rec is not None and rec["state"] == "PR",
+          f"a US territory code anchors (got {rec and rec['state']!r})")
+    stale = {"section": "CT", "latitude": 1.0, "longitude": 2.0}
+    check(loc.process_section(stale, "ZZZ") is None
+          and stale == {"section": "CT", "latitude": 1.0, "longitude": 2.0},
+          "a section naming no licensee answers None and writes nothing")
+
+    # ---- section from state ----
+    check(loc.recalculate_section_from_state({"state": "CT"})["section"] == "CT",
+          "a single-section state fills its section")
+    check(loc.recalculate_section_from_state({"state": "DC"})["section"] == "MDC",
+          "a section is not the state's own code (DC -> MDC)")
+    rec = loc.recalculate_section_from_state({"state": "CA", "section": "LAX"})
+    check(rec["section"] == "LAX",
+          f"a split state leaves the existing section alone (got {rec['section']!r})")
+    rec = loc.recalculate_section_from_state({"state": "ZZ", "section": "OR"})
+    check(rec["section"] == "OR",
+          "an unrecognized state leaves the existing section alone")
+
+    # ---- blank() ----
+    rec = lookup_record.blank(
+        {"state": "CT", "county": "Capitol", "section": "CT"},
+        ["county", "section"])
+    check(rec["state"] == "CT" and rec["county"] is None and rec["section"] is None,
+          "blank() nulls only the named fields")
+    rec = {"state": "CT"}
+    check(lookup_record.blank(rec, ["nonesuch"]) is rec and rec["state"] == "CT",
+          "blank() skips an unknown field name and returns the same record")
+
+
+def check_override_unit():
+    """Verify the operator-override chain in lookup_postprocess.apply().
+
+    The operator's own typing outranks whatever a source said, most precise
+    source first: coordinates, then a POTA park, then section, state and
+    gridsquare. Each branch establishes a position, re-derives what that
+    position supports, and blanks what it cannot.
+
+    A branch that cannot resolve must leave the record exactly as it found
+    it and let a coarser override have its turn — that atomicity is what the
+    regression checks at the end are for.
+    """
+    import lookup_postprocess
+
+    app = {"event": {"config": {
+        "location": {"latitude": 45.5152, "longitude": -122.6784}}}}  # Portland OR
+    base = {"callsign": "W1AW", "latitude": 41.7148, "longitude": -72.7273,
+            "gridsquare": "FN31", "state": "CT", "county": "Capitol",
+            "section": "CT", "country": "United States of America",
+            "dxcc": 291, "cq_zone": 5, "itu_zone": 8}
+    baseline = lookup_postprocess.apply(app, dict(base))["distance"]
+
+    # ---- typed coordinates: trusted outright, everything re-derived ----
+    out = lookup_postprocess.apply(app, dict(base),
+                                   {"latitude": "21.3", "longitude": "-157.8"})
+    check(out["state"] == "HI" and out["dxcc"] == 110 and out["cq_zone"] == 31,
+          f"typed coordinates re-derive every field "
+          f"(got {out['state']!r}/{out['dxcc']!r}/{out['cq_zone']!r})")
+    check(out["distance"] is not None and out["distance"] != baseline,
+          "distance is recomputed from the overridden position")
+
+    # ---- POTA park ----
+    out = lookup_postprocess.apply(app, dict(base), {"their_park": "US-0001"})
+    check(out["state"] == "ME" and out["county"] == "Hancock",
+          f"a park moves the record onto it (got {out['state']!r}/{out['county']!r})")
+    check(bool(out.get("pota_park")), "the park's name reaches the wire shape")
+    # The request-time extras are always present, null when they have nothing
+    # to say, so the client never has to test for a missing key.
+    plain = lookup_postprocess.apply(app, dict(base))
+    check("pota_park" in plain and plain["pota_park"] is None
+          and "distance" in plain,
+          "the wire shape always carries pota_park and distance, null when unset")
+
+    # ---- section: derives its own state, blanks what it can't support ----
+    out = lookup_postprocess.apply(app, dict(base), {"section": "NTX"})
+    check(out["section"] == "NTX" and out["state"] == "TX",
+          f"a section override derives its own state (got {out['section']!r}/{out['state']!r})")
+    check(out["gridsquare"] is None and out["county"] is None,
+          "a section cannot support a gridsquare or county, so both are blanked")
+
+    # ---- state: section comes back only when the state names one ----
+    out = lookup_postprocess.apply(app, dict(base), {"state": "HI"})
+    check(out["state"] == "HI" and out["section"] == "PAC",
+          f"a single-section state re-fills its section (got {out['section']!r})")
+    out = lookup_postprocess.apply(app, dict(base), {"state": "TX"})
+    check(out["section"] is None,
+          f"a split state leaves the section blank (got {out['section']!r})")
+
+    # ---- gridsquare ----
+    out = lookup_postprocess.apply(app, dict(base), {"gridsquare": "BL11"})
+    check(out["gridsquare"] == "BL11" and out["cq_zone"] == 31,
+          f"a gridsquare override re-derives from the square's centre "
+          f"(got {out['gridsquare']!r}/{out['cq_zone']!r})")
+    check(out["state"] is None and out["section"] is None and out["county"] is None,
+          "a 4-char square is too coarse for state/section/county, so they are blanked")
+
+    # ---- precedence: most precise source wins, and only one branch runs ----
+    out = lookup_postprocess.apply(app, dict(base), {
+        "latitude": "21.3", "longitude": "-157.8", "their_park": "US-0001",
+        "section": "NTX", "state": "TX", "gridsquare": "BL11"})
+    check(out["state"] == "HI" and out["pota_park"] is None,
+          f"typed coordinates outrank every coarser override (got {out['state']!r})")
+    out = lookup_postprocess.apply(app, dict(base),
+                                   {"their_park": "US-0001", "section": "NTX"})
+    check(out["state"] == "ME", f"a park outranks a section (got {out['state']!r})")
+    out = lookup_postprocess.apply(app, dict(base),
+                                   {"section": "NTX", "state": "HI"})
+    check(out["state"] == "TX", f"a section outranks a state (got {out['state']!r})")
+
+    # ---- a value equal to the record's is not an override ----
+    out = lookup_postprocess.apply(app, dict(base), {"state": "CT"})
+    check(out["county"] == "Capitol" and out["gridsquare"] == "FN31",
+          "typing what the lookup already said changes nothing")
+
+    # ---- regressions: a branch that cannot resolve must do nothing ----
+    out = lookup_postprocess.apply(app, dict(base), {"section": "ZZZ"})
+    check(out["section"] == "CT" and out["gridsquare"] == "FN31"
+          and out["county"] == "Capitol",
+          "a section that names no licensee leaves the record untouched")
+    out = lookup_postprocess.apply(app, dict(base),
+                                   {"section": "ZZZ", "state": "HI"})
+    check(out["state"] == "HI",
+          "an unresolvable section falls through to the state the operator also typed")
+    # `entry` carries fields the operator emptied, so an override that reads
+    # as absent must not consume the chain either.
+    out = lookup_postprocess.apply(app, dict(base),
+                                   {"latitude": "", "longitude": "", "state": "HI"})
+    check(out["state"] == "HI",
+          "emptied coordinates fall through to a coarser override")
+    out = lookup_postprocess.apply(app, dict(base),
+                                   {"latitude": "21.3", "state": "HI"})
+    check(out["state"] == "HI",
+          "one coordinate alone is not a position, so it falls through")
+
+    # ---- the input record is never mutated ----
+    src = dict(base)
+    lookup_postprocess.apply(app, src, {"their_park": "US-0001"})
+    check(src == base, "apply() never mutates the record it was handed")
 
 
 def check_chain_unit():
@@ -1735,6 +2007,10 @@ async def main():
     check_coerce()
     print("unit: post-processing (zones + distance):")
     check_postprocess_unit()
+    print("unit: location derivations:")
+    check_location_calc_unit()
+    print("unit: operator overrides:")
+    check_override_unit()
     print("unit: source chain shape:")
     check_chain_unit()
     print("unit: chain fall-through rules:")
