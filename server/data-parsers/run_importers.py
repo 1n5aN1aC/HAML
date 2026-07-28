@@ -281,5 +281,20 @@ def main():
         print(f"\n  '{choice}' is not one of the options.")
 
 
+def quit_now(code):
+    """Leave without waiting for a Ctrl-C'd importer's worker threads.
+
+    A stopped importer leaves up to WORKERS threads parked in a socket read
+    that can take half an hour to time out, and ThreadPoolExecutor's atexit
+    hook JOINS them - so a normal exit would sit there long after the menu said
+    goodbye. The importers commit their own work and close their own databases
+    before the interrupt ever reaches us, so there is nothing left for the
+    interpreter to shut down cleanly.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    quit_now(main())

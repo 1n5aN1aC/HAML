@@ -27,7 +27,6 @@ From this folder, once:
 
 ```bash
 python -m venv .venv
-.venv\Scripts\Activate.ps1
 .venv\Scripts\python -m pip install -r requirements.txt
 ```
 
@@ -48,7 +47,6 @@ on macOS/Linux. `deactivate` to leave.)
 ## Running
 
 ```bash
-.venv\Scripts\Activate.ps1
 .venv\Scripts\python run_importers.py
 ```
 

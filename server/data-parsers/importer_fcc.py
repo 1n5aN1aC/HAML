@@ -73,7 +73,7 @@ import sys
 import threading
 import time
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import requests
 
@@ -97,12 +97,17 @@ TABLE = "fcc_operators"
 # requests' default "python-requests/2.x" user agent.
 HTTP_HEADERS = {"User-Agent": "fcc-amateur-db/1.0 (+bulk data refresh script)"}
 
-# Addresses per Census upload, under the service's 10000 cap for headroom.
-BATCH_SIZE = 9000
+# Addresses per Census upload, service's cap is 10000.
+BATCH_SIZE = 2000
 
 # Concurrent Census uploads. The service is a shared public endpoint, so this
 # stays low enough to be a polite neighbour.
-WORKERS = 3
+WORKERS = 5
+
+# How long the main thread may block while waiting for batches. It has to be
+# BOUNDED: see the comment in geocode_todo() - an unbounded wait cannot be
+# interrupted on Windows, which is the whole reason this constant exists.
+POLL_SECONDS = 0.5
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DOWNLOADS_DIR = os.path.join(HERE, "downloads")
@@ -951,25 +956,37 @@ def geocode_todo(con_cache, todo, now):
             pool.submit(submit_batch, cp, rp): (bno, cp, rp)
             for bno, start, cp, rp in batches
         }
-        for fut in as_completed(futs):
-            bno, cp, rp = futs[fut]
-            if not fut.result():
-                failed.append(bno)
-                log(f"batch {bno:04d} FAILED after {MAX_RETRIES} retries")
-                continue
-            rows = [
-                (todo[idx][0], todo[idx][1], todo[idx][2], todo[idx][3],
-                 lat, lon, quality, matched, now)
-                for idx, (lat, lon, quality, matched) in parse_result_csv(rp).items()
-            ]
-            upsert_cache(con_cache, rows)  # commit per batch = resume point
-            done += 1
-            log(f"batch {bno:04d} done ({done}/{len(batches)}), {len(rows)} cached")
-            for p in (cp, rp):
-                try:
-                    os.remove(p)
-                except OSError:
-                    pass
+        # Bounded waits, NOT as_completed(): a Ctrl-C only becomes a
+        # KeyboardInterrupt when the MAIN thread reaches a bytecode boundary,
+        # and an unbounded as_completed() gives it none until every batch has
+        # resolved. On Windows that is fatal to the handler below - the wait is
+        # a WaitForSingleObject that never looks at the pending signal, so a
+        # Ctrl-C sits queued behind the entire geocode (workers can be parked
+        # in a 1800s Census read). Returning every POLL_SECONDS is what makes
+        # the interrupt land while there is still something to cancel.
+        unfinished = set(futs)
+        while unfinished:
+            just_done, unfinished = wait(unfinished, timeout=POLL_SECONDS,
+                                         return_when=FIRST_COMPLETED)
+            for fut in just_done:
+                bno, cp, rp = futs[fut]
+                if not fut.result():
+                    failed.append(bno)
+                    log(f"batch {bno:04d} FAILED after {MAX_RETRIES} retries")
+                    continue
+                rows = [
+                    (todo[idx][0], todo[idx][1], todo[idx][2], todo[idx][3],
+                     lat, lon, quality, matched, now)
+                    for idx, (lat, lon, quality, matched) in parse_result_csv(rp).items()
+                ]
+                upsert_cache(con_cache, rows)  # commit per batch = resume point
+                done += 1
+                log(f"batch {bno:04d} done ({done}/{len(batches)}), {len(rows)} cached")
+                for p in (cp, rp):
+                    try:
+                        os.remove(p)
+                    except OSError:
+                        pass
     except KeyboardInterrupt:
         # Every completed batch is already committed to the cache.
         _INTERRUPTED.set()

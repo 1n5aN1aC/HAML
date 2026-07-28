@@ -66,7 +66,7 @@ import threading
 import time
 import unicodedata
 import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import requests
 
@@ -91,6 +91,11 @@ HTTP_HEADERS = {"User-Agent": "ca-amateur-db/1.0 (+bulk data refresh script)"}
 GEOLOC_URL = "https://www.geolocator.api.geo.ca/geolocation/en/locate"
 GEOLOC_TRIES = 4    # attempts per query before calling it a transient failure
 CACHE_FLUSH = 100   # commit cache (= resume checkpoint) every N lookups
+
+# How long the main thread may block while waiting for lookups. It has to be
+# BOUNDED: see the comment in _run_pool() - an unbounded wait cannot be
+# interrupted on Windows, which is the whole reason this constant exists.
+POLL_SECONDS = 0.5
 # Prefixed: caches/ is flat and shared, and every geocoding importer wants a
 # file by this name with an incompatible schema inside it.
 CACHE_DB = "ca_geocode_cache.sqlite"
@@ -955,25 +960,36 @@ def _run_pool(con, qkind, todo, query_fn, workers, now):
     done = transient = 0
     pending = []
     pool = ThreadPoolExecutor(max_workers=workers)
-    futs = [pool.submit(work, it) for it in todo]
+    unfinished = {pool.submit(work, it) for it in todo}
     try:
-        for fut in as_completed(futs):
-            try:
-                key, hit = fut.result()
-            except Exception:
-                continue                    # worker crashed -> retry next run
-            if key is None:                 # interrupted worker
-                continue
-            if hit is _TRANSIENT:
-                transient += 1
-                continue
-            lat, lon, label = hit if hit else (None, None, None)
-            pending.append((*key, lat, lon, label, 1 if hit else 0, now))
-            done += 1
-            if len(pending) >= CACHE_FLUSH:
-                upsert_cache(con, qkind, pending)
-                pending = []
-                log(f"    {done:,}/{len(todo):,} looked up")
+        # Bounded waits, NOT as_completed(): a Ctrl-C only becomes a
+        # KeyboardInterrupt when the MAIN thread reaches a bytecode boundary,
+        # and an unbounded as_completed() gives it none until every lookup has
+        # resolved. On Windows that is fatal to the handler below - the wait is
+        # a WaitForSingleObject that never looks at the pending signal, so a
+        # Ctrl-C sits queued behind the whole phase. Returning every
+        # POLL_SECONDS is what makes the interrupt land while there is still
+        # something to cancel.
+        while unfinished:
+            just_done, unfinished = wait(unfinished, timeout=POLL_SECONDS,
+                                         return_when=FIRST_COMPLETED)
+            for fut in just_done:
+                try:
+                    key, hit = fut.result()
+                except Exception:
+                    continue                # worker crashed -> retry next run
+                if key is None:             # interrupted worker
+                    continue
+                if hit is _TRANSIENT:
+                    transient += 1
+                    continue
+                lat, lon, label = hit if hit else (None, None, None)
+                pending.append((*key, lat, lon, label, 1 if hit else 0, now))
+                done += 1
+                if len(pending) >= CACHE_FLUSH:
+                    upsert_cache(con, qkind, pending)
+                    pending = []
+                    log(f"    {done:,}/{len(todo):,} looked up")
     except KeyboardInterrupt:
         _INTERRUPTED.set()
         log(f"  Ctrl-C: stopping {qkind} lookups and saving progress "
