@@ -661,6 +661,8 @@ body {
   gap: 6px;
 }
 .field-label {
+  /* push the labels slightly to the right. */
+  padding-left: 4px;
   font-size: 12px;
   line-height: 1;
   text-transform: uppercase;

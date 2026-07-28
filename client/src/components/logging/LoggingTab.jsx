@@ -90,7 +90,7 @@ export default function LoggingTab({
             disabled={!sessionComplete}
             onLookup={setLookup}
           />
-          <CallInfo record={lookup} />
+          <CallInfo record={lookup} here={config.location} />
         </section>
         <aside className="right-pane">
           <StationsPanel
