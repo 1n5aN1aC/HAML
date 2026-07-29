@@ -7,10 +7,13 @@ containing that fragment — in a single query, with every source's metadata att
 As of the last build: **304,647 callsigns**, 89 MB, typical query **under 2 ms**.
 
 ```bash
-python ultracheck_update.py build       # fetch all sources, merge into ultracheck.sqlite
-python ultracheck_update.py search 1az  # substring search
-python ultracheck_update.py stats       # per-source breakdown
+python ultracheck_update.py              # fetch all sources, merge into ultracheck.sqlite
+python ultracheck_update.py --only lotw  # refresh one source only
+python ultracheck_update.py --rebuild    # discard everything and start over (destructive)
 ```
+
+The script only *builds* the database. Searching it is a plain SQLite read — see
+[Querying](#querying) for a drop-in module.
 
 Requires Python 3.8+ and `requests`. Nothing else — everything else is stdlib.
 
@@ -139,31 +142,94 @@ containing it. Within a rank, shorter calls and better-attested calls come first
 The `IN (SELECT ...)` also de-duplicates: a call like `AAA` has three suffixes that all start
 with `A`, and without it the row would come back three times.
 
-### From Python
+### Using it from your own code
+
+Nothing needs to be imported from `ultracheck_update.py` — it is a build script and pulls in
+`requests`, which a reader has no use for. Open the file read-only and run the query above.
+A complete query-only module:
 
 ```python
+"""ultracheck_search.py -- read-only partial-callsign lookup. Stdlib only."""
+
+import os
 import sqlite3
 
-def search(term, limit=50):
-    q = term.strip().upper()
-    conn = sqlite3.connect("file:ultracheck.sqlite?mode=ro", uri=True)
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "ultracheck.sqlite")
+
+SEARCH_SQL = """
+SELECT c.callsign,
+       c.fd_last_year,
+       c.wfd_last_year,
+       c.pota_hunter_qsos,
+       c.pota_activations,
+       c.lotw_last_upload,
+       c.clublog,
+       c.clublog_last_qso,
+       c.scp,
+       c.source_count,
+       CASE WHEN c.callsign = :q                   THEN 0
+            WHEN substr(c.callsign, 1, :qlen) = :q THEN 1
+            ELSE 2 END AS match_rank
+  FROM callsigns c
+ WHERE c.id IN (SELECT call_id
+                  FROM call_suffix
+                 WHERE suffix >= :q AND suffix < :q_hi)
+ ORDER BY match_rank,
+          length(c.callsign),
+          c.source_count DESC,
+          c.callsign
+ LIMIT :limit
+"""
+
+
+def connect(db_path=DB_PATH):
+    """Open the database read-only. Safe to keep open and reuse."""
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True,
+                           check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(SEARCH_SQL, {
-        "q": q, "qlen": len(q), "q_hi": q + "￿", "limit": limit,
-    }).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+    return conn
+
+
+def search(conn, term, limit=50):
+    """-> list of dicts, best match first. Empty list if nothing matches."""
+    q = term.strip().upper()
+    if not q:
+        return []
+    cur = conn.execute(SEARCH_SQL, {"q": q, "qlen": len(q),
+                                    "q_hi": q + "￿", "limit": limit})
+    return [dict(r) for r in cur.fetchall()]
 ```
 
-`ultracheck_update.py` exposes this as `search(query, db_path, limit)` and `SEARCH_SQL`, so you
-can `from ultracheck_update import search, SEARCH_SQL` rather than re-declaring the query. Note
-that importing it pulls in `requests`, which only the downloader needs — if the matcher should
-not depend on that, lift `SEARCH_SQL` and `search()` into a small query-only module.
+```python
+conn = connect()
+for hit in search(conn, "1az", limit=10):
+    print(hit["callsign"], hit["source_count"], hit["lotw_last_upload"])
+```
+
+Three things to get right:
+
+- **`:q_hi` is the term plus `￿`**, the range upper bound. Every suffix starting with the
+  term sorts below it, so `suffix >= :q AND suffix < :q_hi` is exactly the prefix scan.
+- **Uppercase the term** before binding. Everything in the database is stored uppercase and the
+  comparison is a plain byte range, not a collation.
+- **Open read-only** (`mode=ro`). The connection is then safe to share across threads with
+  `check_same_thread=False`, and a concurrent rebuild can't be corrupted by a reader.
+
+Keep one connection alive for the life of the process rather than reconnecting per query —
+SQLite caches the page map and the prepared statement, and reopening is most of the cost of a
+sub-2 ms lookup.
+
+If the process must survive a rebuild happening underneath it, catch `sqlite3.DatabaseError` on
+a query and reconnect: `--rebuild` deletes and recreates the file, so an open handle is left
+pointing at the old inode.
 
 ### Interpreting a hit
 
 ```
-K1AZ    FD 2023, WFD 2025, POTA act 26, POTA hunt 891 Q, LoTW 2016-03-29, ClubLog ?
+callsign='K1AZ' fd_last_year=2023 wfd_last_year=2025 pota_activations=26
+pota_hunter_qsos=891 lotw_last_upload='2016-03-29' clublog=1
+clublog_last_qso=None scp=0 source_count=6
 ```
 
 Last entered Field Day in 2023 and Winter Field Day in 2025; 26 POTA activations and 891 hunter
@@ -193,15 +259,15 @@ A `NULL` from the current run always loses to a stored value, which makes single
 safe:
 
 ```bash
-python ultracheck_update.py build --only lotw  # touches only the LoTW column
-python ultracheck_update.py build --rebuild    # discard everything and start over (destructive)
+python ultracheck_update.py --only lotw  # touches only the LoTW column
 ```
 
 Runs are idempotent — building twice in a row reports `0 new callsigns`.
 
 Downloads are cached in `caches/` with ETag and Last-Modified revalidation, so an unchanged
 source returns `304 Not Modified` and costs nothing. Weekly is plenty; all six regenerate weekly
-at best. `--force` ignores the cache. `stats` shows when each source was last fetched.
+at best. `--force` ignores the cache. The `source_runs` table records when each source was last
+fetched and how many rows it contributed.
 
 ## Caveats
 

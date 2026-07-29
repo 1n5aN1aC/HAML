@@ -27,11 +27,9 @@ parks) survives locally once captured.  `--rebuild` is the only destructive
 path.
 
 Usage:
-    python ultracheck_update.py build              # fetch all sources, merge in
-    python ultracheck_update.py build --only lotw  # refresh one source only
-    python ultracheck_update.py build --rebuild    # discard and start over
-    python ultracheck_update.py search 1az
-    python ultracheck_update.py stats
+    python ultracheck_update.py              # fetch all sources, merge in
+    python ultracheck_update.py --only lotw  # refresh one source only
+    python ultracheck_update.py --rebuild    # discard and start over
 
 Requires: Python 3.8+ and `requests`.  Nothing else.
 """
@@ -550,33 +548,6 @@ ON CONFLICT(callsign) DO UPDATE SET
     last_seen = excluded.last_seen
 """
 
-# One query, all hits, all metadata.
-SEARCH_SQL = """
-SELECT c.callsign,
-       c.fd_last_year,
-       c.wfd_last_year,
-       c.pota_hunter_qsos,
-       c.pota_activations,
-       c.lotw_last_upload,
-       c.clublog,
-       c.clublog_last_qso,
-       c.scp,
-       c.source_count,
-       CASE WHEN c.callsign = :q                  THEN 0
-            WHEN substr(c.callsign, 1, :qlen) = :q THEN 1
-            ELSE 2 END AS match_rank
-  FROM callsigns c
- WHERE c.id IN (SELECT call_id
-                  FROM call_suffix
-                 WHERE suffix >= :q AND suffix < :q_hi)
- ORDER BY match_rank,
-          length(c.callsign),
-          c.source_count DESC,
-          c.callsign
- LIMIT :limit
-"""
-
-
 def suffixes(call: str):
     """All suffixes of `call`, longest first."""
     for i in range(len(call)):
@@ -712,43 +683,6 @@ def update_database(sources: dict, db_path: str = DB_PATH,
 
 
 # --------------------------------------------------------------------------
-# Search
-# --------------------------------------------------------------------------
-
-def search(query: str, db_path: str = DB_PATH, limit: int = 50):
-    q = clean_call(query) or str(query).strip().upper()
-    if not q:
-        return []
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    conn.row_factory = sqlite3.Row
-    try:
-        cur = conn.execute(SEARCH_SQL, {"q": q, "qlen": len(q),
-                                        "q_hi": q + "￿", "limit": limit})
-        return [dict(r) for r in cur.fetchall()]
-    finally:
-        conn.close()
-
-
-def describe(hit: dict) -> str:
-    bits = []
-    if hit["fd_last_year"]:
-        bits.append(f"FD {hit['fd_last_year']}")
-    if hit["wfd_last_year"]:
-        bits.append(f"WFD {hit['wfd_last_year']}")
-    if hit["pota_activations"] is not None:
-        bits.append(f"POTA act {hit['pota_activations']:,}")
-    if hit["pota_hunter_qsos"] is not None:
-        bits.append(f"POTA hunt {hit['pota_hunter_qsos']:,} Q")
-    if hit["lotw_last_upload"]:
-        bits.append(f"LoTW {hit['lotw_last_upload']}")
-    if hit["clublog"]:
-        bits.append("ClubLog " + (hit["clublog_last_qso"] or "?")[:10])
-    if hit["scp"]:
-        bits.append("SCP")
-    return ", ".join(bits) or "-"
-
-
-# --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
 
@@ -763,7 +697,7 @@ FETCHERS = {
 }
 
 
-def cmd_build(args) -> int:
+def build(args) -> int:
     names = args.only or list(FETCHERS)
     unknown = [n for n in names if n not in FETCHERS]
     if unknown:
@@ -796,112 +730,22 @@ def cmd_build(args) -> int:
     return 0
 
 
-def cmd_search(args) -> int:
-    t0 = time.perf_counter()
-    hits = search(args.query, args.db, args.limit)
-    ms = (time.perf_counter() - t0) * 1000
-    if not hits:
-        print(f"no matches for {args.query!r}")
-        return 0
-    width = max(len(h["callsign"]) for h in hits)
-    for h in hits:
-        print(f"{h['callsign']:<{width}}  {describe(h)}")
-    print(f"\n{len(hits)} hit(s) in {ms:.1f} ms")
-    return 0
-
-
-SOURCE_STATS = [
-    # label, "call is present" predicate, extra aggregate
-    ("ARRL Field Day",   "fd_last_year IS NOT NULL",
-     "'last year ' || min(fd_last_year) || '-' || max(fd_last_year)"),
-    ("Winter Field Day", "wfd_last_year IS NOT NULL",
-     "'last year ' || min(wfd_last_year) || '-' || max(wfd_last_year)"),
-    ("POTA hunters",     "pota_hunter_qsos IS NOT NULL",
-     "'QSOs ' || min(pota_hunter_qsos) || '-' || max(pota_hunter_qsos) ||"
-     " ', median ' || cast(avg(pota_hunter_qsos) AS int) || ' mean'"),
-    ("POTA activators",  "pota_activations IS NOT NULL",
-     "'activations ' || min(pota_activations) || '-' || max(pota_activations) ||"
-     " ', ' || cast(avg(pota_activations) AS int) || ' mean'"),
-    ("LoTW",             "lotw_last_upload IS NOT NULL",
-     "'uploads ' || min(lotw_last_upload) || ' .. ' || max(lotw_last_upload)"),
-    ("Club Log",         "clublog = 1",
-     "'last QSO ' || coalesce(min(clublog_last_qso), '-') || ' .. ' ||"
-     " coalesce(max(clublog_last_qso), '-')"),
-    ("SCP",              "scp = 1", "'membership only'"),
-]
-
-
-def cmd_stats(args) -> int:
-    conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
-    total = conn.execute("SELECT count(*) FROM callsigns").fetchone()[0]
-
-    print("Build")
-    for key, value in conn.execute(
-            "SELECT key, value FROM meta WHERE key IN"
-            " ('built_utc','callsigns','suffix_rows') ORDER BY key"):
-        print(f"  {key:14} {value}")
-
-    print(f"\nPer source (of {total:,} distinct callsigns)")
-    print(f"  {'source':17} {'calls':>9} {'unique':>8} {'share':>6}  detail")
-    for label, present, agg in SOURCE_STATS:
-        n, uniq, detail = conn.execute(
-            f"SELECT count(*), sum(source_count = 1), {agg}"
-            f"  FROM callsigns WHERE {present}").fetchone()
-        print(f"  {label:17} {n:9,} {uniq or 0:8,} {n / total:5.1%}  {detail}")
-
-    print("\nLast fetched")
-    runs = conn.execute("SELECT source, last_run, rows_seen FROM source_runs"
-                        " ORDER BY source").fetchall()
-    for source, last_run, seen in runs:
-        print(f"  {source:17} {last_run}  {seen:,} rows")
-    if not runs:
-        print("  (no run recorded)")
-
-    print("\nOverlap")
-    hist = conn.execute(
-        "SELECT source_count, count(*) FROM callsigns"
-        " GROUP BY source_count ORDER BY source_count").fetchall()
-    for count, n in hist:
-        print(f"  in {count} source(s): {n:9,}  {n / total:5.1%}")
-
-    print("\nCallsign length")
-    for length, n in conn.execute(
-            "SELECT length(callsign), count(*) FROM callsigns"
-            " GROUP BY 1 ORDER BY 1"):
-        print(f"  {length:2d} chars: {n:9,}")
-    conn.close()
-    return 0
-
-
 def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description=__doc__,
-                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="With no options, every source is downloaded and merged in. "
+               "Accumulative: adds new callsigns and advances existing ones. "
+               "Never deletes a callsign already in the database.")
     p.add_argument("--db", default=DB_PATH, help="database path")
-    sub = p.add_subparsers(dest="cmd", required=True)
-
-    b = sub.add_parser(
-        "build", help="download sources and merge them into the DB",
-        description="Accumulative: adds new callsigns and advances existing "
-                    "ones. Never deletes a callsign already in the database.")
-    b.add_argument("--only", nargs="+", metavar="SOURCE",
+    p.add_argument("--only", nargs="+", metavar="SOURCE",
                    help=f"subset of: {', '.join(FETCHERS)}. Safe to use -- "
                         f"other sources' columns are left untouched.")
-    b.add_argument("--force", action="store_true",
+    p.add_argument("--force", action="store_true",
                    help="ignore the HTTP cache and re-download everything")
-    b.add_argument("--rebuild", action="store_true",
+    p.add_argument("--rebuild", action="store_true",
                    help="delete the database and start over (destructive)")
-    b.set_defaults(func=cmd_build)
-
-    s = sub.add_parser("search", help="substring search")
-    s.add_argument("query")
-    s.add_argument("--limit", type=int, default=50)
-    s.set_defaults(func=cmd_search)
-
-    st = sub.add_parser("stats", help="show build metadata")
-    st.set_defaults(func=cmd_stats)
-
-    args = p.parse_args(argv)
-    return args.func(args)
+    return build(p.parse_args(argv))
 
 
 if __name__ == "__main__":
