@@ -17,9 +17,14 @@ is what tells the two apart.
 Input is the canonical record (`lookup_record.FIELDS`). Output is the wire
 shape: those fields, possibly filled in further, plus request-time extras
 that are deliberately not part of the storage contract (today: `found`,
-`distance` and `pota_park`). Every extra is always present, null when it has
-nothing to say, so the client reads them exactly like the canonical fields.
-The input record is never mutated.
+`distance`, `pota_park`, and `ultracheck`). Every extra is always present, null
+when it has nothing to say, so the client reads them exactly like the canonical
+fields. The input record is never mutated.
+
+`ultracheck` is the odd one out: not derived from the record at all, but a
+partial-callsign search over a separate dataset keyed on the term the client
+asked for. It lives here because here is the one stage that runs on every
+response — see lookup_ultracheck for why it isn't a lookup source.
 
 This is where the location-derivation work in TODO.md belongs — deriving a
 location from grid/country, overriding one from state or a POTA park —
@@ -29,6 +34,7 @@ per adapter.
 import math
 import lookup_record
 import lookup_location_calc
+import lookup_ultracheck
 
 _EARTH_RADIUS_KM = 6371.0                                   # Mean Earth radius in kilometers.
 _DEFAULT_LOCATION = {"latitude": 45.0, "longitude": -123.0} # Default location if the event does not provide one.
@@ -83,7 +89,9 @@ def _overridden(entry, record, field):
 # Canonical record in, response record out. Never mutates the input.
 # `entry` contains raw operator-edited fields for request-time derivations.
 # `found` is False when no source knew the callsign — see the note below.
-def apply(app, record, entry=None, found=True):
+# `callsign` is the normalized term the client ASKED for, record can return different.
+# Ultracheck must search what the operator actually typed.
+def apply(app, record, entry=None, found=True, callsign=None):
     out = dict(record)      # Load the record
     # Did any source know this callsign? A miss is otherwise indistinguishable
     # from a hit whose every field happened to be null.
@@ -130,4 +138,10 @@ def apply(app, record, entry=None, found=True):
     # Calculate distance from him to us.
     # This needs to be last, because other bits could have overridden the coordinates.
     out = _fill_distance(app, out)
+
+    # Partial-callsign matches, under their own key.
+    # Independent of everything above
+    # It runs on every response, hit or miss alike: looking for partial hits is it's goal.
+    out["ultracheck"] = lookup_ultracheck.search(
+        app, callsign if callsign is not None else record.get("callsign"))
     return out

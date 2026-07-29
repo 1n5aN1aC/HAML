@@ -161,7 +161,31 @@ values never freeze into a row that outlives the Event that produced them. Today
 CQ/ITU zones from coordinates (only-fill-if-null, so CallParser's authoritative prefix-DB
 zones win) and stamps two request-time extras: `distance` from the active Event's operating
 position, and `pota_park` from the park the operator typed. Both are always present and null
-when they have nothing to say, so the client reads them like any canonical field.
+when they have nothing to say, so the client reads them like any canonical field. It also
+stamps `found`, which is what lets a miss be a `200` instead of a `404`, and attaches
+`ultracheck` (below).
+
+### ultracheck: partial-callsign matches
+
+`lookup_ultracheck.py` answers a different question from the chain — not "who holds this
+callsign?" but "which callsigns known to contest and activity programs *contain* this
+fragment?" — over its own sqlite built by `data-parsers/ultracheck_update.py` from seven
+public sources. It is **not** a source and deliberately not in `lookup.SOURCES`: it is
+additive rather than authoritative, so a first-OK-wins chain is the wrong shape for it, and
+it must run whatever the chain decided. It hangs off post-processing instead, which is the
+one stage that runs on every response, and its answer goes out under its own `ultracheck`
+key with per-source lists. The wire shape is in [API.md](./API.md).
+
+Substring search without a table scan comes from a `call_suffix` table holding every suffix
+of every callsign, which turns "contains" into "starts with" — an indexed range scan. Cost
+therefore tracks how many callsigns contain the fragment, and falls off a cliff as the term
+grows: a 1-character term is ~200ms and would stall the event loop, 2 characters ~3ms, 3+
+well under 1ms. The client never sends fewer than 2. Per-source result limits are config
+constants at the top of the module.
+
+Same warn-and-degrade contract as the licensee datasets: a missing or corrupt ultracheck
+build leaves the handle None, every response reports `available: false` with empty lists, and
+no lookup is affected. A partial-callsign nicety must never be able to break a lookup.
 
 `dirty` is not plumbed through the source result yet: no shipped source ever writes a cache
 row, so there is nothing for it to describe. When the first real caching source lands, add it
@@ -171,7 +195,8 @@ record gets the 15-minute TTL instead of 365 days.
 Supporting modules: `lookup_fcc.py` (local FCC ULS dataset), `lookup_ca.py` (local ISED
 Canadian dataset, run on an FCC miss), `lookup_callparser.py` over
 `callparser.py` (prefix DB), `lookup_location_calc.py` (coordinate-derived values: CQ/ITU zone, DXCC entity and
-county polygons from the same sqlite, plus the Maidenhead gridsquare), `lookup_cache.py`. Dataset
+county polygons from the same sqlite, plus the Maidenhead gridsquare), `lookup_cache.py`,
+`lookup_ultracheck.py` (partial-callsign search, its own sqlite). Dataset
 provenance and schemas: [server/datasets/README.md](../server/datasets/README.md).
 
 ## Admin surface

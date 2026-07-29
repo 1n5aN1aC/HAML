@@ -11,10 +11,11 @@ DEFAULTS = {
     "port": 80,                         # Port for HAML REST API & WebSocket
     "data_dir": "data",                 # Directory for template & event state. (relative to server/)
     "admin_password": "haml",           # Password for the admin REST endpoints
-    "lookup_db_path": "datasets/lookup_data.sqlite", # Path to the local lookup dataset sqlite
-    "lookup_db_max_age_days": 30,       # Warning if sqlite is older than this
-    "prefix_lst_path": "datasets/Prefix.lst",     # Path to the VE3NEA CallParser Prefix.lst
     "auto_backup_interval_minutes": 15, # Automatic backup cadence; 0 disables the loop
+    "lookup_db_max_age_days": 30,       # Warning if sqlite is older than this
+    "lookup_db_path": "datasets/lookup_data.sqlite",    # Path to the local lookup dataset sqlite
+    "prefix_lst_path": "datasets/Prefix.lst",           # Path to the VE3NEA CallParser Prefix.lst
+    "ultracheck_db_path": "datasets/ultracheck.sqlite", # Path to the partial-callsign search sqlite
 }
 
 def _resolve_relative_to_server(path):
@@ -42,11 +43,8 @@ def load_config(path=None):
     data_dir = _resolve_relative_to_server(cfg["data_dir"])
     cfg["data_dir"] = data_dir
     data_dir.mkdir(parents=True, exist_ok=True)
-    # Resolve the dataset paths the same way (without mkdir — see helper docstring).
+    # Resolve all the datasets paths' the same way (without mkdir — see helper docstring).
     cfg["lookup_db_path"] = _resolve_relative_to_server(cfg["lookup_db_path"])
-    # Same story for prefix_lst_path: file is committed and required at
-    # runtime, but a missing/garbled load must warn-and-continue at setup
-    # rather than crash the server (the lookup_callparser adapter mirrors
-    # fcc.setup() in being boot-time fault-tolerant).
     cfg["prefix_lst_path"] = _resolve_relative_to_server(cfg["prefix_lst_path"])
+    cfg["ultracheck_db_path"] = _resolve_relative_to_server(cfg["ultracheck_db_path"])
     return cfg

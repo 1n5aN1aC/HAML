@@ -20,6 +20,7 @@ import backup_scheduler
 import events
 import lookup
 import lookup_cache
+import lookup_ultracheck
 from config import load_config
 
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
@@ -29,9 +30,9 @@ async def _close_cache(app):
     conn = app.get("lookup_cache")
     if conn is not None:
         conn.close()
-    # Whatever the lookup sources opened is released by the chain, so main never names a source.
-    # Closing matters on Windows, where a test's scratch dir can't be removed while a handle into it is open.
+    # Release sources on close:
     lookup.close(app)
+    lookup_ultracheck.close(app)
 
 # Build the main application instance.
 def build_app(cfg):
@@ -39,6 +40,7 @@ def build_app(cfg):
     app["cfg"] = cfg
     # Drives every source's setup() too — see lookup.SOURCES.
     lookup.setup(app)
+    lookup_ultracheck.setup(app)
     app["lookup_cache"] = lookup_cache.open_cache(
         cfg["data_dir"] / "lookup_cache.db"
     )

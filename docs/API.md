@@ -237,6 +237,46 @@ plus `found` — `true` when a source knew the callsign, `false` when none did �
 `distance` depends on which Event is active and `found` describes the request rather
 than the callsign, so neither must ever freeze into a cache row.
 
+plus `ultracheck` — partial-callsign matches from a separate dataset of callsigns known
+to contest and activity programs. It is keyed on the term you *asked* for, matched as a
+**substring**, so a complete callsign, a fragment, or a half-typed call all return
+something useful; and it is present on every `200`, hit or miss alike.
+
+```json
+"ultracheck": {
+  "query": "1AZ",
+  "available": true,
+  "sources": {
+    "fd":             {"matches": [{"callsign": "K1AZE", "value": 2024}], "truncated": false},
+    "wfd":            {"matches": [], "truncated": false},
+    "pota_hunter":    {"matches": [{"callsign": "JA1AZM", "value": 10030}], "truncated": true},
+    "pota_activator": {"matches": [], "truncated": false},
+    "lotw":           {"matches": [{"callsign": "E21AZ", "value": "2026-07-26"}], "truncated": true},
+    "clublog":        {"matches": [{"callsign": "CT1AZN", "value": "2026-07-28 22:50:00"}], "truncated": true},
+    "scp":            {"matches": [{"callsign": "R1AZ", "value": null}], "truncated": true}
+  }
+}
+```
+
+All seven source keys are always present and `matches` is always a list, so there is no
+shape to branch on. Within a source, an **exact match comes first**, then that source's
+own ordering; `value` is what that source knows about the call and what it sorted by:
+
+| source | `value` | ordered by |
+|---|---|---|
+| `fd`, `wfd` | last year entered (int) | most recent year |
+| `pota_hunter` | hunter QSOs (int) | most QSOs |
+| `pota_activator` | activations (int) | most activations |
+| `lotw` | last upload, `YYYY-MM-DD` | most recent upload |
+| `clublog` | last QSO, `YYYY-MM-DD HH:MM:SS` or `null` | most recent QSO, unknown dates last |
+| `scp` | always `null` (membership only) | shortest callsign, then best-attested |
+
+`truncated` means the source had more matches than its configured limit returned — say
+"5 of many", not "5". Limits are per source, set in `server/lookup_ultracheck.py`.
+`available` is `false` only when the ultracheck dataset itself is missing or unusable, so
+an empty result and a broken install are distinguishable. A `null` `value` means that
+source has no figure for the call, never zero.
+
 **A miss is a `200`, not a `404`.** The lookup succeeded; "no source knew this callsign"
 is a legitimate answer to it. The body is the full record shape with `found: false` and
 every field except `callsign` `null`, so a client that merges nulls as no-ops needs no

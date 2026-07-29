@@ -5,8 +5,8 @@ the ISED (Canadian) sqlite, and the CallParser prefix DB. No shipped source
 is cacheable, so no lookup writes a cache row.
 
 Stdlib-only. Spawns the real server on a scratch port with a scratch data
-dir + a scratch FCC ULS fixture sqlite + the repo's committed Prefix.lst,
-then walks POST /api/lookup:
+dir + a scratch FCC ULS fixture sqlite + a scratch ultracheck fixture sqlite +
+the repo's committed Prefix.lst, then walks POST /api/lookup:
 
   - cold Individual: 200 with composed name "FIRST M LAST", license_type
     "person", address_line2 matching the client's state regex, derived
@@ -18,6 +18,10 @@ then walks POST /api/lookup:
   - NULL coordinates: 200, latitude/longitude None, zones None
   - cold unknown call (no prefix match either): 200 with found:false and an
     otherwise-null record — a miss is an answer, not an HTTP error
+  - ultracheck on every response: exact-match-first ahead of each source's own
+    ordering, per-source limits and the `truncated` flag, a partial term with no
+    exact match, and the degrade path when the dataset is absent. Runs against a
+    scratch ultracheck fixture — never the real 91 MB build
   - DX call (G4ABC, not in the FCC fixture): 200 via CallParser —
     source "callparser", DXCC-level fields only, US-only fields null,
     distance from entity-center coords
@@ -69,8 +73,9 @@ import aiohttp
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SERVER_DIR))
-import lookup_cache    # noqa: E402
-import lookup_record   # noqa: E402
+import lookup_cache        # noqa: E402
+import lookup_record       # noqa: E402
+import lookup_ultracheck   # noqa: E402
 
 PORT = 8767
 BASE = f"http://127.0.0.1:{PORT}"
@@ -86,6 +91,12 @@ VALID_STATES = {
     'NV','NY','OH','OK','ON','OR','PA','PE','QC','RI','SC','SD','SK','TN',
     'TX','UT','VA','VT','WA','WI','WV','WY','YT',
 }
+
+# The source keys every ultracheck object must carry. Spelled out rather than
+# read off lookup_ultracheck._SOURCES so a rename or a dropped source fails
+# here instead of quietly agreeing with itself — these names are wire contract.
+_UC_SOURCES = ("fd", "wfd", "pota_hunter", "pota_activator",
+               "lotw", "clublog", "scp")
 
 checks = 0
 
@@ -111,8 +122,25 @@ def _check_miss_shape(body, callsign):
                 if f != "callsign" and body.get(f) is not None}
     check(not non_null,
           f"miss body is null but for the callsign (got {non_null})")
-    for extra in ("found", "distance", "pota_park"):
+    for extra in ("found", "distance", "pota_park", "ultracheck"):
         check(extra in body, f"miss body has the {extra} extra")
+
+
+# Assert one ultracheck source's list against the FULL expected fixture order,
+# clipped to that source's configured limit — and that `truncated` agrees with
+# whether the clip actually dropped anything. SOURCE_LIMITS is tuning, not
+# contract, so reading it here is what keeps these checks about ORDERING
+# instead of quietly re-asserting today's limit values.
+def _uc_expect(sources, name, full_order, why):
+    limit = lookup_ultracheck.SOURCE_LIMITS[name]
+    got = [m["callsign"] for m in sources[name]["matches"]]
+    check(got == full_order[:limit],
+          f"ultracheck {name}: {why} (got {got}, "
+          f"expected {full_order[:limit]} at limit {limit})")
+    check(sources[name]["truncated"] is (len(full_order) > limit),
+          f"ultracheck {name}: truncated is "
+          f"{len(full_order) > limit} at limit {limit} with "
+          f"{len(full_order)} matches (got {sources[name]['truncated']!r})")
 
 
 # --- fixture ---------------------------------------------------------------
@@ -306,6 +334,86 @@ def build_fixture(path):
                 f"VALUES ({placeholders})",
                 [row[c] for c in cols],
             )
+    conn.commit()
+    conn.close()
+    return path
+
+
+# --- ultracheck fixture ----------------------------------------------------
+# Mirror of the production ultracheck schema (data-parsers/ultracheck_README.md).
+# Only what the reader touches: the `callsigns` table, the `call_suffix` index
+# that makes a substring search a prefix range scan, and the `meta` row setup()
+# reads to log the build. The real DB is 91 MB / 304k calls and gitignored, so
+# the suite must never depend on it.
+ULTRACHECK_SCHEMA = """
+CREATE TABLE callsigns (
+  id               INTEGER PRIMARY KEY,
+  callsign         TEXT NOT NULL UNIQUE,
+  fd_last_year     INTEGER,
+  wfd_last_year    INTEGER,
+  pota_hunter_qsos INTEGER,
+  pota_activations INTEGER,
+  lotw_last_upload TEXT,
+  clublog          INTEGER NOT NULL DEFAULT 0,
+  clublog_last_qso TEXT,
+  scp              INTEGER NOT NULL DEFAULT 0,
+  source_count     INTEGER NOT NULL DEFAULT 0,
+  first_seen       TEXT,
+  last_seen        TEXT
+);
+CREATE TABLE call_suffix (suffix TEXT NOT NULL, call_id INTEGER NOT NULL);
+CREATE INDEX idx_suffix ON call_suffix(suffix, call_id);
+CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+"""
+
+# Built so that every source's ordering is falsifiable on the single query
+# "W1AW", where five rows match as substrings:
+#   W1AW    the exact match, and deliberately the WORST row by every metric —
+#           oldest years, fewest QSOs, oldest dates. If it still leads every
+#           list, exact-first is genuinely beating each source's own sort.
+#   W1AWX   the best row by every metric, so it leads whenever exact-first
+#           isn't in play.
+#   KW1AW   middle values, and matches mid-string rather than as a prefix.
+#   W1AWZZ  older still, and the longest call — the SCP length sort's target.
+#   W1AWQ   a Club Log member with a NULL last QSO (~60% of real ones are),
+#           which must sort LAST in clublog rather than vanish. It is in no
+#           other source, so it also proves each source filters to its own.
+# K9XYZ matches nothing and must never appear.
+ULTRACHECK_FIXTURE = [
+    # callsign, fd,   wfd,  hunter, activ, lotw,         cl, cl_last_qso,           scp, src
+    ("W1AW",    2010, 2010, 1,      1,     "2010-01-01", 1, "2010-01-01 00:00:00",  1,   7),
+    ("W1AWX",   2025, 2025, 999,    99,    "2025-01-01", 1, "2025-01-01 00:00:00",  1,   6),
+    ("KW1AW",   2020, 2020, 500,    50,    "2020-01-01", 1, "2020-01-01 00:00:00",  1,   7),
+    ("W1AWZZ",  2015, 2015, 250,    25,    "2015-01-01", 1, "2015-01-01 00:00:00",  1,   6),
+    ("W1AWQ",   None, None, None,   None,  None,         1, None,                   0,   1),
+    # lotw-only rows, purely to push that one source over its limit of 5 so the
+    # `truncated` flag has something to report while the others stay False.
+    ("W1AWA",   None, None, None,   None,  "2011-01-01", 0, None,                   0,   1),
+    ("W1AWB",   None, None, None,   None,  "2012-01-01", 0, None,                   0,   1),
+    ("K9XYZ",   2025, 2025, 9999,   999,   "2026-01-01", 1, "2026-01-01 00:00:00",  1,   7),
+]
+
+
+def build_ultracheck_fixture(path):
+    """Write the ultracheck fixture sqlite at `path`. Returns the path."""
+    conn = sqlite3.connect(path)
+    conn.executescript(ULTRACHECK_SCHEMA)
+    for i, row in enumerate(ULTRACHECK_FIXTURE, start=1):
+        conn.execute(
+            "INSERT INTO callsigns (id, callsign, fd_last_year, wfd_last_year,"
+            " pota_hunter_qsos, pota_activations, lotw_last_upload, clublog,"
+            " clublog_last_qso, scp, source_count)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)", (i,) + row)
+        # Every suffix of the call, exactly as the importer expands them: this
+        # is what turns a substring match into an indexed prefix range scan.
+        call = row[0]
+        for start in range(len(call)):
+            conn.execute("INSERT INTO call_suffix (suffix, call_id) VALUES (?,?)",
+                         (call[start:], i))
+    conn.execute("INSERT INTO meta (key, value) VALUES ('built_utc', ?)",
+                 ("2026-07-29T00:00:00+00:00",))
+    conn.execute("INSERT INTO meta (key, value) VALUES ('callsigns', ?)",
+                 (str(len(ULTRACHECK_FIXTURE)),))
     conn.commit()
     conn.close()
     return path
@@ -674,6 +782,100 @@ def check_postprocess_unit():
     leaked = {f: out[f] for f in lookup_record.FIELDS
               if f != "callsign" and out.get(f) is not None}
     check(not leaked, f"blank record derives nothing (got {leaked})")
+
+
+def check_ultracheck_unit(uc_fixture_path):
+    """Verify lookup_ultracheck against its fixture: the config limits are
+    honored per source, the search is a true substring match, and the module
+    degrades instead of raising. Ordering itself is asserted e2e, where it is
+    the wire shape that matters."""
+    import lookup_ultracheck
+
+    check(set(lookup_ultracheck.SOURCE_LIMITS) == set(_UC_SOURCES),
+          f"every source has a configured limit "
+          f"(got {sorted(lookup_ultracheck.SOURCE_LIMITS)})")
+
+    # ---- degrade paths: no DB at all, and a term with nothing to search ----
+    # Both must answer the full shape rather than raising or returning None,
+    # because postprocess writes whatever comes back straight onto the response.
+    out = lookup_ultracheck.search({}, "W1AW")
+    check(out["available"] is False and set(out["sources"]) == set(_UC_SOURCES),
+          "no DB in the app -> available false, all sources present")
+
+    app = {"cfg": {"ultracheck_db_path": uc_fixture_path}}
+    lookup_ultracheck.setup(app)
+    check(app.get("ultracheck_db") is not None,
+          "setup() opens the fixture")
+    try:
+        for term in ("", None, "   "):
+            out = lookup_ultracheck.search(app, term)
+            check(out["available"] is True
+                  and all(not s["matches"] for s in out["sources"].values()),
+                  f"empty term {term!r} -> no matches, but still available")
+
+        # ---- substring, not prefix ----
+        # 'KW1AW' contains 'W1AW' in the middle; a prefix-only search misses it.
+        out = lookup_ultracheck.search(app, "W1AW")
+        check("KW1AW" in [m["callsign"]
+                          for m in out["sources"]["fd"]["matches"]],
+              "mid-string match is found (substring, not prefix)")
+        # Lowercase in, uppercase match out: callsigns are stored uppercase.
+        lower = lookup_ultracheck.search(app, "w1aw")
+        check(lower["query"] == "W1AW"
+              and [m["callsign"] for m in lower["sources"]["fd"]["matches"]]
+                  == [m["callsign"] for m in out["sources"]["fd"]["matches"]],
+              "a lowercase term is uppercased before searching")
+
+        # ---- a source's filter is its own ----
+        # W1AWQ is a Club Log member and nothing else, so it appears in clublog
+        # and in no other list. A NULL means "this source never heard of the
+        # call", so a source must never claim a row it doesn't own.
+        for name in _UC_SOURCES:
+            calls = [m["callsign"] for m in out["sources"][name]["matches"]]
+            check(("W1AWQ" in calls) == (name == "clublog"),
+                  f"{name}: W1AWQ appears only under clublog (got {calls})")
+
+        # ---- the limit is the limit ----
+        # Temporarily squeeze every limit to 1: exactly one match per source
+        # that has any, and truncated wherever more existed.
+        original = dict(lookup_ultracheck.SOURCE_LIMITS)
+        try:
+            for name in lookup_ultracheck.SOURCE_LIMITS:
+                lookup_ultracheck.SOURCE_LIMITS[name] = 1
+            squeezed = lookup_ultracheck.search(app, "W1AW")
+            check(all(len(s["matches"]) == 1
+                      for s in squeezed["sources"].values()),
+                  "limit 1 -> exactly one match per source")
+            check(all(s["truncated"] for s in squeezed["sources"].values()),
+                  "limit 1 with more available -> truncated everywhere")
+            check(all(s["matches"][0]["callsign"] == "W1AW"
+                      for s in squeezed["sources"].values()),
+                  "limit 1 -> the one match kept is the exact one")
+            # A limit of 0 must return nothing without running a query.
+            for name in lookup_ultracheck.SOURCE_LIMITS:
+                lookup_ultracheck.SOURCE_LIMITS[name] = 0
+            zeroed = lookup_ultracheck.search(app, "W1AW")
+            check(all(not s["matches"] and not s["truncated"]
+                      for s in zeroed["sources"].values()),
+                  "limit 0 -> no matches, nothing flagged")
+        finally:
+            lookup_ultracheck.SOURCE_LIMITS.clear()
+            lookup_ultracheck.SOURCE_LIMITS.update(original)
+
+        # ---- a term matching nothing ----
+        out = lookup_ultracheck.search(app, "QQQQQQ")
+        check(out["available"] is True
+              and all(not s["matches"] for s in out["sources"].values()),
+              "no matches -> available true with empty lists (not unavailable)")
+    finally:
+        lookup_ultracheck.close(app)
+    check(app.get("ultracheck_db") is None, "close() releases the handle")
+
+    # ---- a missing file is a warning, not an exception ----
+    app2 = {"cfg": {"ultracheck_db_path": "C:/nonexistent/ultracheck.sqlite"}}
+    lookup_ultracheck.setup(app2)
+    check(app2.get("ultracheck_db") is None,
+          "setup() with a missing file -> None, no raise")
 
 
 def check_location_calc_unit():
@@ -1620,7 +1822,8 @@ def _make_minimal_event_db(tmp):
         json.dumps({"active": "events/test.db"}))
 
 
-def _make_config(tmp, lookup_db_path, prefix_lst_path=None):
+def _make_config(tmp, lookup_db_path, prefix_lst_path=None,
+                 ultracheck_db_path=None):
     cfg = {
         "host": "127.0.0.1", "port": PORT,
         "data_dir": str(tmp), "admin_password": "test-pw",
@@ -1633,11 +1836,17 @@ def _make_config(tmp, lookup_db_path, prefix_lst_path=None):
     }
     if prefix_lst_path is not None:
         cfg["prefix_lst_path"] = str(prefix_lst_path)
+    # Always set, even to a nonexistent path: the default resolves to the real
+    # 91 MB datasets/ultracheck.sqlite, which the suite must never read.
+    cfg["ultracheck_db_path"] = str(
+        ultracheck_db_path if ultracheck_db_path is not None
+        else tmp / "no_ultracheck.sqlite")
     return tmp / "config.json", json.dumps(cfg)
 
 
 async def run_e2e(lookup_db_path, prefix_lst_path=None,
-                  missing_db=False, missing_prefix_lst=False):
+                  missing_db=False, missing_prefix_lst=False,
+                  ultracheck_db_path=None):
     preclean()
     tmp = Path(tempfile.mkdtemp(prefix="haml-lookup-"))
     try:
@@ -1653,7 +1862,8 @@ async def run_e2e(lookup_db_path, prefix_lst_path=None,
         else:
             cp_path = prefix_lst_path
         config_path, body = _make_config(tmp, db_path,
-                                         prefix_lst_path=cp_path)
+                                         prefix_lst_path=cp_path,
+                                         ultracheck_db_path=ultracheck_db_path)
         config_path.write_text(body)
         _make_minimal_event_db(tmp)
 
@@ -1690,6 +1900,20 @@ async def run_e2e(lookup_db_path, prefix_lst_path=None,
                           f"(got {b.get('source')!r})")
                     check(b.get("country") == "United States of America",
                           f"missing-DB W1AW country (got {b.get('country')!r})")
+                    # This run also has no ultracheck DB (no path is ever
+                    # allowed to fall back to the real 91 MB dataset), which
+                    # exercises the degrade path: the key is still there with
+                    # every source present and empty, and `available` says why.
+                    # A missing partial-search dataset must not cost a lookup.
+                    uc = b.get("ultracheck") or {}
+                    check(uc.get("available") is False,
+                          f"no ultracheck DB -> available false "
+                          f"(got {uc.get('available')!r})")
+                    check(set(uc.get("sources") or {}) == set(_UC_SOURCES),
+                          "no ultracheck DB -> every source key still present")
+                    check(all(not s["matches"]
+                              for s in uc["sources"].values()),
+                          "no ultracheck DB -> every match list empty")
                     # Resolvable DX call.
                     status, b = await post_lookup(session, "G4ABC")
                     check(status == 200,
@@ -1870,6 +2094,86 @@ async def run_e2e(lookup_db_path, prefix_lst_path=None,
                 check(body.get("country") == "Canada",
                       f"{ca_call} country=Canada (got {body.get('country')!r})")
 
+                # ---- ultracheck rides along on every response ----
+                # Same object on a hit and on a miss, keyed on what the client
+                # ASKED for. The fixture's W1AW row is the worst by every
+                # metric, so it leading every list is exact-first working.
+                print("ultracheck (hit): W1AW")
+                status, body = await post_lookup(session, "W1AW")
+                check(status == 200, f"W1AW -> 200 (got {status})")
+                uc = body.get("ultracheck") or {}
+                check(uc.get("available") is True,
+                      f"ultracheck available (got {uc.get('available')!r})")
+                check(uc.get("query") == "W1AW",
+                      f"ultracheck echoes the query (got {uc.get('query')!r})")
+                srcs = uc.get("sources") or {}
+                check(set(srcs) == set(_UC_SOURCES),
+                      f"ultracheck has every source key (got {sorted(srcs)})")
+                for name in _UC_SOURCES:
+                    calls = [m["callsign"] for m in srcs[name]["matches"]]
+                    check(calls and calls[0] == "W1AW",
+                          f"ultracheck {name}: exact match leads (got {calls})")
+                    check("K9XYZ" not in calls,
+                          f"ultracheck {name}: non-matching call absent")
+                # Per-source ordering, once exact-first has had its say. The
+                # expected list is the FULL fixture order clipped to whatever
+                # that source's limit is currently set to, so tuning
+                # SOURCE_LIMITS doesn't invalidate these — the limits are meant
+                # to be tuned, and a test that hardcodes them just breaks.
+                _uc_expect(srcs, "fd", ["W1AW", "W1AWX", "KW1AW", "W1AWZZ"],
+                           "newest year first after the exact match")
+                _uc_expect(srcs, "wfd", ["W1AW", "W1AWX", "KW1AW", "W1AWZZ"],
+                           "newest year first after the exact match")
+                _uc_expect(srcs, "pota_hunter",
+                           ["W1AW", "W1AWX", "KW1AW", "W1AWZZ"],
+                           "most QSOs first")
+                _uc_expect(srcs, "pota_activator",
+                           ["W1AW", "W1AWX", "KW1AW", "W1AWZZ"],
+                           "most activations first")
+                _uc_expect(srcs, "lotw",
+                           ["W1AW", "W1AWX", "KW1AW", "W1AWZZ", "W1AWB",
+                            "W1AWA"],
+                           "most recent upload first")
+                # W1AWQ is a Club Log member with no last QSO: last, not gone.
+                _uc_expect(srcs, "clublog",
+                           ["W1AW", "W1AWX", "KW1AW", "W1AWZZ", "W1AWQ"],
+                           "most recent QSO first, null date last")
+                # SCP is membership-only: shortest call, then best-attested.
+                _uc_expect(srcs, "scp", ["W1AW", "KW1AW", "W1AWX", "W1AWZZ"],
+                           "shortest then best-attested")
+                # The metric rides along with the match and is what was sorted on.
+                check([m["value"] for m in srcs["pota_hunter"]["matches"]][:4]
+                      == [1, 999, 500, 250],
+                      f"ultracheck pota_hunter: value is the QSO count "
+                      f"(got {[m['value'] for m in srcs['pota_hunter']['matches']]})")
+                check(all(m["value"] is None for m in srcs["scp"]["matches"]),
+                      "ultracheck scp: membership-only, so every value is null")
+                check(srcs["clublog"]["matches"][-1]["value"] is None
+                      if len(srcs["clublog"]["matches"]) == 5 else True,
+                      "ultracheck clublog: the last match is the null-date one")
+
+                # A half-typed callsign — the case the feature exists for. No
+                # row equals "1AW", so nothing is forced to the top and each
+                # source's own ordering is on show unmodified.
+                # (The chain itself may well resolve this: CallParser reads
+                # "1A" as a real prefix. Whether it does is beside the point —
+                # ultracheck runs either way, which is what's asserted here.)
+                print("ultracheck (partial term): 1AW")
+                status, body = await post_lookup(session, "1AW")
+                check(status == 200, f"partial 1AW -> 200 (got {status})")
+                uc = body.get("ultracheck") or {}
+                check(uc.get("query") == "1AW", "ultracheck ran on the partial")
+                # W1AW is no longer forced to the front, so fd is pure year
+                # order and its 2010 row falls to last.
+                _uc_expect(uc["sources"], "fd",
+                           ["W1AWX", "KW1AW", "W1AWZZ", "W1AW"],
+                           "no exact match, so pure year order")
+                # scp: shortest first, then source_count desc within a length
+                # tie (KW1AW knows 7 sources, W1AWX 6).
+                _uc_expect(uc["sources"], "scp",
+                           ["W1AW", "KW1AW", "W1AWX", "W1AWZZ"],
+                           "by length then source_count, no exact match")
+
                 # ---- cold unknown call: a miss is a 200, not a 404 ----
                 # The full record shape with found:false, so the client reads
                 # one field instead of branching on a status code.
@@ -1884,6 +2188,14 @@ async def run_e2e(lookup_db_path, prefix_lst_path=None,
                       f"a miss still echoes the callsign "
                       f"(got {body.get('callsign')!r})")
                 _check_miss_shape(body, "ZZZZZZ")
+                # A miss still carries a searched ultracheck object — the case
+                # the whole integration exists for. Nothing in the fixture
+                # contains "ZZZZZZ", so it's available with empty lists.
+                uc = body["ultracheck"]
+                check(uc["available"] is True and uc["query"] == "ZZZZZZ",
+                      "a lookup miss still ran an ultracheck search")
+                check(all(not s["matches"] for s in uc["sources"].values()),
+                      "ZZZZZZ matches no partial either")
 
                 # ---- bad input: empty ----
                 print("bad input:")
@@ -2078,10 +2390,17 @@ async def main():
     # between e2e runs and would delete the fixture out from under us.
     fixture_path = (Path(tempfile.mkdtemp(prefix="haml-fixture-"))
                     / "lookup_data.sqlite")
+    uc_fixture_path = fixture_path.parent / "ultracheck.sqlite"
     try:
         build_fixture(fixture_path)
+        build_ultracheck_fixture(uc_fixture_path)
+        # Needs its fixture on disk, so it runs here rather than up with the
+        # other offline unit checks; still no server involved.
+        print("unit: ultracheck:")
+        check_ultracheck_unit(uc_fixture_path)
         # Real Prefix.lst + lookup fixture: the new e2e CP cases run here.
-        await run_e2e(fixture_path, missing_db=False)
+        await run_e2e(fixture_path, missing_db=False,
+                      ultracheck_db_path=uc_fixture_path)
         # Missing-DB, real Prefix.lst: CP must rescue every resolvable call.
         await run_e2e(fixture_path, missing_db=True)
         # Missing-DB + missing-CP: behavior matches today's exactly

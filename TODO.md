@@ -14,7 +14,6 @@ Location-based improvements:
 
 Ultracheck (super check partial with some extra context-aware sources)
 - History of FD, WFD, POTA Hunters & Activators, LOTW user list, Clublog list, Contest SuperCheck
-- Implement to existing callsign lookup serverside
 - Display on client-side
 
 Digital integration shim

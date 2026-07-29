@@ -6,5 +6,6 @@
   "lookup_db_path": "datasets/lookup_data.sqlite",
   "lookup_db_max_age_days": 30,
   "prefix_lst_path": "datasets/Prefix.lst",
+  "ultracheck_db_path": "datasets/ultracheck.sqlite",
   "auto_backup_interval_minutes": 15
 }

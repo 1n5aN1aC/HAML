@@ -162,7 +162,7 @@ LONGPOLL_TIMEOUT_S = 15
 def _not_found_response(app, callsign):
     record, _ = lookup_record.coerce({"callsign": callsign})
     return web.json_response(
-        lookup_postprocess.apply(app, record, found=False))
+        lookup_postprocess.apply(app, record, found=False, callsign=callsign))
 
 
 async def post_lookup(request):
@@ -231,7 +231,8 @@ async def post_lookup(request):
     if cached is not None:
         if cached["status"] == lookup_cache.STATUS_OK:
             return web.json_response(lookup_postprocess.apply(
-                request.app, json.loads(cached["payload"]), entry=entry))
+                request.app, json.loads(cached["payload"]), entry=entry,
+                callsign=callsign))
         if cached["status"] == lookup_cache.STATUS_NOT_FOUND:
             return _not_found_response(request.app, callsign)
         # status == error
@@ -248,7 +249,8 @@ async def post_lookup(request):
         return json_error(408, "lookup timed out")
     if result["status"] == lookup_cache.STATUS_OK:
         return web.json_response(
-            lookup_postprocess.apply(request.app, result["payload"], entry=entry))
+            lookup_postprocess.apply(request.app, result["payload"], entry=entry,
+                                     callsign=callsign))
     if result["status"] == lookup_cache.STATUS_NOT_FOUND:
         return _not_found_response(request.app, callsign)
     return json_error(502, result["error"] or "upstream lookup failed")
