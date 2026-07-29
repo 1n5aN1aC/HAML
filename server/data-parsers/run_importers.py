@@ -14,6 +14,10 @@ costs another its data:
         cq_zones, itu_zones, dxcc_entities          importer_zones.py
                           CQ/ITU zone and DXCC entity polygons (+R*Tree)
 
+One step in the menu is not an importer of that database: ultracheck builds its
+own ultracheck.sqlite from six public callsign sources (ultracheck_update.py).
+It is here because it is the same weekly refresh, run from the same menu.
+
 Importers are run IN THIS PROCESS: the menu imports the module and calls its
 run(), which is the same thing as a flagless command-line run of that script.
 Each importer is therefore expected to expose run() and to signal failure by
@@ -21,10 +25,10 @@ raising SystemExit with a message - which is what sys.exit() in its phases
 already does. Anything else it raises is caught here too, so a bug in one
 importer returns you to the menu rather than ending the session.
 
-The database is built here, not where the server reads it: an import takes hours
-and the server should stay on the last good copy for all of them. The finished
-file is copied to ../datasets/lookup_data.sqlite - automatically at the end of
-`run all`, or on its own from the menu.
+The databases are built here, not where the server reads them: an import takes
+hours and the server should stay on the last good copy for all of them. Both
+finished files are copied into ../datasets/ - automatically at the end of
+`run all`, or on their own from the menu.
 
 Every importer shares three directories under this one:
 
@@ -56,10 +60,13 @@ DOWNLOADS_DIR = os.path.join(HERE, "downloads")
 CACHES_DIR = os.path.join(HERE, "caches")
 LOGS_DIR = os.path.join(HERE, "logs")
 DB_PATH = os.path.join(HERE, "lookup_data.sqlite")
+ULTRACHECK_DB_PATH = os.path.join(HERE, "ultracheck.sqlite")
 
-# Where the server reads the database from.
+# Where the server reads the databases from.
 # Building in place here and copies when a run is completes
 SERVER_DB_PATH = os.path.join(HERE, os.pardir, "datasets", "lookup_data.sqlite")
+SERVER_ULTRACHECK_DB_PATH = os.path.join(HERE, os.pardir, "datasets",
+                                         "ultracheck.sqlite")
 
 
 # --------------------------------------------------------------------------- #
@@ -91,14 +98,16 @@ IMPORTERS = [
              "    (~30 seconds)"),
 ]
 
-# Menu numbering: 1 runs everything, importers start at 2, and the copy to the
-# server is the key after the last importer.
+# Menu numbering: 1 runs everything, importers start at 2, and the two steps
+# that are not importers take the keys after the last one.
 FIRST_IMPORTER_KEY = 2
-DEPLOY_KEY = FIRST_IMPORTER_KEY + len(IMPORTERS)
+ULTRACHECK_KEY = FIRST_IMPORTER_KEY + len(IMPORTERS)
+DEPLOY_KEY = ULTRACHECK_KEY + 1
 
-# Only needs a label: it is not an importer and owns no table, but it appears in
-# the same menu and the same summary.
-DEPLOY_LABEL = "Copy database to the server"
+# These only need a label: neither is an importer and neither owns a table in
+# lookup_data.sqlite, but both appear in the same menu and the same summary.
+DEPLOY_LABEL = "Copy databases to the server"
+ULTRACHECK_LABEL = "Ultracheck call database"
 
 
 def run_importer(imp):
@@ -150,26 +159,27 @@ def vacuum():
         con.close()
 
 
-def deploy():
-    """Copy the finished database to where the server reads it.
+def copy_db(src, dest):
+    """Copy one finished database to where the server reads it.
 
     Written to a temporary file alongside the destination and moved into place,
     so a copy interrupted half way through cannot leave the server a truncated
-    database. Returns 'ok' or 'failed'; like an importer, it reports rather than
+    database. Returns True/False; like an importer it reports rather than
     raises, so `run all` still reaches its summary.
     """
-    dest = os.path.abspath(SERVER_DB_PATH)
-    print(f"\n{'=' * 70}\n  Copying to {dest}\n{'=' * 70}")
-    if not os.path.exists(DB_PATH):
-        print("  Nothing to copy: lookup_data.sqlite does not exist yet.")
-        return "failed"
+    dest = os.path.abspath(dest)
+    print(f"\n  Copying to {dest}")
+    if not os.path.exists(src):
+        print(f"  Nothing to copy: {os.path.basename(src)} does not exist yet.")
+        return False
 
     tmp = dest + ".new"
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        size = os.path.getsize(DB_PATH)
-        print(f"  {size / 1e9:,.2f} GB ...")
-        shutil.copyfile(DB_PATH, tmp)
+        size = os.path.getsize(src)
+        print(f"  {size / 1e9:,.2f} GB ..." if size >= 1e9
+              else f"  {size / 1e6:,.0f} MB ...")
+        shutil.copyfile(src, tmp)
         # Replacing an open file fails on Windows: SQLite opens without
         # FILE_SHARE_DELETE, so a running server holds the old database down.
         os.replace(tmp, dest)
@@ -180,9 +190,52 @@ def deploy():
             os.remove(tmp)
         except OSError:
             pass
-        return "failed"
+        return False
     print("  Done.")
-    return "ok"
+    return True
+
+
+def deploy():
+    """Copy both finished databases to where the server reads them.
+
+    Both are attempted even if the first fails - they are independent files and
+    a stale one is no reason to leave the other stale too. Returns 'ok' only if
+    both arrived.
+    """
+    print(f"\n{'=' * 70}\n  {DEPLOY_LABEL}\n{'=' * 70}")
+    results = [copy_db(DB_PATH, SERVER_DB_PATH),
+               copy_db(ULTRACHECK_DB_PATH, SERVER_ULTRACHECK_DB_PATH)]
+    return "ok" if all(results) else "failed"
+
+
+def run_ultracheck():
+    """Build ultracheck.sqlite, the partial-callsign search database.
+
+    A flagless run of ultracheck_update.py: fetch all six sources and merge them
+    in. The build is accumulative and never deletes, so this is safe to repeat;
+    only its own --rebuild is destructive, and that is not offered here.
+
+    It reports its own per-source failures and returns non-zero when any of them
+    failed, so like an importer this returns 'ok'/'failed' rather than raising.
+    """
+    print(f"\n{'=' * 70}\n  {ULTRACHECK_LABEL}  ->  ultracheck.sqlite\n{'=' * 70}")
+    t0 = time.time()
+    try:
+        mod = importlib.import_module("ultracheck_update")
+        code = mod.main([])
+    except KeyboardInterrupt:
+        raise
+    except ImportError as e:
+        print(f"\n  {ULTRACHECK_LABEL} FAILED: {e}")
+        print("  A required package is missing. Install the requirements:")
+        print("    python -m pip install -r requirements.txt")
+        return "failed"
+    except Exception:
+        print(f"\n  {ULTRACHECK_LABEL} FAILED with an unexpected error:")
+        traceback.print_exc()
+        return "failed"
+    print(f"\n  {ULTRACHECK_LABEL}: finished in {(time.time() - t0) / 60:,.1f} min")
+    return "ok" if code == 0 else "failed"
 
 
 def run_all():
@@ -200,9 +253,22 @@ def run_all():
             break
 
     vacuum()
-    # Not offered as a question: a finished `run all` is exactly when the server
-    # should get the new database. An interrupted one is not finished, so the
-    # server keeps the copy it has.
+
+    # Outside the interrupted check: it builds its own database and shares
+    # nothing with the importers above, so an abandoned lookup_data run is no
+    # reason to skip it.
+    try:
+        results.append((ULTRACHECK_LABEL, run_ultracheck()))
+    except KeyboardInterrupt:
+        print("\n\n  Ctrl-C: stopping. ultracheck.sqlite keeps whatever the "
+              "last finished build left in it.")
+        # Does not stop the copy below: that publishes lookup_data.sqlite,
+        # which this step never touches.
+        results.append((ULTRACHECK_LABEL, "interrupted"))
+
+    # Last, and not offered as a question: a finished `run all` is exactly when
+    # the server should get the new database. An interrupted one is not
+    # finished, so the server keeps the copy it has.
     if interrupted:
         print(f"\n  Not copying to the server: the run did not finish. "
               f"Use option {DEPLOY_KEY} when it does.")
@@ -236,6 +302,8 @@ def menu():
         print(f"   {key}  {imp.label}")
         if imp.note:
             print(f"      {imp.note}")
+    print(f"   {ULTRACHECK_KEY}  {ULTRACHECK_LABEL}")
+    print("          (~1 minute)")
     print(f"   {DEPLOY_KEY}  {DEPLOY_LABEL}")
     print("          (done automatically at the end of option 1)")
     print("   q  Quit")
@@ -262,6 +330,15 @@ def main():
             return 0
         if choice == "1":
             run_all()
+            continue
+        if choice == str(ULTRACHECK_KEY):
+            try:
+                outcome = run_ultracheck()
+            except KeyboardInterrupt:
+                print("\n\n  Ctrl-C: stopped. ultracheck.sqlite keeps whatever "
+                      "the last finished build left in it.")
+                continue
+            summary([(ULTRACHECK_LABEL, outcome)])
             continue
         if choice == str(DEPLOY_KEY):
             summary([(DEPLOY_LABEL, deploy())])

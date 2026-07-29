@@ -20,6 +20,7 @@ server/datasets/lookup_data.sqlite
 
 # dataparser files which should not be commited:
 server/data-parsers/lookup_data.sqlite
+server/data-parsers/ultracheck.sqlite
 server/data-parsers/caches
 server/data-parsers/downloads
 server/data-parsers/logs
