@@ -231,9 +231,17 @@ present, `null` when unknown:
 `continent`, `latitude`, `longitude`, `gridsquare`, `itu_zone`, `cq_zone`, `dxcc`,
 `frn`, `grant_date`, `expiry_date`
 
-plus `distance` — kilometers from the Event's operating position, added at request time
-and `null` when either end has no coordinates. It is deliberately not part of the stored
-record: it depends on which Event is active, so it must never freeze into a cache row.
+plus `found` — `true` when a source knew the callsign, `false` when none did — and
+`distance`, kilometers from the Event's operating position, added at request time and
+`null` when either end has no coordinates. Neither is part of the stored record:
+`distance` depends on which Event is active and `found` describes the request rather
+than the callsign, so neither must ever freeze into a cache row.
+
+**A miss is a `200`, not a `404`.** The lookup succeeded; "no source knew this callsign"
+is a legitimate answer to it. The body is the full record shape with `found: false` and
+every field except `callsign` `null`, so a client that merges nulls as no-ops needs no
+miss branch at all — read `found` when you want to say something about it, ignore it
+otherwise. Only a genuine failure gets a non-2xx.
 
 Types are normalized before you see them: empty strings become `null`, strings are
 stripped, `license_type`/`license_class`/`previous_license_class` are lowercased,
@@ -243,7 +251,6 @@ USPS code, and `gridsquare` is a 4-character Maidenhead grid. `continent` is pas
 through as the source wrote it, conventionally uppercase. A value that's present but
 won't coerce lands as `null` rather than a surprise — and shortens the cache row's TTL.
 
-- `404` — no source knew the callsign.
 - `408` — the long-poll ceiling (15s) elapsed. Nothing is cached; retry freely.
 - `400` — body isn't JSON, or `callsign` is missing or empty after normalization.
 - `502` — every source missed and at least one errored; the message is the first

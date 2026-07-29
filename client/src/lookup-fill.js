@@ -6,6 +6,9 @@
 // (or in state's case, code-validates) each value it consumes. Returns `{}`
 // for anything unusable so callers can merge it blindly.
 //
+// A miss is one of those unusable inputs, not an error: the server returns 200
+// with `found: false` and every field null, so it falls out as `{}` here
+//
 // Provider-agnostic: no upstream name appears anywhere here. The record is
 // the contract; whichever adapter the server talks to today is irrelevant.
 //
@@ -25,8 +28,9 @@
 
 // True when the text looks like a callsign the lookup might know about.
 // At least 2 trimmed characters — a 1-char or blank input is wasted server
-// work, and a 404 on any garbage is cheap. The server still rejects anything
-// that isn't a real callsign, so the gate here is just plausibility, not validity.
+// work, and a miss on any garbage is cheap (a 200 with `found: false`). The
+// server still declines anything that isn't a real callsign, so the gate here
+// is just plausibility, not validity.
 export function isPlausibleCallsign(s) {
   return typeof s === 'string' && s.trim().length >= 2
 }

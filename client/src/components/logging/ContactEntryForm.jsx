@@ -270,8 +270,10 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
 
   // Fire an async server callsign-lookup POST and apply the patch on success.
   // The only callsign-lookup the form drives. Skips non-plausible callsigns
-  // and silently swallows every rejection (404/408/502 plus network errors):
+  // and silently swallows every rejection (408/502 plus network errors):
   // enrichment is best-effort, never blocks.
+  // A miss is not a rejection — it resolves as a 200 with `found: false` and an
+  // otherwise-null record, which yields an empty patch and merges as a no-op.
   // Race guard: if the operator has changed the callsign since the request fired, the response is dropped.
   // Skip duplicate (callsign, entry) requests, even if the previous one failed.
   function fireServerLookup(call) {

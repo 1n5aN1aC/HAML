@@ -122,10 +122,13 @@ async def _run_source(source, app, callsign):
 # prefix DB), but it must not vanish either (a missing dataset that silently
 # reads as "callsign not found" is a support nightmare). So we remember the
 # FIRST error and return it only if nothing below resolves — which is exactly
-# the 502-vs-404 split the client already sees:
-#   any source OK                     -> 200
-#   all miss, none errored            -> 404
+# the split the client already sees:
+#   any source OK                     -> 200 + the record
+#   all miss, none errored            -> 200 + an all-null record, found: false
 #   all miss, at least one errored    -> 502 with the first error's message
+# Only the last of those is an HTTP error: a miss is a legitimate answer to the
+# request, a broken dataset is not. The chain's own STATUS_NOT_FOUND is
+# unchanged — it still means "no source knew this"; api_rest renders it as a 200.
 def _cache_write(app, callsign, source, result):
     """Persist an OK result when its source is a caching one.
 

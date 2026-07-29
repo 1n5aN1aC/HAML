@@ -16,7 +16,8 @@ then walks POST /api/lookup:
   - cold Amateur Club: 200, license_type "club", entity_name
   - PO-box-only licensee: address_line1 == "PO BOX 123"
   - NULL coordinates: 200, latitude/longitude None, zones None
-  - cold unknown call (no prefix match either): 404
+  - cold unknown call (no prefix match either): 200 with found:false and an
+    otherwise-null record — a miss is an answer, not an HTTP error
   - DX call (G4ABC, not in the FCC fixture): 200 via CallParser —
     source "callparser", DXCC-level fields only, US-only fields null,
     distance from entity-center coords
@@ -97,6 +98,23 @@ def check(condition, label):
     print(f"  ok: {label}")
 
 
+# A miss body must be the SAME wire shape as a hit — that is the whole reason
+# it can be a 200 — so it is asserted structurally rather than field by field:
+# every canonical field present, every one null but `callsign`, and the
+# request-time extras there too. A client merging this record must find nothing
+# in it to fill, so a single stray non-null value is a real failure.
+def _check_miss_shape(body, callsign):
+    missing = [f for f in lookup_record.FIELDS if f not in body]
+    check(not missing,
+          f"miss body has every canonical field (missing {missing})")
+    non_null = {f: body[f] for f in lookup_record.FIELDS
+                if f != "callsign" and body.get(f) is not None}
+    check(not non_null,
+          f"miss body is null but for the callsign (got {non_null})")
+    for extra in ("found", "distance", "pota_park"):
+        check(extra in body, f"miss body has the {extra} extra")
+
+
 # --- fixture ---------------------------------------------------------------
 # Mirror of the production operator-table schema (see server/datasets/README.md).
 # Both `fcc_operators` and `ca_operators` share this layout, so the template
@@ -144,7 +162,7 @@ CREATE TABLE {table} (
 #   N0GEO: no coordinates
 FCC_FIXTURE = [
     # W1AW: Individual, has coords + previous_callsign (KG7WKU is NOT a row
-    # in the table — proves a 404 for a "previous" value). entity_name is
+    # in the table — proves a miss for a "previous" value). entity_name is
     # "MONKS, WILLIAM S" — proves the adapter builds the name from the
     # component fields, not the entity column (which would feed the client
     # the wrong first token).
@@ -636,6 +654,27 @@ def check_postprocess_unit():
     check(out["cq_zone"] is None and out["itu_zone"] is None,
           "no coords -> zones stay None")
 
+    # ---- found ----
+    # Defaults True: every caller that has a record to hand over has a hit,
+    # so a source's OK never has to say so. Only the miss path passes False.
+    out = lookup_postprocess.apply({}, record)
+    check(out["found"] is True, "apply() stamps found=true by default")
+    out = lookup_postprocess.apply({}, record, found=False)
+    check(out["found"] is False, "apply(found=False) stamps found=false")
+    check("found" not in record, "found is not written back into the input")
+
+    # An all-null record through apply() is the miss shape api_rest returns:
+    # every canonical field null, `found` false, extras present. Asserted here
+    # too so a break shows up as a unit failure, not only as an e2e one.
+    blank, _ = lookup_record.coerce({"callsign": "ZZZZZZ"})
+    out = lookup_postprocess.apply({}, blank, found=False)
+    check(out["found"] is False and out["distance"] is None
+          and out["pota_park"] is None,
+          "blank record -> found false, distance and pota_park null")
+    leaked = {f: out[f] for f in lookup_record.FIELDS
+              if f != "callsign" and out.get(f) is not None}
+    check(not leaked, f"blank record derives nothing (got {leaked})")
+
 
 def check_location_calc_unit():
     """Verify lookup_location_calc's derivations against the shipped dataset.
@@ -986,12 +1025,12 @@ async def check_chain_fallthrough_unit():
         check(result["error"] == "dataset unavailable",
               f"chain: the FIRST error surfaces (got {result['error']!r})")
 
-        # ---- all miss, none errored -> NOT_FOUND (404) ----
+        # ---- all miss, none errored -> NOT_FOUND (a 200, found:false) ----
         lookup.SOURCES = (_stub("a", lookup_cache.STATUS_NOT_FOUND),
                           _stub("b", lookup_cache.STATUS_NOT_FOUND))
         result = await lookup._run_lookup(app, "ZZZZZZ")
         check(result["status"] == lookup_cache.STATUS_NOT_FOUND,
-              "chain: all-miss-no-error -> NOT_FOUND (404)")
+              "chain: all-miss-no-error -> NOT_FOUND")
 
         # ---- a source that raises presents as ERROR, chain continues ----
         boom = type(sys)("stub_boom")
@@ -1446,7 +1485,7 @@ def check_callparser_unit():
     # ---- not-ready setup FIRST: lookup returns STATUS_NOT_FOUND, not ERROR.
     # The chain treats not-ready the same as a miss so the caller's prior
     # FCC status decides the response (FCC error + CP not-ready = 502;
-    # FCC miss + CP not-ready = 404). Must run before any successful load
+    # FCC miss + CP not-ready = found:false). Must run before any successful load
     # because callparser.init() short-circuits on a process-global
     # _loaded flag — once a successful load has happened, a bad-path
     # setup() can't reproduce the not-ready state.
@@ -1588,8 +1627,8 @@ def _make_config(tmp, lookup_db_path, prefix_lst_path=None):
         # One path for both offline licensee sources: the fixture carries
         # `fcc_operators` and `ca_operators` exactly as production does. The
         # CA table is a clean NOT_FOUND for the US/garbage calls these e2e
-        # cases probe, preserving the 404/502 fall-through — never an
-        # "unavailable" error that would turn an expected 404 into a 502.
+        # cases probe, preserving the miss/502 fall-through — never an
+        # "unavailable" error that would turn an expected miss into a 502.
         "lookup_db_path": str(lookup_db_path),
     }
     if prefix_lst_path is not None:
@@ -1679,6 +1718,8 @@ async def run_e2e(lookup_db_path, prefix_lst_path=None,
                 status, body = await post_lookup(session, "W1AW")
                 cold_ms = (time.monotonic() - t0) * 1000
                 check(status == 200, f"cold W1AW -> 200 (got {status})")
+                check(body.get("found") is True,
+                      f"W1AW found=true (got {body.get('found')!r})")
                 check(body.get("callsign") == "W1AW",
                       f"W1AW callsign (got {body.get('callsign')!r})")
                 check(body.get("name") == "JOSHUA D VILLWOCK",
@@ -1829,12 +1870,20 @@ async def run_e2e(lookup_db_path, prefix_lst_path=None,
                 check(body.get("country") == "Canada",
                       f"{ca_call} country=Canada (got {body.get('country')!r})")
 
-                # ---- cold unknown call ----
+                # ---- cold unknown call: a miss is a 200, not a 404 ----
+                # The full record shape with found:false, so the client reads
+                # one field instead of branching on a status code.
                 print("cold unknown call:")
                 status, body = await post_lookup(session, "ZZZZZZ")
-                check(status == 404, f"unknown ZZZZZZ -> 404 (got {status})")
-                check("error" in body,
-                      "404 body has error field")
+                check(status == 200, f"unknown ZZZZZZ -> 200 (got {status})")
+                check(body.get("found") is False,
+                      f"ZZZZZZ found=false (got {body.get('found')!r})")
+                check("error" not in body,
+                      "a miss body carries no error field")
+                check(body.get("callsign") == "ZZZZZZ",
+                      f"a miss still echoes the callsign "
+                      f"(got {body.get('callsign')!r})")
+                _check_miss_shape(body, "ZZZZZZ")
 
                 # ---- bad input: empty ----
                 print("bad input:")
@@ -1956,13 +2005,15 @@ async def run_e2e(lookup_db_path, prefix_lst_path=None,
 
                 # ---- CallParser rejects a callsign that has no prefix
                 # match (digit-leading, too short, etc). FCC hop also
-                # misses (not in fixture) -> CP miss -> 404. The chain
-                # returns the ORIGINAL FCC result on a miss so today
+                # misses (not in fixture) -> CP miss -> found:false. The
+                # chain returns the ORIGINAL FCC result on a miss so today
                 # behavior is preserved.
-                print("CallParser miss -> 404:")
+                print("CallParser miss -> found:false:")
                 status, body = await post_lookup(session, "123ABC")
-                check(status == 404, f"123ABC -> 404 (got {status})")
-                check("error" in body, "404 body has error field")
+                check(status == 200, f"123ABC -> 200 (got {status})")
+                check(body.get("found") is False,
+                      f"123ABC found=false (got {body.get('found')!r})")
+                _check_miss_shape(body, "123ABC")
 
                 # ---- Portable suffix resolves via CallParser ----
                 # EA8/W1AW: prefix DB parses "EA8" as the prefix

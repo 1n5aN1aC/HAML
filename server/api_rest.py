@@ -14,6 +14,7 @@ import events
 import lookup
 import lookup_cache
 import lookup_postprocess
+import lookup_record
 import templates
 
 
@@ -152,13 +153,28 @@ async def get_chat(request):
 
 LONGPOLL_TIMEOUT_S = 15
 
+# The wire shape for a callsign no source knew: the canonical record with every
+# field null but `callsign`, `found: false`
+#
+# `entry` is deliberately not forwarded: with no record to override, the only
+# thing post-processing could derive is what the operator already typed, and
+# handing that back is a feature of its own, not part of the miss shape.
+def _not_found_response(app, callsign):
+    record, _ = lookup_record.coerce({"callsign": callsign})
+    return web.json_response(
+        lookup_postprocess.apply(app, record, found=False))
+
 
 async def post_lookup(request):
     """Look up a callsign, returning the cached or fresh result.
     The 200 response body is the canonical record from `lookup_record`, plus
-    the request-time fields `lookup_postprocess` adds (today: `distance` and
-    `pota_park`), which are always present and null when they have nothing to say.
+    the request-time fields `lookup_postprocess` adds (today: `found`, `distance`
+    and `pota_park`), which are always present and null when they have nothing to say.
     The client can trust its field names, types, and value sets without validating.
+
+    A callsign no source knew is a 200 too, with `found: false` and every other
+    record field null — see `_not_found_response`. Only a genuine failure
+    (a broken dataset, a timeout, a malformed request) gets a non-2xx.
 
     Request body is `{"callsign": ...}` plus an optional `entry` object: the
     entry-form fields the operator has typed into by hand, raw. Unknown keys
@@ -181,7 +197,7 @@ async def post_lookup(request):
 
     Cache-first, then long-poll for misses:
       - cache hit ok         -> 200 + canonical record, instant
-      - cache hit not_found  -> 404 (no row, no upstream)
+      - cache hit not_found  -> 200 + all-null record, found: false
       - cache hit error      -> 502 (transient upstream failure)
       - cache miss           -> coalesce, run upstream, wait up to 15s
       - timeout (no result in 15s) -> 408 (no cache write; client retries)
@@ -217,7 +233,7 @@ async def post_lookup(request):
             return web.json_response(lookup_postprocess.apply(
                 request.app, json.loads(cached["payload"]), entry=entry))
         if cached["status"] == lookup_cache.STATUS_NOT_FOUND:
-            return json_error(404, "callsign not found")
+            return _not_found_response(request.app, callsign)
         # status == error
         return json_error(502, cached["error"] or "upstream lookup failed")
 
@@ -234,7 +250,7 @@ async def post_lookup(request):
         return web.json_response(
             lookup_postprocess.apply(request.app, result["payload"], entry=entry))
     if result["status"] == lookup_cache.STATUS_NOT_FOUND:
-        return json_error(404, "callsign not found")
+        return _not_found_response(request.app, callsign)
     return json_error(502, result["error"] or "upstream lookup failed")
 
 

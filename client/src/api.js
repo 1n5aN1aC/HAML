@@ -48,10 +48,11 @@ export function getContacts(since) {
 
 // Look up a callsign via the server's lookup endpoint (cached, coalesced, long-polled upstream).
 // The 200 body is the canonical record shape defined by server/lookup_record.py:
-// flat keys, null for absent values. request() throws with err.status on 4xx/5xx:
-// 404 = not found,
+// flat keys, null for absent values.
+//
+// A callsign no source knew returns `found: false`
 // 408 = long-poll timeout,
-// 502 = upstream error.
+// 502 = upstream error (e.g. a missing dataset).
 //
 // Optional `entry` contains raw operator-edited fields for post-processing.
 // It is omitted when empty and currently does not affect the lookup result.

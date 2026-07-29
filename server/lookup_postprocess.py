@@ -10,11 +10,15 @@ point:
   - request-relative values (distance depends on the ACTIVE event's
     operating position) never get frozen into a row that outlives the event.
 
+`apply()` also runs on a miss, over an all-null record, so that a callsign no
+source knew answers with the same wire shape as one that resolved. `found`
+is what tells the two apart.
+
 Input is the canonical record (`lookup_record.FIELDS`). Output is the wire
 shape: those fields, possibly filled in further, plus request-time extras
-that are deliberately not part of the storage contract (today: `distance`
-and `pota_park`). Every extra is always present, null when it has nothing to
-say, so the client reads them exactly like the canonical fields.
+that are deliberately not part of the storage contract (today: `found`,
+`distance` and `pota_park`). Every extra is always present, null when it has
+nothing to say, so the client reads them exactly like the canonical fields.
 The input record is never mutated.
 
 This is where the location-derivation work in TODO.md belongs — deriving a
@@ -78,8 +82,14 @@ def _overridden(entry, record, field):
 
 # Canonical record in, response record out. Never mutates the input.
 # `entry` contains raw operator-edited fields for request-time derivations.
-def apply(app, record, entry=None):
+# `found` is False when no source knew the callsign — see the note below.
+def apply(app, record, entry=None, found=True):
     out = dict(record)      # Load the record
+    # Did any source know this callsign? A miss is otherwise indistinguishable
+    # from a hit whose every field happened to be null.
+    # This field that tells them apart — and the reason a miss can be a 200 at all.
+    # Here rather than in lookup_record.FIELDS as it describes the outcome of a request
+    out["found"] = bool(found)
     out["pota_park"] = None # Ensure wire shape always includes this field
 
     # Fill missing fields (only ITU & cq zones as of today)

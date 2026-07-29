@@ -138,8 +138,10 @@ licensee hits and before the prefix-DB fallback.
 - **An error falls through but is not forgotten.** A source returning `error` — FCC's sqlite
   missing, an online provider timing out — does not abort the chain, but it does not vanish
   into a `not_found` either. The chain remembers the **first** error and returns it only if
-  nothing below resolves. That yields exactly what the client sees: any OK → 200; all miss,
-  none errored → 404; all miss, at least one errored → 502 with the first error's message. A
+  nothing below resolves. That yields exactly what the client sees: any OK → 200 with the
+  record; all miss, none errored → 200 with an all-null record and `found: false`; all miss,
+  at least one errored → 502 with the first error's message. Only the last is an HTTP error —
+  a miss is an answer, a broken dataset is not, which is the whole point of the split. A
   source that raises is caught and presented as an error, so one broken module cannot take
   the chain down.
 - **Each source declares whether it may be cached**; the dispatcher does the writing. `CACHED`
