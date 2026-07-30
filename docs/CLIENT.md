@@ -83,7 +83,14 @@ the entry form: callsign plus the Template's `entry` fields, with entry-time dup
 - **Feedback** — a running UTC/local clock, the looked-up country and distance beside the
   callsign box, and distinct sounds for a normal log, a DX log, a dupe warning, a rejected
   entry, and an incoming chat message. Distance is always *stored* in kilometers; a display
-  may convert it.
+  may convert it. The operator readout is its own card below the form; below *that*, a second
+  desktop-only **Ultracheck** card lists the contest and activity callsigns containing what's
+  been typed so far, one unwrapped line per source, so a half-typed call can be recognized
+  before it's finished. It holds across keystrokes rather than blanking with the rest of the
+  lookup, and dims while it still reflects an earlier term. It never scrolls — it clips at the
+  card's bottom and right edges, so both the source order and the best-first match order
+  within a source decide what survives; and it omits itself entirely, frame included, when no
+  source matched or the dataset is unavailable.
 
 **Right pane**: online stations with band/mode and last-seen (top); a scrolling chat box
 (middle); a panel toggling between the section map and a compact stats readout (bottom). The

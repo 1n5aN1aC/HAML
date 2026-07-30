@@ -30,6 +30,9 @@ export default function LoggingTab({
   // Server lookup record for the callsign being entered, handed up by the entry
   // form so CallInfo can display it. Null between contacts.
   const [lookup, setLookup] = useState(null)
+  // Ultracheck partial matches from the same lookup, `{ data, stale }` or null.
+  // Separate state because it outlives `lookup` and goes stale instead
+  const [ultracheck, setUltracheck] = useState(null)
 
   // Band-conflict warning: another station (seen within the last 15s) is on
   // our band. No timer — the roster rebroadcasts on every heartbeat (≥ every
@@ -89,8 +92,9 @@ export default function LoggingTab({
             clientUuid={clientUuid}
             disabled={!sessionComplete}
             onLookup={setLookup}
+            onUltracheck={setUltracheck}
           />
-          <CallInfo record={lookup} here={config.location} />
+          <CallInfo record={lookup} here={config.location} ultracheck={ultracheck} />
         </section>
         <aside className="right-pane">
           <StationsPanel

@@ -12,10 +12,6 @@ Location-based improvements:
 - Data source: HamCall (Buckmaster) ($50)
 - Data source: Other online APIs
 
-Ultracheck (super check partial with some extra context-aware sources)
-- History of FD, WFD, POTA Hunters & Activators, LOTW user list, Clublog list, Contest SuperCheck
-- Display on client-side
-
 Digital integration shim
 - Local config
 - Connection to HAML

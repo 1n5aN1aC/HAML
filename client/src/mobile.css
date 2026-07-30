@@ -20,9 +20,12 @@
   .left-pane { min-width: 0; }
   .right-pane { min-width: 0; width: auto; }
 
-  /* entry form above the contact list (the pane's DOM order is list-then-form) */
+  /* entry form above the contact list, with the operator readout right under it
+     feedback on typed, so it follows the form rather than sitting past a 45dvh list */
   .entry-form { order: -1; }
-  .call-info { display: none; }
+  .info-operator { order: -1; }
+  /* the ultracheck block stays desktop-only */
+  .info-ultracheck { display: none; }
 
   /* cap each panel so the column stays navigable; they keep their inner scroll */
   .contact-list { max-height: 45dvh; overflow-x: auto; }

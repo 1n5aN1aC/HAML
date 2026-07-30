@@ -108,7 +108,7 @@ function formatLocalTime(iso) {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export default function ContactEntryForm({ config, session, clientUuid, disabled, onLookup }) {
+export default function ContactEntryForm({ config, session, clientUuid, disabled, onLookup, onUltracheck }) {
   const fields = useMemo(() => resolveEntryFields(config), [config])
   // built-ins with no entry input of their own, reset alongside the entry
   // fields when the callsign is cleared so hidden fills can't leak forward
@@ -160,6 +160,20 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
   // hand the whole thing up and let it decide what to show — the form doesn't
   // need to change again as more of the lookup gets displayed.
   useEffect(() => { onLookup?.(serverRecord) }, [serverRecord, onLookup])
+
+  // Ultracheck survives keystrokes (serverRecord doesn't) so the block isn't
+  // empty during long-poll lookups. Cleared on submit/Escape/empty callsign.
+  const [ultracheck, setUltracheck] = useState(null)
+
+  // Paired with a stale flag: whether the server's normalized query still
+  // matches the live callsign text (only this component has both).
+  useEffect(() => {
+    onUltracheck?.(
+      ultracheck
+        ? { data: ultracheck, stale: ultracheck.query !== callsign.trim().toUpperCase() }
+        : null,
+    )
+  }, [ultracheck, callsign, onUltracheck])
 
   // Soft-keyboard Return label for the field at `orderIndex`
   // (callsign = 0, entry fields 1..N; the last order index is fields.length).
@@ -296,6 +310,8 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
         })
         // Cache the record so the country/distance label can render from it.
         setServerRecord(record)
+        // Ultracheck rides along on the same 200 (docs/API.md, Callsign lookup).
+        if (record?.ultracheck) setUltracheck(record.ultracheck)
       })
       .catch(() => { /* silent miss — see comment above */ })
   }
@@ -381,6 +397,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setError('')
     setDupe(null)
     setServerRecord(null) // drop any stale country/miles label so the next QSO starts blank
+    setUltracheck(null)   // the contact is gone, so the partial-match block goes with it
     lastLookupRef.current = null // next station may repeat this one's callsign; don't suppress its lookup
     // Mirror the cleared callsign box in the live ref so any in-flight server-lookup response is dropped.
     callsignLiveRef.current = ''
@@ -399,6 +416,7 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
     setError('')
     setDupe(null)
     setServerRecord(null) // drop any stale country/miles label
+    setUltracheck(null)   // the contact is gone, so the partial-match block goes with it
     lastLookupRef.current = null
     callsignLiveRef.current = ''
     callsignRef.current?.focus()
@@ -437,6 +455,9 @@ export default function ContactEntryForm({ config, session, clientUuid, disabled
                 if (!next) {
                   setTouched(new Set())
                   setError('')
+                  // Ultracheck survives keystrokes (just dims),
+                  // but an empty box means there's no contact left for it to describe.
+                  setUltracheck(null)
                 }
               }
               setCallsign(next)
